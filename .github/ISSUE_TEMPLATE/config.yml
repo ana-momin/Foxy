@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Setup help
+    url: https://tryfoxy.vercel.app/#/setup
+    about: The setup guide covers Slack, hosting and optional API keys.

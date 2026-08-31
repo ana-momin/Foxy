@@ -1,0 +1,21 @@
+name: New source
+description: Suggest a platform Foxy should monitor
+labels: ["source"]
+body:
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: Bluesky, Product Hunt, Crunchbase...
+    validations: { required: true }
+  - type: textarea
+    id: signal
+    attributes:
+      label: What signal would it add that the current five miss
+    validations: { required: true }
+  - type: textarea
+    id: access
+    attributes:
+      label: How can it be read
+      description: Public page, documented API, paid provider? Foxy only reads public data and never logs in.
+    validations: { required: true }

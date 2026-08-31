@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Tests
+        run: python -m pytest tests -q
+
+      - name: Import every module
+        run: |
+          python - <<'PY'
+          import importlib, pkgutil
+          import app
+          failed = []
+          for m in pkgutil.walk_packages(app.__path__, "app."):
+              try:
+                  importlib.import_module(m.name)
+              except Exception as exc:
+                  failed.append(f"{m.name}: {exc}")
+          if failed:
+              raise SystemExit("failed imports:\n  " + "\n  ".join(failed))
+          print("all modules import cleanly")
+          PY
+
+      - name: Config loads and CLI responds
+        run: |
+          python -c "from app.config import load_rules, active_batch_codes; r=load_rules(); assert r.announcement_phrases and r.veto_phrases; print('batches:', active_batch_codes())"
+          python -m app.cli check

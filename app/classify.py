@@ -60,6 +60,15 @@ _FIRST_PERSON_RE = re.compile(
     re.I,
 )
 
+# A company account announcing itself: the name opens the post and the verb
+# follows it directly, with no describing clause in between. An optional thread
+# marker ("1/") is allowed before the name.
+_SELF_ANNOUNCE_RE = re.compile(
+    r"^\s*(?:\d+/\s*)?"
+    r"[A-Z][\w.&'-]{1,24}(?:\s+[A-Z][\w.&'-]{1,20}){0,2}\s+"
+    r"(?:is|has been|was)\s+(?:now\s+)?(?:backed|accepted|funded|part of)\b"
+)
+
 # Words that look like company names but never are.
 _STOPWORDS = {
     "i", "we", "my", "our", "the", "a", "an", "this", "that", "it", "yc",
@@ -194,11 +203,21 @@ def score_rules(text: str) -> Verdict:
     # "Excited to announce X is in YC" carries no pronoun but is still the
     # founder speaking, so announcement openers count as first person too.
     if not _FIRST_PERSON_RE.search(low):
-        v.confidence = 0.0
-        v.is_announcement = False
-        v.note("no first-person voice - reads as a third-party report")
-        return v
-    v.confidence += 0.08
+        # One exception: a company account announcing itself writes in the
+        # third person - "Nebula Security is now backed by Y Combinator."
+        # The tell is that the company name opens the post and the verb
+        # follows it directly. A news write-up puts a describing clause in
+        # between ("Logical, an AI startup founded by two engineers, has
+        # been accepted..."), which this deliberately will not match.
+        if _SELF_ANNOUNCE_RE.match(text.strip()):
+            v.note("third person, but the company announces itself")
+        else:
+            v.confidence = 0.0
+            v.is_announcement = False
+            v.note("no first-person voice - reads as a third-party report")
+            return v
+    else:
+        v.confidence += 0.08
 
     # Negatives.
     for neg in rules.negative_phrases:

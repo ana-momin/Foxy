@@ -1,0 +1,31 @@
+name: Missed or wrong alert
+description: Foxy alerted on something it shouldn't have, or missed something it should have caught
+labels: ["detection"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Which is it
+      options:
+        - False positive — it alerted and shouldn't have
+        - Missed — it should have alerted and didn't
+        - Wrong verdict — right post, wrong early/confirmed/unverified
+    validations: { required: true }
+  - type: input
+    id: url
+    attributes:
+      label: Link to the post
+      placeholder: https://x.com/someone/status/123...
+    validations: { required: true }
+  - type: textarea
+    id: verdict
+    attributes:
+      label: Output of `python -m app.cli check-post <url>`
+      render: shell
+    validations: { required: true }
+  - type: textarea
+    id: why
+    attributes:
+      label: Why is that wrong
+      placeholder: The author is an investor describing a portfolio company, not a founder.
+    validations: { required: true }

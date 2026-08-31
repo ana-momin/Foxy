@@ -85,6 +85,15 @@ veto_phrases:
   - "read this before"
   - "mistakes to avoid"
   - "the fastest way to"
+  # --- reporting attributions: a write-up about a company, not by it ---
+  - "the company announced"
+  - "the startup announced"
+  - "according to"
+  - "sources say"
+  - "per sources"
+  - "it was announced"
+  - "has announced that"
+  - "reportedly"
   # --- "how I did it" advice framings, all observed live on LinkedIn ---
   - "how i got"
   - "how i finally"

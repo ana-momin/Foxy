@@ -1,0 +1,33 @@
+name: Bug report
+description: Something is not working
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      placeholder: Foxy alerted twice on the same company.
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations: { required: true }
+  - type: textarea
+    id: check
+    attributes:
+      label: Output of `python -m app.cli check`
+      description: This shows what is configured. It contains no secrets.
+      render: shell
+    validations: { required: true }
+  - type: dropdown
+    id: how
+    attributes:
+      label: How are you running it
+      options: [Docker, Python directly, GitHub Actions, Vercel, Other]
+    validations: { required: true }
+  - type: input
+    id: source
+    attributes:
+      label: Which source, if it is source-specific
+      placeholder: yc_directory / launch_yc / speedrun / x / linkedin
