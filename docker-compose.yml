@@ -1,0 +1,25 @@
+# The simplest way to run Bellwether persistently.
+#
+#   cp .env.example .env   # fill in SLACK_BOT_TOKEN and SLACK_TARGET
+#   docker compose up -d
+#
+# That is the whole setup. The named volume keeps the database between
+# restarts, which is what stops the bot re-alerting on companies it has
+# already seen.
+
+services:
+  bellwether:
+    build: .
+    container_name: bellwether
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Keep SQLite on the persistent volume rather than inside the container.
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/bellwether.db}
+    ports:
+      - "8000:8000"
+    volumes:
+      - bellwether-data:/data
+
+volumes:
+  bellwether-data:

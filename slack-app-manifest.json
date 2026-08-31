@@ -1,0 +1,41 @@
+{
+  "display_information": {
+    "name": "Bellwether",
+    "description": "Alerts on new YC and Speedrun companies, and on founders who announce before YC does.",
+    "background_color": "#d14708",
+    "long_description": "Bellwether watches the YC startup directory, Launch YC, the a16z Speedrun directory, X and LinkedIn. It posts an alert the moment a new company appears \u2014 and, more usefully, when a founder announces a YC or Speedrun acceptance that YC has not yet published. Every alert carries the company name, batch, source, description and a link, plus the founder's own words. State is persistent, so nothing is ever reported twice."
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Bellwether",
+      "always_online": true
+    },
+    "slash_commands": [
+      {
+        "command": "/bellwether",
+        "url": "https://REPLACE-WITH-YOUR-PUBLIC-URL/slack/command",
+        "description": "Check monitor status or trigger a scan",
+        "usage_hint": "status | scan",
+        "should_escape": false
+      }
+    ]
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write",
+        "chat:write.public",
+        "im:write",
+        "commands",
+        "links:write",
+        "channels:read",
+        "groups:read"
+      ]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}

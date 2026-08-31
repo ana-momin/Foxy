@@ -1,0 +1,295 @@
+"""Command line entry point.
+
+    python -m app.cli check         # verify configuration, touch nothing
+    python -m app.cli sweep         # run one sweep now
+    python -m app.cli sweep --dry   # ...without posting to Slack
+    python -m app.cli test-alert    # post one sample alert to prove Slack works
+    python -m app.cli status        # per-source health
+    python -m app.cli reset         # wipe local state (asks first)
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import logging
+import os
+import sys
+
+from .config import active_batch_codes, settings
+
+
+def _setup_logging(verbose: bool) -> None:
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(asctime)s  %(levelname)-7s %(name)-22s %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
+# ---------------------------------------------------------------------------
+
+
+def cmd_check(_args) -> int:
+    """Print exactly what is and is not configured, and why it matters."""
+    from .engine import source_modes
+    from .providers.websearch import engine_status
+
+    print("\n  Bellwether configuration\n  " + "-" * 52)
+
+    ok = True
+    if settings.slack_configured():
+        try:
+            from .slack import SlackClient
+
+            info = SlackClient().auth_test()
+            print(f"  Slack           OK    {info.get('team')} / bot {info.get('user')}")
+            print(f"  Target          {settings.slack_target}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"  Slack           FAIL  {exc}")
+            ok = False
+    else:
+        print("  Slack           MISSING   set SLACK_BOT_TOKEN and SLACK_TARGET")
+        print("                            (the bot runs without it in --dry mode)")
+
+    db = settings.database_url
+    print(f"  State           {'sqlite file' if db.startswith('sqlite') else 'postgres'}  {db.split('://')[0]}")
+
+    print("\n  Sources")
+    for name, mode in source_modes().items():
+        flag = "off " if mode == "disabled" else "on  "
+        print(f"    {flag} {name:<20} {mode}")
+
+    print("\n  Free search engines")
+    for name, state in engine_status().items():
+        print(f"         {name:<20} {state}")
+
+    print("\n  Classifier      " + ("Claude " + settings.classifier_model if settings.anthropic_api_key else "rules only (no ANTHROPIC_API_KEY)"))
+    print(f"  Cadence         every {settings.scan_interval_hours}h")
+    print(f"  Alert threshold {settings.min_confidence:.0%}")
+    print(f"  Watching        {', '.join(active_batch_codes())}")
+
+    if settings.pond_access_key and settings.public_base_url:
+        print(f"  Pond agent      {settings.public_base_url}/manifest")
+    else:
+        print("  Pond agent      not configured (optional)")
+
+    print()
+    return 0 if ok else 1
+
+
+def cmd_sweep(args) -> int:
+    if args.dry:
+        os.environ["DRY_RUN"] = "1"
+        settings.dry_run = True
+
+    from .engine import Engine
+
+    started = dt.datetime.now()
+    result = Engine().sweep(force_alerts=args.force)
+    elapsed = (dt.datetime.now() - started).total_seconds()
+
+    print(f"\n  Sweep finished in {elapsed:.1f}s\n  " + "-" * 52)
+    for name, info in result.per_source.items():
+        if info.get("error"):
+            print(f"    FAIL  {name:<20} {info['error'][:60]}")
+        else:
+            print(f"    ok    {name:<20} {info['found']:>4} seen  {info['new']:>3} new")
+
+    print(f"\n  Alerts posted   {len(result.alerts)}")
+    for sig in result.alerts[:15]:
+        kind = "EARLY " if sig.is_early else "listed"
+        print(f"    [{kind}] {(sig.company_name or sig.title)[:28]:<28} {str(sig.batch or '-')[:12]:<12} {sig.source_label}")
+    if result.digest:
+        print(f"  Digest (low confidence)  {len(result.digest)}")
+    print()
+    return 0 if result.ok else 1
+
+
+def cmd_test_alert(_args) -> int:
+    """Post one realistic alert so you can confirm Slack delivery works."""
+    from .models import Signal
+    from .slack import SlackClient, build_alert
+
+    sig = Signal(
+        source="x",
+        external_id="demo-1",
+        title="Acme AI",
+        url="https://x.com/example/status/123456",
+        description=(
+            "We got into YC F26! Solo founder, moving to SF next week to start "
+            "building. Three years of nights and weekends finally paid off."
+        ),
+        company_name="Acme AI",
+        company_url="https://acme.ai",
+        batch="Fall 2026",
+        author_name="Jane Doe",
+        author_handle="janedoe",
+        author_url="https://x.com/janedoe",
+        confidence=0.91,
+        raw={"likes": 2143, "classifier": "rules"},
+    )
+    sig.is_early = True
+    sig.match_reason = "not in YC directory (closest was 62%)"
+
+    blocks, text = build_alert(sig)
+    if not settings.slack_configured():
+        print("  SLACK_BOT_TOKEN / SLACK_TARGET not set. Rendered payload:\n")
+        import json
+
+        print(json.dumps(blocks, indent=2))
+        return 1
+
+    SlackClient().post(blocks, text)
+    print(f"  Posted a sample early-signal alert to {settings.slack_target}")
+    return 0
+
+
+def cmd_check_post(args) -> int:
+    """Run one real post URL through the whole pipeline.
+
+    Useful on its own - somebody forwards you a tweet and you want to know
+    whether it is a genuine early signal - and it is also the honest way to
+    demonstrate the pipeline when search-engine discovery is being throttled.
+    Nothing here is mocked: the post is fetched live, classified, and
+    cross-referenced against the real YC directory.
+    """
+    import re
+
+    from . import crossref
+    from .classify import classify
+    from .engine import Engine
+    from .models import Signal
+    from .providers.x_provider import STATUS_RE, hydrate
+
+    m = STATUS_RE.search(args.url)
+    if not m:
+        print("  Not an X post URL. Expected https://x.com/<user>/status/<id>")
+        return 1
+
+    post = hydrate(m.group(2))
+    if not post:
+        print("  That post is not publicly available (deleted, private, or removed).")
+        return 1
+
+    when = f" — {post.created_at:%Y-%m-%d}" if post.created_at else ""
+    print(f"\n  @{post.author_handle}{when}")
+    print(f"  {post.text[:200]}\n")
+
+    verdict = classify(post.text, author=post.author_handle)
+    print(f"  Announcement : {verdict.is_announcement}  ({verdict.confidence:.0%})")
+    print(f"  Company      : {verdict.company_name or 'not extracted'}")
+    print(f"  Batch        : {verdict.batch or 'not stated'}")
+    print(f"  Reasons      : {'; '.join(verdict.reasons[:3])}")
+
+    if not verdict.is_announcement:
+        print("\n  Not a founder announcement — no alert.\n")
+        return 0
+
+    match = crossref.lookup(verdict.company_name, None, text=post.text)
+    print(f"  YC directory : {match.reason}")
+
+    sig = Signal(
+        source="x",
+        external_id=post.id,
+        title=verdict.company_name or f"@{post.author_handle}",
+        url=post.url,
+        description=post.text.strip(),
+        company_name=verdict.company_name,
+        batch=verdict.batch,
+        program=verdict.program,
+        author_name=post.author_name,
+        author_handle=post.author_handle,
+        author_url=post.author_url,
+        posted_at=post.created_at,
+        confidence=verdict.confidence,
+        raw={"likes": post.likes, "classifier": "llm" if verdict.used_llm else "rules"},
+    )
+    sig.confirmed = match.found
+    sig.is_early = match.is_early
+    sig.match_reason = match.reason
+
+    kind = "EARLY SIGNAL" if sig.is_early else ("confirmed" if match.found else "unverified")
+    print(f"  Verdict      : {kind}\n")
+
+    if args.post:
+        from .db import init_db
+        from .slack import SlackClient, build_alert
+
+        init_db()
+        blocks, text = build_alert(sig)
+        SlackClient().post(blocks, text)
+        print(f"  Posted to {settings.slack_target}\n")
+    return 0
+
+
+def cmd_status(_args) -> int:
+    from .db import health_snapshot, init_db, session
+    from .engine import source_modes
+
+    init_db()
+    with session() as s:
+        snap = health_snapshot(s)
+
+    print(f"\n  Sweeps completed  {snap['sweeps_completed']}")
+    print(f"  Last sweep        {snap['last_sweep_at'] or 'never'}\n")
+    modes = source_modes()
+    for name, mode in modes.items():
+        info = snap["sources"].get(name)
+        if not info:
+            print(f"    -     {name:<20} {mode:<28} not run yet")
+        elif info["ok"]:
+            print(f"    ok    {name:<20} {mode:<28} {info['found']} seen, {info['new']} new")
+        else:
+            print(f"    FAIL  {name:<20} {mode:<28} {(info['error'] or '')[:40]}")
+    print()
+    return 0
+
+
+def cmd_reset(args) -> int:
+    from .db import Base, engine, init_db
+
+    if not args.yes:
+        print("  This deletes all remembered companies and alert history.")
+        print("  The next sweep will treat everything as new.")
+        print("  Re-run with --yes to confirm.")
+        return 1
+    init_db()
+    Base.metadata.drop_all(engine())
+    Base.metadata.create_all(engine())
+    print("  State cleared.")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="bellwether", description=__doc__)
+    parser.add_argument("-v", "--verbose", action="store_true")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    sub.add_parser("check", help="verify configuration").set_defaults(fn=cmd_check)
+
+    p = sub.add_parser("sweep", help="run one sweep now")
+    p.add_argument("--dry", action="store_true", help="do not post to Slack")
+    p.add_argument("--force", action="store_true", help="ignore the first-run backfill guard")
+    p.set_defaults(fn=cmd_sweep)
+
+    sub.add_parser("test-alert", help="post a sample alert").set_defaults(fn=cmd_test_alert)
+    p = sub.add_parser("check-post", help="run one X post URL through the pipeline")
+    p.add_argument("url")
+    p.add_argument("--post", action="store_true", help="also send the alert to Slack")
+    p.set_defaults(fn=cmd_check_post)
+
+    sub.add_parser("status", help="per-source health").set_defaults(fn=cmd_status)
+
+    p = sub.add_parser("reset", help="wipe local state")
+    p.add_argument("--yes", action="store_true")
+    p.set_defaults(fn=cmd_reset)
+
+    args = parser.parse_args(argv)
+    _setup_logging(args.verbose)
+    return args.fn(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

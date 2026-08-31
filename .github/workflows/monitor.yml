@@ -1,0 +1,60 @@
+# Free recurring sweeps via GitHub Actions.
+#
+# Use this when you do not want to pay for an always-on host. Actions minutes
+# are free for public repositories, and this runs every 8 hours exactly as the
+# brief asks for.
+#
+# Required repository secrets (Settings -> Secrets -> Actions):
+#   SLACK_BOT_TOKEN   your Slack bot token
+#   SLACK_TARGET      e.g. #yc-signals
+#   DATABASE_URL      a free Postgres URL (neon.tech / supabase.com)
+#
+# DATABASE_URL is REQUIRED here. Each Actions run starts on a clean machine, so
+# without external state the bot would forget everything and re-alert on every
+# company, every time.
+#
+# Optional secrets, all of which simply raise recall:
+#   SERPER_API_KEY, TWITTERAPI_KEY, APIFY_TOKEN, ANTHROPIC_API_KEY
+
+name: Bellwether sweep
+
+on:
+  schedule:
+    - cron: "0 */8 * * *"   # every 8 hours
+  workflow_dispatch:         # and a manual "Run workflow" button
+
+concurrency:
+  group: bellwether-sweep
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run sweep
+        env:
+          SLACK_BOT_TOKEN:   ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_TARGET:      ${{ secrets.SLACK_TARGET }}
+          DATABASE_URL:      ${{ secrets.DATABASE_URL }}
+          SERPER_API_KEY:    ${{ secrets.SERPER_API_KEY }}
+          TWITTERAPI_KEY:    ${{ secrets.TWITTERAPI_KEY }}
+          APIFY_TOKEN:       ${{ secrets.APIFY_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          X_PROVIDER:        ${{ vars.X_PROVIDER || 'free' }}
+          LINKEDIN_PROVIDER: ${{ vars.LINKEDIN_PROVIDER || 'free' }}
+        run: python -m app.cli sweep
+
+      - name: Report health
+        if: always()
+        run: python -m app.cli status

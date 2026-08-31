@@ -1,0 +1,196 @@
+# ============================================================================
+# Bellwether keyword + tuning config
+#
+# This file is meant to be edited. Adding a new phrase or a new batch code is
+# a config change, never a code change.
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Phrases that suggest a founder is announcing their OWN acceptance.
+# `weight` feeds the confidence score. 1.0 = near certain, 0.3 = weak hint.
+# ----------------------------------------------------------------------------
+announcement_phrases:
+  - { text: "got into yc",                     weight: 1.0 }
+  - { text: "got into y combinator",           weight: 1.0 }
+  - { text: "accepted into yc",                weight: 1.0 }
+  - { text: "accepted into y combinator",      weight: 1.0 }
+  - { text: "we got into y combinator",        weight: 1.0 }
+  - { text: "i got into y combinator",         weight: 1.0 }
+  - { text: "joining yc",                      weight: 0.8 }
+  - { text: "joining y combinator",            weight: 0.9 }
+  - { text: "we're now a yc company",          weight: 0.9 }
+  - { text: "we are a yc company",             weight: 0.8 }
+  - { text: "backed by y combinator",          weight: 0.8 }
+  - { text: "backed by yc",                    weight: 0.7 }
+  - { text: "funded by y combinator",          weight: 0.8 }
+  - { text: "part of yc",                      weight: 0.6 }
+  - { text: "we're in yc",                     weight: 0.8 }
+  - { text: "excited to announce.*y combinator", weight: 0.8, regex: true }
+  - { text: "thrilled to.*join.*y combinator", weight: 0.8, regex: true }
+  # Speedrun (a16z) equivalents
+  - { text: "got into speedrun",               weight: 1.0 }
+  - { text: "accepted into speedrun",          weight: 1.0 }
+  - { text: "a16z speedrun",                   weight: 0.7 }
+  - { text: "speedrun batch",                  weight: 0.8 }
+  - { text: "backed by a16z speedrun",         weight: 0.9 }
+
+# ----------------------------------------------------------------------------
+# HARD VETOES. If any of these appear, the post is disqualified outright, no
+# matter how strongly it matches an announcement phrase.
+#
+# These exist because "Congrats to my friend who got into YC" contains a
+# perfect announcement phrase AND first-person words, so scoring alone scores
+# it high. Someone else's good news is never our alert.
+# ----------------------------------------------------------------------------
+veto_phrases:
+  - "congrats to"
+  - "congratulations to"
+  - "congrats "
+  - "proud of my friend"
+  - "proud of our friend"
+  - "shoutout to"
+  - "how to get into yc"
+  - "how i got into yc"
+  - "tips for yc"
+  - "yc application tips"
+  - "apply to yc"
+  - "applying to yc"
+  - "we're hiring"
+  - "we are hiring"
+  - "now hiring"
+  - "job opening"
+  - "yc alum"
+  - "yc alumni"
+  - "ex-yc"
+  - "former yc"
+  # --- third party: someone reporting on another founder's acceptance ---
+  # Caught in live testing: "The guy behind the $Rosie coin just got accepted
+  # into Y Combinator" and "8 startups I referred got into YC".
+  - "startups i referred"
+  - "companies i referred"
+  - "i referred"
+  - "the guy behind"
+  - "the founder of"
+  - "his startup"
+  - "her startup"
+  - "their startup got"
+  - "just got accepted into y combinator for a new startup"
+  # --- advice / retrospective threads by people who got in long ago ---
+  # "I got into YC on my 6th attempt. Let me tell you what every founder needs
+  # to hear" is a content thread, not an announcement.
+  - "let me tell"
+  - "here's what"
+  - "here is what"
+  - "what every founder"
+  - "lessons learned"
+  - "what i learned"
+  - "a thread"
+  - "🧵"
+  - "read this before"
+  - "mistakes to avoid"
+  - "the fastest way to"
+  - "fastest way to be accepted"
+  # --- retrospectives: real acceptance, but old news ---
+  # "exactly one year ago today, we got into Y Combinator" is a reflection,
+  # not an announcement. The post is recent; the event is not.
+  - "ago today"
+  - "year ago"
+  - "years ago"
+  - "months ago we"
+  - "anniversary"
+  - "looking back"
+  # --- investors reporting on portfolio companies ---
+  - "i invested"
+  - "we invested"
+  - "invested early"
+  - "invested in a startup"
+
+# ----------------------------------------------------------------------------
+# Soft negatives. These subtract from the score without disqualifying outright.
+# ----------------------------------------------------------------------------
+negative_phrases:
+  - "hiring"
+  - "we're hiring"
+  - "now hiring"
+  - "job opening"
+  - "apply to yc"
+  - "applying to yc"
+  - "applications for yc"
+  - "yc application"
+  - "how to get into yc"
+  - "tips for yc"
+  - "yc alum"
+  - "yc alumni"
+  - "ex-yc"
+  - "former yc"
+  - "invested in"
+  - "portfolio company"
+  - "newsletter"
+  - "podcast"
+  - "webinar"
+  - "my course"
+  - "thread on"
+  - "here's how"
+
+# ----------------------------------------------------------------------------
+# Ignore social posts older than this. Search engines happily surface
+# announcements from a year ago; those are not news, and re-alerting on them
+# makes the bot look broken. Posts with no readable date are kept.
+# ----------------------------------------------------------------------------
+max_post_age_days: 120
+
+# ----------------------------------------------------------------------------
+# Batch codes. `auto_generate` builds the current + upcoming codes from today's
+# date so the bot never needs editing when a batch rolls over.
+# `extra` lets you pin anything else you want watched.
+# ----------------------------------------------------------------------------
+batches:
+  auto_generate: true
+  lookahead_batches: 3
+  lookbehind_batches: 2
+  extra: []
+
+# ----------------------------------------------------------------------------
+# Search queries per platform. {batch} expands to each active batch code.
+# Keep the list short in free mode - every query is a page fetch.
+# ----------------------------------------------------------------------------
+queries:
+  x:
+    - '"got into YC"'
+    - '"got into Y Combinator"'
+    - '"accepted into Y Combinator"'
+    - '"backed by Y Combinator"'
+    - '"{batch}"'
+    - '"Speedrun batch"'
+  linkedin:
+    - '"got into Y Combinator"'
+    - '"accepted into Y Combinator"'
+    - '"{batch}"'
+    - '"backed by Y Combinator"'
+
+# ----------------------------------------------------------------------------
+# Per-source switches and cadence. Free sources are cheap, so they can run
+# every sweep. Paid ones can be throttled independently.
+# ----------------------------------------------------------------------------
+sources:
+  yc_directory: { enabled: true,  every_n_sweeps: 1 }
+  yc_launches:  { enabled: true,  every_n_sweeps: 1 }
+  speedrun:     { enabled: true,  every_n_sweeps: 1 }
+  x:            { enabled: true,  every_n_sweeps: 1 }
+  linkedin:     { enabled: true,  every_n_sweeps: 1 }
+
+# ----------------------------------------------------------------------------
+# Scoring thresholds.
+# ----------------------------------------------------------------------------
+scoring:
+  # A signal must reach this to be considered at all.
+  floor: 0.35
+  # Multiplier applied when we could not identify a company to check against
+  # the YC directory. We do not know whether it is early, so we must not claim
+  # it is - the signal is demoted rather than dropped.
+  unverified_penalty: 0.6
+  # Bonus when the extracted company is NOT found in the YC directory -
+  # this is the "early" case the whole bot exists for.
+  early_bonus: 0.15
+  # Penalty when we cannot extract a company name at all.
+  no_company_penalty: 0.2
