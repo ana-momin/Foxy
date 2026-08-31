@@ -13,7 +13,7 @@
     "slash_commands": [
       {
         "command": "/foxy",
-        "url": "https://REPLACE-WITH-YOUR-PUBLIC-URL/slack/command",
+        "url": "https://tryfoxy.vercel.app/slack/command",
         "description": "Check monitor status or trigger a scan",
         "usage_hint": "status | scan",
         "should_escape": false
