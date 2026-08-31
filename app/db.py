@@ -137,12 +137,31 @@ def engine():
     return _engine
 
 
+_schema_ready = False
+
+
 def init_db() -> None:
+    global _schema_ready
     Base.metadata.create_all(engine())
+    _schema_ready = True
+
+
+def _ensure_schema() -> None:
+    """Create the tables on first use.
+
+    Reads can arrive before any sweep has run - /healthz on a fresh deploy, or
+    Pond calling health_check straight after registering the agent. Without
+    this the very first request against an empty database fails with
+    "no such table". Cheap: create_all is a no-op once the tables exist, and
+    the flag means we only try once per process.
+    """
+    if not _schema_ready:
+        init_db()
 
 
 @contextmanager
 def session() -> Iterator[Session]:
+    _ensure_schema()
     s = Session(engine(), future=True)
     try:
         yield s
