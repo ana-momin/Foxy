@@ -55,6 +55,22 @@ class LIPost:
     raw: dict = field(default_factory=dict)
 
 
+def clean_org_name(title: str) -> str:
+    """Normalise a LinkedIn company-page title into a bare company name.
+
+    Page titles arrive as "OpenTrade (YC s26) | LinkedIn" or
+    "Loops AI (a16z SR006)". Left as-is, the parenthetical makes the YC
+    directory lookup miss, and a miss is reported as an EARLY signal - so this
+    directly caused a false "founder announced before YC" alert for a company
+    YC had already listed.
+    """
+    title = (title or "").split("|")[0]
+    title = re.sub(r"\s*[\(\[][^)\]]*[\)\]]", "", title)      # drop "(YC s26)"
+    title = re.sub(r"\s*[-–—:]\s*(?:YC|Y Combinator|a16z).*$", "", title, flags=re.I)
+    title = re.sub(r"\s+", " ", title).strip(" .,-|")
+    return title
+
+
 def _author_from_slug(url: str) -> str:
     """LinkedIn post URLs embed the author's slug:
     /posts/jane-doe-1234_we-got-into-yc-activity-712... -> "jane doe"."""
@@ -128,7 +144,7 @@ class FreeLinkedInProvider:
                     id=f"company:{slug}",
                     url=f"https://www.linkedin.com/company/{slug}",
                     text=res.snippet or res.title,
-                    author_name=res.title.split("|")[0].strip(),
+                    author_name=clean_org_name(res.title),
                     kind="company",
                     hydrated=False,
                 )

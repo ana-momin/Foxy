@@ -124,3 +124,88 @@ def lookup(
 
     detail = f"closest was {best_score}%" if best_hit else "no similar names"
     return Match(False, f"not in YC directory ({detail})")
+
+
+# ---------------------------------------------------------------------------
+# Speedrun truth set
+# ---------------------------------------------------------------------------
+#
+# A Speedrun company will never appear in YC's directory, so checking one
+# against YC would report "not in YC directory" forever - turning every single
+# a16z Speedrun company into a permanent false "early signal". Each program
+# needs verifying against its own directory.
+
+_speedrun_cache: dict[str, dict] | None = None
+
+
+def _speedrun_index() -> dict[str, dict]:
+    """Name-keyed index of the a16z Speedrun directory, built once per process."""
+    global _speedrun_cache
+    if _speedrun_cache is not None:
+        return _speedrun_cache
+
+    from .sources.speedrun import SpeedrunSource
+
+    index: dict[str, dict] = {}
+    try:
+        src = SpeedrunSource()
+        src.pages = 8  # walk further than a sweep does; this is the truth set
+        for sig in src.fetch():
+            key = _norm(sig.company_name or sig.title)
+            if key:
+                index[key] = {
+                    "name": sig.company_name or sig.title,
+                    "batch": sig.batch,
+                    "website": sig.company_url,
+                    "slug": sig.url,
+                }
+    except Exception as exc:  # noqa: BLE001
+        log.warning("could not build Speedrun index: %s", exc)
+        return {}
+
+    _speedrun_cache = index
+    return index
+
+
+def lookup_speedrun(company_name: str | None) -> Match:
+    """Check the a16z Speedrun directory rather than YC's."""
+    if not company_name:
+        return Match(
+            False,
+            "could not identify a company in the post, so Speedrun listing is unverified",
+            unknown=True,
+        )
+
+    index = _speedrun_index()
+    if not index:
+        return Match(False, "could not reach the Speedrun directory", unknown=True)
+
+    target = _norm(company_name)
+    if target in index:
+        hit = index[target]
+        return Match(True, f"exact name match in Speedrun directory: {hit['name']}", hit)
+
+    best_key, best_score = "", 0
+    for key in index:
+        score = fuzz.ratio(target, key)
+        if score > best_score:
+            best_key, best_score = key, score
+
+    if best_score >= NAME_THRESHOLD:
+        hit = index[best_key]
+        return Match(True, f"fuzzy match {best_score}% in Speedrun: {hit['name']}", hit)
+
+    return Match(False, f"not in the Speedrun directory (closest was {best_score}%)")
+
+
+def lookup_for_program(
+    program: str,
+    company_name: str | None,
+    company_url: str | None = None,
+    *,
+    text: str = "",
+) -> Match:
+    """Verify against whichever directory actually governs this program."""
+    if (program or "").lower() == "speedrun":
+        return lookup_speedrun(company_name)
+    return lookup(company_name, company_url, text=text)

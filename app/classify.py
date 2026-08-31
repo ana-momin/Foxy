@@ -33,18 +33,22 @@ BATCH_RE = re.compile(
 )
 _SEASON = {"W": "Winter", "X": "Spring", "S": "Summer", "F": "Fall"}
 
+# A company name is one to three capitalised words: "Nebula Security",
+# "Adalat AI", "Agnost AI". Matching a single word produced "Security" for
+# "Nebula Security is now backed by Y Combinator", which then matched nothing
+# in the directory - and a wrong name is worse than no name, because it makes
+# the cross-reference silently useless.
+_NAME = r"[A-Z][\w.&'-]{1,24}(?:\s+[A-Z][\w.&'-]{1,20}){0,2}"
+
 # Phrases that introduce a company name, most specific first.
 _COMPANY_PATTERNS = (
-    # "Agnost AI (YC S26) is the infra for..." - by far the most common way a
-    # founder writes their company name in an announcement post.
-    r"\b([A-Z][\w.&'-]{1,28}(?:\s+[A-Z][\w.&'-]{1,20})?)\s*\(\s*(?:YC|Y Combinator)",
-    # "...scaling SimpleClaw to $40k MRR"
-    r"(?:scaling|shipping)\s+([A-Z][\w.&'-]{1,28})",
-    r"(?:my|our)\s+(?:startup|company|product)\s*,?\s+([A-Z][\w.&'-]{1,28})",
-    r"\b([A-Z][\w.&'-]{1,28})\s+(?:is|has been|was)\s+(?:now\s+)?(?:accepted|backed|funded|part of)",
-    r"(?:building|launching|started)\s+([A-Z][\w.&'-]{1,28})",
-    r"\bwe(?:'re| are)\s+([A-Z][\w.&'-]{1,28})\b",
-    r"\b([A-Z][\w.&'-]{1,28})\s+(?:got|is)\s+into\s+(?:YC|Y Combinator)",
+    # "Agnost AI (YC S26) is the infra for..." - the most common form.
+    rf"\b({_NAME})\s*\(\s*(?:YC|Y Combinator|a16z)",
+    # "Nebula Security is now backed by Y Combinator"
+    rf"\b({_NAME})\s+(?:is|has been|was|are)\s+(?:now\s+)?(?:accepted|backed|funded|part of)",
+    rf"(?:my|our)\s+(?:startup|company|product)\s*,?\s+({_NAME})",
+    rf"(?i:scaling|shipping|building|launching|started)\s+({_NAME})",
+    rf"\b({_NAME})\s+(?:got|is)\s+into\s+(?:YC|Y Combinator)",
 )
 
 # Pronouns, plus openers that imply the author is speaking for the company.
@@ -98,6 +102,18 @@ def extract_batch(text: str) -> str | None:
     return f"{m.group(3).capitalize()} {m.group(4)}"
 
 
+# LinkedIn search snippets carry UI scaffolding that is not part of the post
+# text ("View profile for Jane Doe", relative timestamps, "see more").
+_SNIPPET_NOISE = re.compile(
+    r"view profile for [^.|]*|\bsee more\b|activity-\d+|\b\d+[wdhmy]\b", re.I
+)
+
+
+def clean_snippet(text: str) -> str:
+    """Strip search-result scaffolding so it cannot skew scoring or extraction."""
+    return re.sub(r"\s+", " ", _SNIPPET_NOISE.sub(" ", text or "")).strip()
+
+
 def extract_company(text: str) -> str | None:
     """Best-effort company name from free text. The LLM does this better; this
     is the free fallback and it is intentionally conservative - a wrong name is
@@ -127,12 +143,20 @@ def detect_program(text: str) -> str:
 
 def score_rules(text: str) -> Verdict:
     rules = load_rules()
-    low = (text or "").lower()
+    text = clean_snippet(text)
+    low = text.lower()
     v = Verdict(is_announcement=False, confidence=0.0)
 
     if not low.strip():
         v.note("empty text")
         return v
+
+    # Determine the program first. score_rules has several early returns below
+    # (veto, no first-person voice), and leaving this until the end meant a
+    # company page describing itself as "a16z Speedrun" was returned with the
+    # default program of "YC" - so it got verified against YC's directory,
+    # where no Speedrun company will ever appear, and was reported as early.
+    v.program = detect_program(text)
 
     # Hard veto first. A post celebrating someone else's acceptance contains a
     # textbook announcement phrase and first-person words, so it scores well on
@@ -187,7 +211,6 @@ def score_rules(text: str) -> Verdict:
         v.confidence -= rules.score_cfg("no_company_penalty", 0.2)
         v.note("no company name extracted")
 
-    v.program = detect_program(text)
     v.confidence = max(0.0, min(1.0, v.confidence))
     v.is_announcement = v.confidence >= rules.score_cfg("floor", 0.35)
     return v

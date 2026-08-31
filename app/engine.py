@@ -169,7 +169,12 @@ class Engine:
             return
 
         # Social signal. The whole question is whether YC already knows.
-        match = crossref.lookup(sig.company_name, sig.company_url, text=sig.description)
+        # Verify against the directory that governs this company's program:
+        # a Speedrun company is never in YC's directory, so checking it there
+        # would mark every one of them "early" forever.
+        match = crossref.lookup_for_program(
+            sig.program, sig.company_name, sig.company_url, text=sig.description
+        )
         sig.confirmed = match.found
         sig.is_early = match.is_early
         sig.match_reason = match.reason

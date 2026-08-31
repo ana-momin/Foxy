@@ -30,6 +30,33 @@ PER_QUERY = 12
 SNIPPET_DISCOUNT = 0.8
 
 
+# LinkedIn company-page search returns a lot of things that are not a newly
+# created startup page: YC's own regional pages, recruiter aggregators, VC
+# funds, "Stealth Startup" placeholders. Any title containing one of these is
+# not a company detection.
+_ORG_BLOCKLIST = (
+    "y combinator", "ycombinator", "stealth", "ventures", "capital",
+    "partners", "jobs", "careers", "hiring", "alumni", "community",
+    "network", "group", "consulting", "recruiting", "accelerator",
+    # Events and meetups, which read exactly like company names in a snippet.
+    "tech week", "week by", "summit", "conference", "meetup", "hang",
+    "demo day", "office hours", "fireside", "panel", "workshop", "cohort",
+)
+
+# A company page is weak evidence: it proves a page mentions YC, not that a new
+# company was just accepted. Cap its confidence below the default alert
+# threshold so these collect in the daily digest instead of firing individually.
+# The brief asks us to detect them; it does not ask us to shout about them.
+COMPANY_PAGE_CONFIDENCE = 0.45
+
+
+def _is_plausible_org(name: str) -> bool:
+    low = (name or "").lower().strip()
+    if len(low) < 3 or len(low) > 48:
+        return False
+    return not any(bad in low for bad in _ORG_BLOCKLIST)
+
+
 class LinkedInSource(Source):
     name = "linkedin"
     label = "LinkedIn"
@@ -77,6 +104,13 @@ class LinkedInSource(Source):
                 if not verdict.is_announcement:
                     continue
 
+                # A name we cannot trust is worse than no name: it makes the
+                # YC lookup miss, and a miss is reported as an early signal.
+                # Drop the name rather than let it fabricate an EARLY alert.
+                company = verdict.company_name
+                if company and not _is_plausible_org(company):
+                    company = None
+
                 confidence = verdict.confidence
                 if not post.hydrated:
                     confidence *= SNIPPET_DISCOUNT
@@ -84,10 +118,10 @@ class LinkedInSource(Source):
                 sig = Signal(
                     source="linkedin",
                     external_id=post.id,
-                    title=verdict.company_name or post.author_name or "LinkedIn post",
+                    title=company or post.author_name or "LinkedIn post",
                     url=post.url,
                     description=post.text.strip(),
-                    company_name=verdict.company_name,
+                    company_name=company,
                     batch=verdict.batch,
                     program=verdict.program,
                     author_name=post.author_name,
@@ -126,12 +160,31 @@ class LinkedInSource(Source):
                 # Company pages describe themselves in third person, so the
                 # first-person test in the classifier works against them.
                 # Require only that YC is mentioned alongside a company name.
-                looks_relevant = (
-                    "y combinator" in page.text.lower()
-                    or "yc" in page.text.lower()
-                    or "speedrun" in page.text.lower()
+                # "Our team includes YC-backed founders" is not a YC company,
+                # and "a16z Speedrun Dinner & Board Games" is an event listing.
+                # Require the page to describe the company itself as being in
+                # the programme.
+                low = page.text.lower()
+                mentions = any(k in low for k in ("y combinator", "yc ", "yc-", "speedrun"))
+                about_others = any(
+                    k in low
+                    for k in (
+                        "team includes", "founders from", "alumni", "advisors",
+                        "our investors include", "worked at",
+                    )
                 )
-                if not looks_relevant:
+                is_event = any(
+                    k in low
+                    for k in (
+                        "luma.com", "lu.ma", "dinner", "board games", "rsvp",
+                        "comments ·", "· like", "meetup", "happy hour",
+                    )
+                )
+                if not mentions or about_others or is_event:
+                    continue
+
+                org = page.author_name or verdict.company_name
+                if not _is_plausible_org(org):
                     continue
 
                 sig = Signal(
@@ -140,10 +193,10 @@ class LinkedInSource(Source):
                     title=page.author_name or "New LinkedIn company page",
                     url=page.url,
                     description=page.text.strip(),
-                    company_name=page.author_name or verdict.company_name,
+                    company_name=org,
                     batch=verdict.batch,
                     program=verdict.program,
-                    confidence=round(max(0.45, verdict.confidence) * SNIPPET_DISCOUNT, 3),
+                    confidence=COMPANY_PAGE_CONFIDENCE,
                     raw={"kind": "company_page", "query": query},
                 )
                 sig.add_note("LinkedIn company page referencing YC/Speedrun")

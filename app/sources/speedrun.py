@@ -29,6 +29,14 @@ from ..models import Signal
 from .base import Source, SourceError, client
 
 SPEEDRUN_COMPANIES_URL = "https://speedrun.a16z.com/companies"
+
+# The page's embedded data only ever carries the first 15 companies - every
+# "page" of the Next.js data endpoint returns that same slice, which silently
+# capped the directory at 15 of 251. The page itself paginates through a public
+# DRF API, discoverable as the `next` cursor in that payload, so read from it
+# directly instead.
+SPEEDRUN_API = "https://speedrun-api.a16z.com/api/companies/companies/"
+PAGE_LIMIT = 250
 YC_SITEMAP = "https://www.ycombinator.com/sitemap.xml"
 
 _build_id_cache: str | None = None
@@ -92,34 +100,53 @@ def _extract_from_html() -> list[dict]:
     )
 
 
+def _fetch_all_from_api() -> list[dict]:
+    """Walk the public Speedrun API, following its own `next` cursor."""
+    rows: list[dict] = []
+    url: str | None = SPEEDRUN_API
+    params: dict | None = {"limit": PAGE_LIMIT, "offset": 0, "ordering": "name"}
+
+    with client() as c:
+        while url and len(rows) < 2000:  # guard against a runaway cursor
+            r = c.get(url, params=params)
+            r.raise_for_status()
+            data = r.json()
+            results = data.get("results") or []
+            if not results:
+                break
+            rows.extend(results)
+            url = data.get("next")
+            params = None  # `next` already carries the query string
+
+    if not rows:
+        raise SourceError("Speedrun API returned no companies.")
+    return rows
+
+
 class SpeedrunSource(Source):
     name = "speedrun"
     label = "Speedrun (a16z)"
-
-    # How many pages of the directory to walk per sweep. New companies land at
-    # the front, so 2 pages is ample at an 8-hour cadence.
-    pages = 2
 
     @property
     def mode(self) -> str:
         return "a16z next-data json"
 
     def fetch(self) -> list[Signal]:
-        rows: list[dict] = []
         try:
-            for p in range(1, self.pages + 1):
-                payload = _fetch_page(p)
-                results = (
+            rows = _fetch_all_from_api()
+        except Exception:
+            # Fall back to the embedded page data. Partial, but better than
+            # losing the source entirely if a16z changes their API.
+            try:
+                payload = _fetch_page(1)
+                rows = (
                     ((payload.get("pageProps") or {}).get("companies") or {}).get(
                         "results"
                     )
                     or []
                 )
-                if not results:
-                    break
-                rows.extend(results)
-        except Exception:
-            rows = _extract_from_html()
+            except Exception:
+                rows = _extract_from_html()
 
         out: list[Signal] = []
         for r in rows:
@@ -137,7 +164,7 @@ class SpeedrunSource(Source):
                     url=f"https://speedrun.a16z.com/companies/{slug}",
                     description=(r.get("description") or r.get("preamble") or "")[:400],
                     company_name=name,
-                    company_url=r.get("website") or None,
+                    company_url=r.get("website_url") or r.get("website") or None,
                     batch=cohort_name,
                     program="Speedrun",
                     confirmed=True,
@@ -146,6 +173,13 @@ class SpeedrunSource(Source):
                         "industries": r.get("industries") or [],
                         "founded_year": r.get("founded_year"),
                         "team_size": r.get("team_size"),
+                        "x_url": r.get("x_url"),
+                        "linkedin_url": r.get("linkedin_url"),
+                        "founders": [
+                            f.get("name")
+                            for f in (r.get("founder_set") or [])
+                            if isinstance(f, dict) and f.get("name")
+                        ],
                     },
                 )
             )
