@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Foxy watches Y Combinator, Speedrun, X and LinkedIn and messages your Slack when a new company appears — or a founder announces before YC does.">
+<meta name="description" content="Foxy watches Y Combinator, Speedrun, X and LinkedIn and pings your Slack when a new company appears — or a founder announces before YC does.">
 <meta name="color-scheme" content="light dark">
 <meta property="og:title" content="Foxy — Know about new YC startups first">
 <meta property="og:description" content="A Slack bot that catches founders announcing YC before YC announces them.">
 <meta property="og:url" content="https://tryfoxy.vercel.app">
+<meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%A6%8A</text></svg>">
 <title>Foxy</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -234,22 +235,6 @@
   .lnks span { color: var(--muted); margin: 0 7px; }
   .stamp { margin-top: 11px; font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: var(--muted); }
 
-  /* ================= cards ================= */
-  .grid3 { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 36px; }
-  @media (min-width: 760px) { .grid3 { grid-template-columns: repeat(3, 1fr); } }
-  .card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 13px;
-    padding: 24px; box-shadow: var(--shadow-s);
-    transition: transform .18s ease, box-shadow .22s ease, border-color .18s ease;
-  }
-  .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-m); border-color: var(--border-2); }
-  .card h3 { font-size: 16.5px; margin-bottom: 8px; }
-  .card p { font-size: 14.5px; color: var(--ink-2); }
-  .icn {
-    width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
-    background: var(--accent-sf); color: var(--accent); margin-bottom: 14px;
-    font-size: 16px;
-  }
 
   /* ================= stats ================= */
   .stats { display: grid; grid-template-columns: 1fr; gap: 14px; margin: 34px 0; }
@@ -340,50 +325,19 @@
   .inlink:hover { border-bottom-color: var(--accent); }
 
 
-  /* ---------- illustrated setup shots ---------- */
-  .shot {
-    border: 1px solid var(--border); border-radius: 11px; overflow: hidden;
-    background: var(--raised); box-shadow: var(--shadow-s); margin-bottom: 12px;
-  }
-  .shot-bar {
-    display: flex; align-items: center; gap: 7px; padding: 9px 13px;
-    background: var(--surface); border-bottom: 1px solid var(--border);
-  }
-  .tl { width: 9px; height: 9px; border-radius: 50%; background: var(--border-2); }
-  .shot-url {
-    margin-left: 8px; font-family: "JetBrains Mono", monospace; font-size: 11px;
-    color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .shot-body { padding: 16px 18px; }
-  .ui-row {
-    display: flex; align-items: center; gap: 10px; padding: 9px 11px;
-    border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px;
-    font-size: 13.5px; background: var(--bg);
-  }
-  .ui-row:last-child { margin-bottom: 0; }
-  .ui-row.pick { border-color: var(--accent); background: var(--accent-sf); }
-  .ui-row .tick { color: var(--accent); font-weight: 600; }
-  .ui-label { font-family: "JetBrains Mono", monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 9px; }
-  .ui-btn {
-    display: inline-block; background: var(--accent); color: #fff; font-size: 12.5px;
-    font-weight: 500; padding: 7px 14px; border-radius: 7px; margin-top: 4px;
-  }
-  .ui-field {
-    font-family: "JetBrains Mono", monospace; font-size: 11.5px; color: var(--muted);
-    border: 1px dashed var(--border-2); border-radius: 7px; padding: 9px 11px;
-    background: var(--bg);
-  }
-  .ui-field b { color: var(--ink); font-weight: 500; }
-  .term {
-    background: #14100C; color: #EFE7DC; border-radius: 11px; padding: 15px 17px;
-    font-family: "JetBrains Mono", monospace; font-size: 12px; line-height: 1.75;
-    overflow-x: auto; margin-bottom: 12px; border: 1px solid var(--border);
-  }
-  .term .p { color: #7E7266; }
-  .term .g { color: #A8CF63; }
-  .term .o { color: #FF9560; }
 
+  footer { border-top: 1px solid var(--border); padding: 34px 0 60px; }
+  .foot { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 13.5px; color: var(--muted); }
+  .foot a { color: var(--ink-2); }
+  .foot a:hover { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
 
+  /* ============ additions: interactive, low-text ============ */
+
+  .microcopy { margin-top: 16px; font-size: 13.5px; color: var(--muted); }
+  .ser { font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-weight: 400; color: var(--accent); }
+
+  /* ---- Slack install button ---- */
   .slackbtn {
     display: inline-flex; align-items: center; gap: 10px;
     background: #4A154B; color: #fff; border-radius: 10px;
@@ -394,11 +348,125 @@
   .slackbtn:active { transform: translateY(1px); }
   .slackbtn svg { width: 17px; height: 17px; flex: none; }
 
-  footer { border-top: 1px solid var(--border); padding: 34px 0 60px; }
-  .foot { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 13.5px; color: var(--muted); }
-  .foot a { color: var(--ink-2); }
-  .foot a:hover { color: var(--accent); }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+  /* ---- timeline: the gap, shown rather than described ---- */
+  .tl { margin: 34px 0 30px; }
+  .tl-track {
+    position: relative; height: 3px; border-radius: 2px;
+    background: var(--border); margin: 0 0 22px;
+  }
+  .tl-fill {
+    position: absolute; inset: 0 auto 0 0; width: 18%;
+    background: var(--accent); border-radius: 2px;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .page.on .tl-fill { animation: fill 1.6s cubic-bezier(.22,.61,.36,1) both .2s; }
+    @keyframes fill { from { width: 0; } to { width: 18%; } }
+  }
+  .tl-pts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .tl-pt { position: relative; padding-left: 18px; }
+  .tl-dot {
+    position: absolute; left: 0; top: 6px; width: 9px; height: 9px;
+    border-radius: 50%; background: var(--border-2);
+  }
+  .tl-pt.on .tl-dot { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-sf); }
+  .tl-pt b { display: block; font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .tl-pt.on b { color: var(--accent); }
+  .tl-pt span:last-child { display: block; font-size: 14px; color: var(--ink-2); line-height: 1.45; }
+
+  .gapnums { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .gapnums div { border-top: 1px solid var(--border); padding-top: 14px; }
+  .gapnums b {
+    display: block; font-size: 32px; font-weight: 600; letter-spacing: -.035em;
+    line-height: 1; margin-bottom: 5px; font-variant-numeric: tabular-nums;
+  }
+  .gapnums .hot b { color: var(--accent); }
+  .gapnums span { font-size: 13.5px; color: var(--muted); }
+
+  /* ---- tabs ---- */
+  .tabs {
+    display: inline-flex; gap: 3px; padding: 3px; margin: 26px 0 18px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 11px;
+  }
+  .tab {
+    border: 0; background: transparent; cursor: pointer; color: var(--ink-2);
+    font-family: inherit; font-size: 14px; font-weight: 500;
+    padding: 8px 15px; border-radius: 8px;
+    transition: background .16s ease, color .16s ease;
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.on { background: var(--bg); color: var(--ink); box-shadow: var(--shadow-s); }
+  .panel { display: none; }
+  .panel.on { display: block; animation: fade .3s ease both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .panel.on { animation: none; } }
+  .panel-note { margin-top: 14px; font-size: 14px; color: var(--muted); }
+
+  /* ---- three points ---- */
+  .trio { display: grid; grid-template-columns: 1fr; gap: 22px; }
+  @media (min-width: 680px) { .trio { grid-template-columns: repeat(3, 1fr); gap: 30px; } }
+  .tri { border-top: 2px solid var(--border); padding-top: 16px; }
+  .tri-i { font-size: 19px; display: block; margin-bottom: 10px; }
+  .tri b { display: block; font-size: 15.5px; font-weight: 600; margin-bottom: 4px; }
+  .tri span:last-child { font-size: 14px; color: var(--ink-2); line-height: 1.5; }
+
+  /* ---- accordion pipeline ---- */
+  .acc { border: 1px solid var(--border); border-radius: 13px; overflow: hidden; background: var(--surface); }
+  .acc-h {
+    width: 100%; display: flex; align-items: center; gap: 14px;
+    background: transparent; border: 0; cursor: pointer; text-align: left;
+    font-family: inherit; font-size: 15.5px; color: var(--ink);
+    padding: 16px 18px; transition: background .16s ease;
+  }
+  .acc-h + .acc-b + .acc-h, .acc-h ~ .acc-h { border-top: 1px solid var(--border); }
+  .acc-h:hover { background: var(--bg); }
+  .acc-h b { font-weight: 500; flex: 1; }
+  .acc-n {
+    width: 24px; height: 24px; border-radius: 7px; flex: none;
+    display: grid; place-items: center; background: var(--border); color: var(--muted);
+    font-family: "JetBrains Mono", monospace; font-size: 11px;
+    transition: background .16s ease, color .16s ease;
+  }
+  .acc-h.on .acc-n { background: var(--accent); color: #fff; }
+  .acc-x { color: var(--muted); font-size: 15px; transition: transform .2s ease; }
+  .acc-h.on .acc-x { transform: rotate(45deg); color: var(--accent); }
+  .acc-b { display: none; padding: 0 18px 18px 56px; }
+  .acc-b.on { display: block; }
+  .acc-b p { font-size: 14.5px; color: var(--ink-2); }
+
+  /* ---- outcomes, tightened ---- */
+  .out b { display: block; font-size: 15px; font-weight: 600; margin-bottom: 5px; color: var(--ink); }
+  .out.hot b { color: var(--accent); }
+  .out p { font-size: 14px; color: var(--ink-2); margin: 0; }
+
+  /* ---- quoted lookalikes ---- */
+  .quotes { display: grid; gap: 12px; margin-top: 22px; }
+  .quotes div {
+    border-left: 2px solid var(--border-2); padding: 2px 0 2px 14px;
+    display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline;
+  }
+  .quotes q { font-size: 14.5px; color: var(--ink-2); font-style: italic; }
+  .quotes span {
+    font-family: "JetBrains Mono", monospace; font-size: 10.5px;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--accent);
+  }
+
+  /* ---- setup hero card ---- */
+  .hero-card {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 22px; flex-wrap: wrap; margin-top: 26px;
+  }
+  .hc-l { flex: 1; min-width: 220px; }
+  .hc-l b { display: block; font-size: 16.5px; font-weight: 600; margin-bottom: 5px; }
+  .hc-l span { font-size: 14.5px; color: var(--ink-2); line-height: 1.5; }
+
+  /* ---- terminal ---- */
+  .term {
+    background: #14100C; color: #EFE7DC; border-radius: 11px; padding: 16px 18px;
+    font-family: "JetBrains Mono", monospace; font-size: 12px; line-height: 1.8;
+    overflow-x: auto; margin-top: 20px; border: 1px solid var(--border);
+  }
+  .term .p { color: #7E7266; }
+  .term .g { color: #A8CF63; }
 </style>
 <style>html{-webkit-text-size-adjust:100%}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
@@ -422,85 +490,123 @@
       <img class="heromark" src="data:image/webp;base64,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" alt="Foxy">
       <div class="live"><span class="dot"></span>Agent online</div>
       <h1>Know about new YC startups <em>first</em>.</h1>
-      <p class="herosub">Foxy watches Y&nbsp;Combinator, Speedrun, X and LinkedIn, then messages your Slack the moment a new company appears — or a founder announces before YC does.</p>
+      <p class="herosub">Foxy watches five sources and pings your Slack the moment a new company appears — or a founder announces before YC does.</p>
       <div class="cta">
         <a class="slackbtn" href="/slack/install"><svg viewBox="0 0 122 122" aria-hidden="true"><path fill="#E01E5A" d="M26 77a13 13 0 11-13-13h13zm6 0a13 13 0 0126 0v32a13 13 0 01-26 0z"/><path fill="#36C5F0" d="M45 26a13 13 0 1113-13v13zm0 6a13 13 0 010 26H13a13 13 0 010-26z"/><path fill="#2EB67D" d="M96 45a13 13 0 1113 13H96zm-6 0a13 13 0 01-26 0V13a13 13 0 0126 0z"/><path fill="#ECB22E" d="M77 96a13 13 0 11-13 13V96zm0-6a13 13 0 010-26h32a13 13 0 010 26z"/></svg>Add to Slack</a>
         <a class="btn btn-s" href="#/how">How it works</a>
       </div>
-      <p style="margin-top:16px;font-size:13.5px;color:var(--muted)">Free · takes about five minutes</p>
+      <p class="microcopy">Free · about five minutes</p>
     </div>
   </div>
 
+  <!-- the gap, as a timeline -->
   <section>
     <div class="wrap narrow">
-      <p class="eyebrow">What you get</p>
-      <h2 class="h2">Two kinds of alert.</h2>
-      <p class="sub">The second one is the reason Foxy exists.</p>
+      <p class="eyebrow">The gap</p>
+      <h2 class="h2">You hear it <em class="ser">days</em> before the market does.</h2>
 
-      <div style="margin-top:34px" class="slack">
-        <div class="slack-bar"><b># yc-signals</b> · 9:14 AM</div>
-        <div class="slack-msg">
-          <img class="avatar" src="data:image/webp;base64,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" alt="">
-          <div class="msg-body">
-            <div class="who"><b>Foxy</b><span class="apptag">App</span><span class="when">9:14 AM</span></div>
-            <div class="att">
-              <div class="att-t hot">🔥 Early signal — founder announced before YC</div>
-              <dl class="fields">
-                <div><dt>Company</dt><dd>Adalat AI</dd></div>
-                <div><dt>Source</dt><dd>X</dd></div>
-                <div><dt>Status</dt><dd>Not in YC directory</dd></div>
-                <div><dt>Confidence</dt><dd>100%</dd></div>
-              </dl>
-              <p class="qt">“Adalat AI is now backed by Y Combinator. We're the first nonprofit…”</p>
-              <div class="lnks">Original post<span>·</span>Website</div>
-              <div class="stamp">not in YC directory (no similar names)</div>
-            </div>
+      <div class="tl">
+        <div class="tl-track"><span class="tl-fill"></span></div>
+        <div class="tl-pts">
+          <div class="tl-pt on">
+            <span class="tl-dot"></span>
+            <b>Day 0</b>
+            <span>Founder posts. Foxy alerts you.</span>
+          </div>
+          <div class="tl-pt">
+            <span class="tl-dot"></span>
+            <b>Day 11</b>
+            <span>YC lists them. Everyone else finds out.</span>
           </div>
         </div>
       </div>
 
-      <div style="margin-top:16px" class="slack">
-        <div class="slack-bar"><b># yc-signals</b> · 2:03 PM</div>
-        <div class="slack-msg">
-          <img class="avatar" src="data:image/webp;base64,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" alt="">
-          <div class="msg-body">
-            <div class="who"><b>Foxy</b><span class="apptag">App</span><span class="when">2:03 PM</span></div>
-            <div class="att ok">
-              <div class="att-t ok">✅ New YC company</div>
-              <dl class="fields">
-                <div><dt>Company</dt><dd>Talos</dd></div>
-                <div><dt>Batch</dt><dd>Fall 2026</dd></div>
-                <div><dt>Location</dt><dd>Baltimore, MD</dd></div>
-                <div><dt>Team</dt><dd>3</dd></div>
-              </dl>
-              <p class="qt">Predictive maintenance for power infrastructure.</p>
-              <div class="lnks">YC profile<span>·</span>talos-us.com</div>
-            </div>
-          </div>
-        </div>
+      <div class="gapnums">
+        <div><b>24</b><span>Fall 2026 listed by YC</span></div>
+        <div class="hot"><b>100s</b><span>actually in the batch</span></div>
       </div>
     </div>
   </section>
 
+  <!-- alerts, tabbed -->
   <section>
     <div class="wrap narrow">
-      <p class="eyebrow">Why it's useful</p>
-      <h2 class="h2">Three things it does well.</h2>
-      <div class="grid3">
-        <div class="card">
-          <div class="icn">⚡</div>
-          <h3>Catches them early</h3>
-          <p>Founders post about YC weeks before YC lists them. Foxy reads those posts and checks the directory to confirm they're genuinely new.</p>
+      <p class="eyebrow">In Slack</p>
+      <h2 class="h2">Two kinds of alert.</h2>
+
+      <div class="tabs" role="tablist">
+        <button class="tab on" data-tab="early" role="tab" aria-selected="true">🔥 Early signal</button>
+        <button class="tab" data-tab="conf" role="tab" aria-selected="false">✅ Confirmed</button>
+      </div>
+
+      <div class="panel on" data-panel="early">
+        <div class="slack">
+          <div class="slack-bar"><b># yc-signals</b> · 9:14 AM</div>
+          <div class="slack-msg">
+            <img class="avatar" src="data:image/webp;base64,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" alt="">
+            <div class="msg-body">
+              <div class="who"><b>Foxy</b><span class="apptag">App</span><span class="when">9:14 AM</span></div>
+              <div class="att">
+                <div class="att-t hot">Founder announced before YC</div>
+                <dl class="fields">
+                  <div><dt>Company</dt><dd>Adalat AI</dd></div>
+                  <div><dt>Source</dt><dd>X</dd></div>
+                  <div><dt>Status</dt><dd>Not in YC directory</dd></div>
+                  <div><dt>Confidence</dt><dd>100%</dd></div>
+                </dl>
+                <p class="qt">“Adalat AI is now backed by Y Combinator. We're the first nonprofit…”</p>
+                <div class="lnks">Original post<span>·</span>Website</div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="card">
-          <div class="icn">🔁</div>
-          <h3>Never repeats itself</h3>
-          <p>It remembers every company it has seen. Run it a hundred times and you'll only ever hear about something once.</p>
+        <p class="panel-note">The one worth acting on — nobody else has seen it yet.</p>
+      </div>
+
+      <div class="panel" data-panel="conf">
+        <div class="slack">
+          <div class="slack-bar"><b># yc-signals</b> · 2:03 PM</div>
+          <div class="slack-msg">
+            <img class="avatar" src="data:image/webp;base64,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" alt="">
+            <div class="msg-body">
+              <div class="who"><b>Foxy</b><span class="apptag">App</span><span class="when">2:03 PM</span></div>
+              <div class="att ok">
+                <div class="att-t ok">New YC company</div>
+                <dl class="fields">
+                  <div><dt>Company</dt><dd>Talos</dd></div>
+                  <div><dt>Batch</dt><dd>Fall 2026</dd></div>
+                  <div><dt>Location</dt><dd>Baltimore, MD</dd></div>
+                  <div><dt>Team</dt><dd>3</dd></div>
+                </dl>
+                <p class="qt">Predictive maintenance for power infrastructure.</p>
+                <div class="lnks">YC profile<span>·</span>talos-us.com</div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="card">
-          <div class="icn">🌱</div>
-          <h3>Free to run</h3>
-          <p>Three of the five sources cost nothing and need no API key. Add keys later only if you want wider coverage.</p>
+        <p class="panel-note">Still useful. Just not exclusive.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- three points, minimal -->
+  <section>
+    <div class="wrap narrow">
+      <div class="trio">
+        <div class="tri">
+          <span class="tri-i">⚡</span>
+          <b>Early</b>
+          <span>Reads founder posts, not just the directory.</span>
+        </div>
+        <div class="tri">
+          <span class="tri-i">🔁</span>
+          <b>Never repeats</b>
+          <span>Remembers everything it has seen.</span>
+        </div>
+        <div class="tri">
+          <span class="tri-i">🌱</span>
+          <b>Free</b>
+          <span>Three sources need no API key.</span>
         </div>
       </div>
     </div>
@@ -508,11 +614,11 @@
 
   <section>
     <div class="wrap narrow" style="text-align:center">
-      <h2 class="h2">Ready in about five minutes.</h2>
-      <p class="sub" style="margin:0 auto 28px">One Slack token is all that's required.</p>
+      <h2 class="h2">Ready in five minutes.</h2>
+      <p class="sub" style="margin:0 auto 26px">One click, one channel, done.</p>
       <div class="cta">
         <a class="slackbtn" href="/slack/install"><svg viewBox="0 0 122 122" aria-hidden="true"><path fill="#E01E5A" d="M26 77a13 13 0 11-13-13h13zm6 0a13 13 0 0126 0v32a13 13 0 01-26 0z"/><path fill="#36C5F0" d="M45 26a13 13 0 1113-13v13zm0 6a13 13 0 010 26H13a13 13 0 010-26z"/><path fill="#2EB67D" d="M96 45a13 13 0 1113 13H96zm-6 0a13 13 0 01-26 0V13a13 13 0 0126 0z"/><path fill="#ECB22E" d="M77 96a13 13 0 11-13 13V96zm0-6a13 13 0 010-26h32a13 13 0 010 26z"/></svg>Add to Slack</a>
-        <a class="btn btn-s" href="#/setup">Read the setup guide</a>
+        <a class="btn btn-s" href="#/setup">Setup guide</a>
       </div>
     </div>
   </section>
@@ -523,62 +629,57 @@
   <div class="wrap narrow">
     <section style="border:0">
       <p class="eyebrow">The idea</p>
-      <h2 class="h2">YC's directory runs late.</h2>
-      <p class="sub">Everyone scraping it finds the same companies on the same day. But most of a batch isn't listed yet — and those founders are already posting.</p>
-
-      <div class="stats">
-        <div class="stat"><div class="v">24</div><div class="k">Listed by YC</div></div>
-        <div class="stat hot"><div class="v">100s</div><div class="k">Actually in the batch</div></div>
-        <div class="stat"><div class="v">5</div><div class="k">Sources watched</div></div>
-      </div>
-
-      <p class="sub">So Foxy treats the directory as the <b>answer key</b>, not the source. It reads founder posts first, then asks the directory whether YC has published them yet.</p>
+      <h2 class="h2">The directory runs late.</h2>
+      <p class="sub">Foxy treats it as the answer key, not the source. It reads founder posts first, then asks whether YC has published them yet.</p>
     </section>
 
     <section>
       <p class="eyebrow">The pipeline</p>
       <h2 class="h2">From a post to an alert.</h2>
-      <div class="pipe">
-        <div class="pstep"><div class="n">1</div><div><h4>Collect</h4><p>Every eight hours it checks all five sources for anything new.</p></div></div>
-        <div class="pstep"><div class="n">2</div><div><h4>Filter</h4><p>Drops the obvious noise — recruiters, advice threads, people congratulating a friend.</p></div></div>
-        <div class="pstep"><div class="n">3</div><div><h4>Understand</h4><p>Pulls out the company name and batch from how the founder actually wrote it.</p></div></div>
-        <div class="pstep"><div class="n">4</div><div><h4>Verify</h4><p>Looks the company up in the official directory — YC's, or Speedrun's for a Speedrun company.</p></div></div>
-        <div class="pstep"><div class="n">5</div><div><h4>Alert</h4><p>Posts to Slack, saying which of the three outcomes it found.</p></div></div>
+      <p class="sub" style="margin-bottom:26px">Tap a step.</p>
+
+      <div class="acc">
+        <button class="acc-h on" data-acc="1"><span class="acc-n">1</span><b>Collect</b><span class="acc-x">+</span></button>
+        <div class="acc-b on"><p>Every eight hours it checks all five sources for anything new.</p></div>
+
+        <button class="acc-h" data-acc="2"><span class="acc-n">2</span><b>Filter</b><span class="acc-x">+</span></button>
+        <div class="acc-b"><p>Drops the obvious noise — recruiters, advice threads, people congratulating a friend.</p></div>
+
+        <button class="acc-h" data-acc="3"><span class="acc-n">3</span><b>Understand</b><span class="acc-x">+</span></button>
+        <div class="acc-b"><p>Pulls the company name and batch out of however the founder wrote it.</p></div>
+
+        <button class="acc-h" data-acc="4"><span class="acc-n">4</span><b>Verify</b><span class="acc-x">+</span></button>
+        <div class="acc-b"><p>Looks the company up in the directory that governs its programme — YC's, or Speedrun's.</p></div>
+
+        <button class="acc-h" data-acc="5"><span class="acc-n">5</span><b>Alert</b><span class="acc-x">+</span></button>
+        <div class="acc-b"><p>Posts to Slack with one of three verdicts.</p></div>
       </div>
 
       <div class="outs">
-        <div class="out hot">
-          <div class="lab">Outcome 1</div>
-          <b>Early</b>
-          <p>The founder announced, but the directory doesn't list them. This is the alert worth acting on.</p>
-        </div>
-        <div class="out">
-          <div class="lab">Outcome 2</div>
-          <b>Confirmed</b>
-          <p>Already published. Still useful, just not exclusive.</p>
-        </div>
-        <div class="out">
-          <div class="lab">Outcome 3</div>
-          <b>Unverified</b>
-          <p>No company name could be read. Foxy says so instead of guessing, and files it in a daily digest.</p>
-        </div>
+        <div class="out hot"><b>Early</b><p>Announced, but not listed. Act on this one.</p></div>
+        <div class="out"><b>Confirmed</b><p>Already published by YC.</p></div>
+        <div class="out"><b>Unverified</b><p>No company readable. Says so instead of guessing.</p></div>
       </div>
 
       <div class="callout">
-        <b>Why that third one matters.</b> If Foxy can't identify a company, it doesn't get to claim the company is missing from YC — it simply doesn't know. Treating “I couldn't check” as “it isn't there” is how a monitor starts crying wolf.
+        <b>Why the third exists.</b> If Foxy can't identify a company, it doesn't claim the company is missing from YC — it doesn't know. Treating “I couldn't check” as “it isn't there” is how a monitor starts crying wolf.
       </div>
     </section>
 
     <section>
       <p class="eyebrow">Accuracy</p>
       <h2 class="h2">Measured, not claimed.</h2>
-      <p class="sub">Tested against 15 real posts collected live and labelled by hand — 8 genuine founder announcements, 7 lookalikes.</p>
       <div class="stats">
         <div class="stat hot"><div class="v">100%</div><div class="k">Precision</div></div>
         <div class="stat"><div class="v">88%</div><div class="k">Recall</div></div>
-        <div class="stat"><div class="v">0</div><div class="k">False alarms</div></div>
+        <div class="stat"><div class="v">15</div><div class="k">Real posts tested</div></div>
       </div>
-      <p class="sub">The lookalikes all contain a textbook announcement phrase and would fool a keyword search: <i>“8 startups I referred got into YC”</i>, <i>“exactly one year ago today, we got into Y Combinator”</i>, <i>“I invested early into a startup that was recently accepted”</i>.</p>
+      <p class="sub">Every lookalike contains a textbook announcement phrase and would fool a keyword search:</p>
+      <div class="quotes">
+        <div><q>8 startups I referred got into YC</q><span>a referrer</span></div>
+        <div><q>exactly one year ago today, we got into Y Combinator</q><span>an anniversary</span></div>
+        <div><q>I invested early into a startup that was recently accepted</q><span>an investor</span></div>
+      </div>
     </section>
 
     <section>
@@ -586,13 +687,13 @@
       <h2 class="h2">Where it looks.</h2>
       <div class="rows">
         <div class="r"><b>YC Directory</b><span>New companies, newest first</span><span class="pill">Free</span></div>
-        <div class="r"><b>Launch YC</b><span>Founder launch posts, often ahead of the directory</span><span class="pill">Free</span></div>
-        <div class="r"><b>Speedrun</b><span>All 251 a16z companies, cohorts SR001–SR007</span><span class="pill">Free</span></div>
-        <div class="r"><b>X</b><span>Founder announcement posts</span><span class="pill n">Better with key</span></div>
-        <div class="r"><b>LinkedIn</b><span>Public posts and new company pages</span><span class="pill n">Better with key</span></div>
+        <div class="r"><b>Launch YC</b><span>Founder launch posts</span><span class="pill">Free</span></div>
+        <div class="r"><b>Speedrun</b><span>251 a16z companies, SR001–SR007</span><span class="pill">Free</span></div>
+        <div class="r"><b>X</b><span>Founder announcements</span><span class="pill n">Key optional</span></div>
+        <div class="r"><b>LinkedIn</b><span>Posts and new company pages</span><span class="pill n">Key optional</span></div>
       </div>
       <div class="callout">
-        <b>A note on Speedrun.</b> Y Combinator doesn't run a programme called Speedrun — it's a16z's. Foxy monitors the real one, and separately watches YC's sitemap in case that ever changes.
+        <b>Speedrun is a16z's, not YC's.</b> Foxy monitors the real one, and watches YC's sitemap in case that ever changes.
       </div>
     </section>
   </div>
@@ -603,125 +704,85 @@
   <div class="wrap narrow">
     <section style="border:0">
       <p class="eyebrow">Setup</p>
-      <h2 class="h2">Five minutes, one token.</h2>
-      <p class="sub">You need a Slack workspace and either Docker or Python. Nothing else — no paid APIs.</p>
+      <h2 class="h2">Two ways in.</h2>
 
-      <div class="setup">
-        <div class="sstep">
-          <div class="sn"></div>
-          <div>
-            <h3>Create the Slack app</h3>
-            <p>Open <a class="inlink" href="https://api.slack.com/apps">api.slack.com/apps</a> and choose <b>From an app manifest</b> — not "from scratch". Paste in <a class="inlink" href="https://github.com/ana-momin/Foxy/blob/main/slack-app-manifest.json">slack-app-manifest.json</a>, which sets the name, icon and permissions for you.</p>
-            <div class="shot">
-              <div class="shot-bar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="shot-url">api.slack.com/apps</span></div>
-              <div class="shot-body">
-                <div class="ui-label">Create an app</div>
-                <div class="ui-row"><span>From scratch</span></div>
-                <div class="ui-row pick"><span class="tick">✓</span><span>From an app manifest</span></div>
-              </div>
-            </div>
-            <p>Then <b>Install to Workspace → Allow</b>, and copy the token from <b>OAuth &amp; Permissions</b>:</p>
-            <div class="shot">
-              <div class="shot-bar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="shot-url">OAuth &amp; Permissions</span></div>
-              <div class="shot-body">
-                <div class="ui-label">Bot User OAuth Token</div>
-                <div class="ui-field"><b>xoxb-</b>1234567890-0987654321-AbCdEf…</div>
-                <span class="ui-btn">Copy</span>
-              </div>
-            </div>
-          </div>
+      <div class="card hero-card">
+        <div class="hc-l">
+          <b>One click</b>
+          <span>Approve in Slack, pick a channel from a list. You never see a token or a channel ID.</span>
         </div>
+        <a class="slackbtn" href="/slack/install"><svg viewBox="0 0 122 122" aria-hidden="true"><path fill="#E01E5A" d="M26 77a13 13 0 11-13-13h13zm6 0a13 13 0 0126 0v32a13 13 0 01-26 0z"/><path fill="#36C5F0" d="M45 26a13 13 0 1113-13v13zm0 6a13 13 0 010 26H13a13 13 0 010-26z"/><path fill="#2EB67D" d="M96 45a13 13 0 1113 13H96zm-6 0a13 13 0 01-26 0V13a13 13 0 0126 0z"/><path fill="#ECB22E" d="M77 96a13 13 0 11-13 13V96zm0-6a13 13 0 010-26h32a13 13 0 010 26z"/></svg>Add to Slack</a>
+      </div>
 
-        <div class="sstep">
-          <div class="sn"></div>
-          <div>
-            <h3>Run setup</h3>
-            <p>One command does the rest. It checks your token, lists your channels so you never have to hunt for a channel ID, adds Foxy to the one you pick, and sends a test message.</p>
-            <div class="codewrap"><button class="copy" type="button">Copy</button><pre>pip install -r requirements.txt
-python -m app.cli init</pre></div>
-            <div class="term"><span class="p">$</span> python -m app.cli init
+      <p class="sub" style="margin-top:32px">Or do it from the terminal — same result.</p>
 
-  <span class="o">Foxy setup</span>
-  <span class="p">--------------------------------------------</span>
+      <div class="tabs" role="tablist">
+        <button class="tab on" data-tab="docker" role="tab" aria-selected="true">Docker</button>
+        <button class="tab" data-tab="python" role="tab" aria-selected="false">Python</button>
+      </div>
 
-  Paste your bot token (xoxb-...): <span class="p">****</span>
+      <div class="panel on" data-panel="docker">
+        <div class="codewrap"><button class="copy" type="button">Copy</button><pre>git clone https://github.com/ana-momin/Foxy.git
+cd Foxy
+python -m app.cli init
+docker compose up -d</pre></div>
+      </div>
+      <div class="panel" data-panel="python">
+        <div class="codewrap"><button class="copy" type="button">Copy</button><pre>git clone https://github.com/ana-momin/Foxy.git
+cd Foxy
+pip install -r requirements.txt
+python -m app.cli init
+uvicorn app.main:app --port 8000</pre></div>
+      </div>
+
+      <p class="sub" style="margin-top:26px"><code>init</code> checks your token, lists your channels, joins the one you pick, and sends a test message before writing anything.</p>
+
+      <div class="term"><span class="p">$</span> python -m app.cli init
 
   <span class="g">Connected to Acme Inc as @Foxy</span>
 
-  Step 2 - where should alerts go?
-
+  Where should alerts go?
      1. #yc-signals   <span class="p">(already added)</span>
      2. #general
-     3. #growth
 
-  Enter 1-3, or paste a channel ID: 1
+  Enter 1-2: 1
 
-  Step 3 - sending a test message...
   <span class="g">Sent - go and check Slack.</span>
-
   <span class="g">Saved to .env. Setup is done.</span></div>
-          </div>
-        </div>
+    </section>
 
-        <div class="sstep">
-          <div class="sn"></div>
-          <div>
-            <h3>Start it</h3>
-            <div class="codewrap"><button class="copy" type="button">Copy</button><pre>docker compose up -d</pre></div>
-            <p>Or without Docker:</p>
-            <div class="codewrap"><button class="copy" type="button">Copy</button><pre>uvicorn app.main:app --port 8000</pre></div>
-            <p>That runs Foxy continuously, checking every eight hours.</p>
-          </div>
-        </div>
-
-        <div class="sstep">
-          <div class="sn"></div>
-          <div>
-            <h3>Check it works</h3>
-            <div class="codewrap"><button class="copy" type="button">Copy</button><pre>python -m app.cli sweep --dry</pre></div>
-            <p>Run that twice. The second time should report <b>0 new</b> — that's the memory working, and it's why Foxy never tells you about the same company twice.</p>
-            <div class="term"><span class="p">$</span> python -m app.cli sweep --dry
-
-  ok    yc_directory     100 seen    <span class="g">0 new</span>
-  ok    yc_launches       20 seen    <span class="g">0 new</span>
-  ok    speedrun         251 seen    <span class="g">0 new</span>
-  ok    x                  7 seen    <span class="g">0 new</span>
-  ok    linkedin          38 seen    <span class="g">0 new</span>
-
-  Alerts posted   <span class="g">0</span></div>
-          </div>
-        </div>
-      </div>
+    <section>
+      <p class="eyebrow">Confirm</p>
+      <h2 class="h2">Check the memory works.</h2>
+      <div class="codewrap"><button class="copy" type="button">Copy</button><pre>python -m app.cli sweep --dry</pre></div>
+      <p class="sub" style="margin-top:16px">Run it twice. The second should report <b>0 new</b> — that's why Foxy never tells you about the same company twice.</p>
     </section>
 
     <section>
       <p class="eyebrow">Optional</p>
-      <h2 class="h2">Add a key, sharpen a source.</h2>
-      <p class="sub">Foxy works without any of these. Each one only widens coverage.</p>
+      <h2 class="h2">Add a key, widen coverage.</h2>
       <div class="rows">
-        <div class="r"><b>Serper</b><span>Much better X and LinkedIn coverage. Recommended.</span><span class="pill">2,500 free</span></div>
+        <div class="r"><b>Serper</b><span>Much better X and LinkedIn reach</span><span class="pill">2,500 free</span></div>
         <div class="r"><b>Anthropic</b><span>Understands unusual phrasings</span><span class="pill n">&lt; $2/mo</span></div>
         <div class="r"><b>twitterapi.io</b><span>Full X search</span><span class="pill n">$0.15 / 1k</span></div>
         <div class="r"><b>Apify</b><span>Full LinkedIn post text</span><span class="pill n">$0.005 / post</span></div>
       </div>
-      <div class="callout">
-        <b>Tuning.</b> Keywords, batch codes and thresholds all live in <code>config.yaml</code>. Adding a phrase is a config edit, never a code change.
-      </div>
-      <div class="callout">
-        <b>Already installed it under another name?</b> Editing the manifest file does not rename an app that exists. Open your app → <b>App Manifest</b>, paste the current one, save, then <b>Reinstall</b>. The name, icon and permissions all update together.
-      </div>
+      <div class="callout"><b>Tuning.</b> Keywords and thresholds live in <code>config.yaml</code>. Adding a phrase is a config edit, never a code change.</div>
     </section>
 
     <section>
       <p class="eyebrow">Hosting</p>
       <h2 class="h2">Keeping it running.</h2>
       <div class="rows">
-        <div class="r"><b>Docker</b><span>Any machine. Restarts itself, keeps its memory on a volume.</span><span class="pill">Simplest</span></div>
-        <div class="r"><b>GitHub Actions</b><span>Runs every 8 hours free. Needs a free Postgres for memory.</span><span class="pill">Free</span></div>
-        <div class="r"><b>Vercel</b><span>Hosts the Pond agent endpoints. Pair with Actions for the schedule.</span><span class="pill n">This site</span></div>
+        <div class="r"><b>Docker</b><span>Any machine. Restarts itself.</span><span class="pill">Simplest</span></div>
+        <div class="r"><b>GitHub Actions</b><span>Every 8h free. Needs a free Postgres.</span><span class="pill">Free</span></div>
+        <div class="r"><b>Vercel</b><span>Hosts the Pond agent endpoints.</span><span class="pill n">This site</span></div>
       </div>
       <div class="callout">
-        <b>Pond agent.</b> Foxy speaks Pond Protocol V1. Its <a class="inlink" href="https://tryfoxy.vercel.app/manifest">manifest</a> and <a class="inlink" href="https://tryfoxy.vercel.app/healthz">health check</a> are public.
+        <b>Pond agent.</b> Foxy speaks Pond Protocol V1 — its <a class="inlink" href="/manifest">manifest</a> and <a class="inlink" href="/healthz">health check</a> are public.
+      </div>
+      <div class="callout">
+        <b>Renaming an app you already installed?</b> Editing the manifest file won't rename it. Open your app → <b>App Manifest</b>, paste the current one, save, then <b>Reinstall</b>.
       </div>
     </section>
   </div>
@@ -730,18 +791,16 @@ python -m app.cli init</pre></div>
 <footer>
   <div class="wrap foot">
     <span>Foxy — YC &amp; Speedrun launch monitor</span>
-    <span><a href="https://github.com/ana-momin/Foxy">GitHub</a> · <a href="https://tryfoxy.vercel.app/manifest">Manifest</a> · <a href="https://tryfoxy.vercel.app/healthz">Health</a></span>
+    <span><a href="https://github.com/ana-momin/Foxy">GitHub</a> · <a href="/manifest">Manifest</a> · <a href="/healthz">Health</a></span>
   </div>
 </footer>
 
 <script>
-  // Hash routing: three real pages, no reload, back button works.
   var ROUTES = ["/", "/how", "/setup"];
 
   function route() {
     var hash = (location.hash || "#/").replace(/^#/, "");
     if (ROUTES.indexOf(hash) === -1) hash = "/";
-
     document.querySelectorAll(".page").forEach(function (p) {
       p.classList.toggle("on", p.id === "p-" + hash);
     });
@@ -749,31 +808,62 @@ python -m app.cli init</pre></div>
       a.classList.toggle("on", a.dataset.r === hash);
     });
     document.title = hash === "/how" ? "How it works — Foxy"
-                   : hash === "/setup" ? "Setup — Foxy"
-                   : "Foxy";
+                   : hash === "/setup" ? "Setup — Foxy" : "Foxy";
     window.scrollTo(0, 0);
   }
-
   window.addEventListener("hashchange", route);
   route();
 
-  // One-click copy on every command block.
+  // Tabs: one panel per group, scoped so the two tab groups cannot fight.
+  document.querySelectorAll(".tabs").forEach(function (group) {
+    var scope = group.parentElement;
+    group.querySelectorAll(".tab").forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        group.querySelectorAll(".tab").forEach(function (t) {
+          var on = t === tab;
+          t.classList.toggle("on", on);
+          t.setAttribute("aria-selected", on ? "true" : "false");
+        });
+        scope.querySelectorAll("[data-panel]").forEach(function (p) {
+          p.classList.toggle("on", p.dataset.panel === tab.dataset.tab);
+        });
+      });
+    });
+  });
+
+  // Accordion: opening a step closes the others.
+  document.querySelectorAll(".acc-h").forEach(function (head) {
+    head.addEventListener("click", function () {
+      var panel = head.nextElementSibling;
+      var isOpen = head.classList.contains("on");
+      var acc = head.parentElement;
+      acc.querySelectorAll(".acc-h").forEach(function (h) { h.classList.remove("on"); });
+      acc.querySelectorAll(".acc-b").forEach(function (b) { b.classList.remove("on"); });
+      if (!isOpen) {
+        head.classList.add("on");
+        if (panel) panel.classList.add("on");
+      }
+    });
+  });
+
+  // Copy the commands.
   document.querySelectorAll(".copy").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var pre = btn.parentElement.querySelector("pre");
       if (!pre) return;
-      var text = pre.innerText.replace(/ /g, " ");
-      var ok = function () {
+      var done = function () {
         btn.textContent = "Copied";
         btn.dataset.done = "1";
         setTimeout(function () { btn.textContent = "Copy"; delete btn.dataset.done; }, 1500);
       };
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(ok, function () {});
+        navigator.clipboard.writeText(pre.innerText).then(done, function () {});
       } else {
         var ta = document.createElement("textarea");
-        ta.value = text; document.body.appendChild(ta); ta.select();
-        try { document.execCommand("copy"); ok(); } catch (e) {}
+        ta.value = pre.innerText;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand("copy"); done(); } catch (e) {}
         document.body.removeChild(ta);
       }
     });
