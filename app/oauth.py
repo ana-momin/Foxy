@@ -123,16 +123,22 @@ font-size:13px;font-weight:500;padding:7px 14px;border-radius:7px}
 .tabb:hover{color:var(--ink)}
 .tabb.on{background:var(--bg);color:var(--ink);box-shadow:var(--sh)}
 
-.wrap{position:relative}
-pre{margin:0;background:#14100C;color:#EFE7DC;border:1px solid var(--border);
-border-radius:11px;padding:16px 17px;font-family:"JetBrains Mono",ui-monospace,monospace;
-font-size:12.5px;line-height:1.85;white-space:pre-wrap;word-break:break-all}
-.copy{position:absolute;top:10px;right:10px;background:rgba(255,255,255,.09);
-border:1px solid rgba(255,255,255,.17);color:#CFC6BA;border-radius:7px;padding:5px 10px;
-font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;cursor:pointer;
-font-family:"JetBrains Mono",monospace}
-.copy:hover{background:rgba(255,255,255,.17);color:#fff}
+.term{border-radius:12px;overflow:hidden;border:1px solid var(--border);
+box-shadow:var(--sh);background:#14100C}
+.term-bar{display:flex;align-items:center;gap:7px;padding:10px 13px;
+background:rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.07)}
+.tl-d{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.16)}
+.term-t{margin-left:6px;font-family:"JetBrains Mono",monospace;font-size:10.5px;
+letter-spacing:.06em;color:#8A7E71;flex:1}
+.copy{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.17);
+color:#CFC6BA;border-radius:6px;padding:4px 10px;font-size:9.5px;letter-spacing:.09em;
+text-transform:uppercase;cursor:pointer;font-family:"JetBrains Mono",monospace}
+.copy:hover{background:rgba(255,255,255,.18);color:#fff}
 .copy.done{background:var(--good);border-color:var(--good);color:#fff}
+pre{margin:0;background:transparent;color:#EFE7DC;padding:16px 17px;
+font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12.5px;line-height:1.9;
+white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere}
+pre .c{color:#7E7266}
 
 .does{margin:14px 0 0;padding:0;list-style:none;font-size:13.5px;color:var(--muted)}
 .does li{padding-left:18px;position:relative;margin-bottom:3px}
@@ -152,7 +158,7 @@ def _page(title: str, body: str) -> HTMLResponse:
     return HTMLResponse(
         f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{html.escape(title)} — Foxy</title>
+<title>{html.escape(title)} &middot; Foxy</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -203,7 +209,7 @@ def _build_page(token: str, team: str, options: str) -> HTMLResponse:
     else:
         chooser = (
             '<p class="muted" style="margin:0 0 10px">Right-click a channel in Slack '
-            "&rarr; View channel details &rarr; the ID is at the bottom.</p>"
+            "&rsaquo; View channel details &rsaquo; the ID is at the bottom.</p>"
             '<select id="ch" hidden></select>'
             '<input class="manual" id="chman" placeholder="C0ABC123DEF">'
         )
@@ -234,12 +240,20 @@ terminal. It sets up everything for you.</p>
       <button class="tabb on" data-os="unix" type="button">macOS &middot; Linux</button>
       <button class="tabb" data-os="win" type="button">Windows</button>
     </div>
-    <div class="wrap" data-os-panel="unix">
-      <button class="copy" type="button">Copy</button>
+    <div class="term" data-os-panel="unix">
+      <div class="term-bar">
+        <span class="tl-d"></span><span class="tl-d"></span><span class="tl-d"></span>
+        <span class="term-t">Terminal</span>
+        <button class="copy" type="button">Copy</button>
+      </div>
       <pre id="cmd-unix"></pre>
     </div>
-    <div class="wrap" data-os-panel="win" hidden>
-      <button class="copy" type="button">Copy</button>
+    <div class="term" data-os-panel="win" hidden>
+      <div class="term-bar">
+        <span class="tl-d"></span><span class="tl-d"></span><span class="tl-d"></span>
+        <span class="term-t">PowerShell</span>
+        <button class="copy" type="button">Copy</button>
+      </div>
       <pre id="cmd-win"></pre>
     </div>
     <ul class="does">
@@ -252,7 +266,7 @@ terminal. It sets up everything for you.</p>
 
 <div class="warn">
   <b>Your token is inside that command.</b> It is shown once and is not stored on
-  this server &mdash; Foxy runs on your machine, not ours. Keep it private; if you
+  this server. Foxy runs on your machine, not ours. Keep it private; if you
   lose it, <a href="/slack/install">reinstall</a> for a new one.
 </div>
 
@@ -304,7 +318,7 @@ a normal app you install once. Prefer step by step? See the
 
   document.querySelectorAll(".copy").forEach(function (btn) {{
     btn.addEventListener("click", function () {{
-      var pre = btn.parentElement.querySelector("pre");
+      var pre = btn.closest(".term").querySelector("pre");
       var done = function () {{
         btn.textContent = "Copied";
         btn.classList.add("done");
