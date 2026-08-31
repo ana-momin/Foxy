@@ -8,7 +8,6 @@
 <meta property="og:title" content="Foxy — Know about new YC startups first">
 <meta property="og:description" content="A Slack bot that catches founders announcing YC before YC announces them.">
 <meta property="og:url" content="https://tryfoxy.vercel.app">
-<meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%A6%8A</text></svg>">
 <title>Foxy</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -384,17 +383,24 @@
   .term .g { color: #A8CF63; }
   .term .o { color: #FF9560; }
 
+
+  .slackbtn {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: #4A154B; color: #fff; border-radius: 10px;
+    padding: 12px 20px; font-size: 15px; font-weight: 500;
+    box-shadow: var(--shadow-m); transition: transform .14s ease, box-shadow .2s ease;
+  }
+  .slackbtn:hover { transform: translateY(-1px); box-shadow: var(--shadow-l); }
+  .slackbtn:active { transform: translateY(1px); }
+  .slackbtn svg { width: 17px; height: 17px; flex: none; }
+
   footer { border-top: 1px solid var(--border); padding: 34px 0 60px; }
   .foot { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 13.5px; color: var(--muted); }
   .foot a { color: var(--ink-2); }
   .foot a:hover { color: var(--accent); }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
 </style>
-<style>
-  html { -webkit-text-size-adjust: 100%; }
-  img { max-width: 100%; }
-  [hidden] { display: none !important; }
-</style>
+<style>html{-webkit-text-size-adjust:100%}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
 <nav>
@@ -418,9 +424,10 @@
       <h1>Know about new YC startups <em>first</em>.</h1>
       <p class="herosub">Foxy watches Y&nbsp;Combinator, Speedrun, X and LinkedIn, then messages your Slack the moment a new company appears — or a founder announces before YC does.</p>
       <div class="cta">
-        <a class="btn btn-p" href="#/setup">Set up Foxy</a>
+        <a class="slackbtn" href="/slack/install"><svg viewBox="0 0 122 122" aria-hidden="true"><path fill="#E01E5A" d="M26 77a13 13 0 11-13-13h13zm6 0a13 13 0 0126 0v32a13 13 0 01-26 0z"/><path fill="#36C5F0" d="M45 26a13 13 0 1113-13v13zm0 6a13 13 0 010 26H13a13 13 0 010-26z"/><path fill="#2EB67D" d="M96 45a13 13 0 1113 13H96zm-6 0a13 13 0 01-26 0V13a13 13 0 0126 0z"/><path fill="#ECB22E" d="M77 96a13 13 0 11-13 13V96zm0-6a13 13 0 010-26h32a13 13 0 010 26z"/></svg>Add to Slack</a>
         <a class="btn btn-s" href="#/how">How it works</a>
       </div>
+      <p style="margin-top:16px;font-size:13.5px;color:var(--muted)">Free · takes about five minutes</p>
     </div>
   </div>
 
@@ -503,7 +510,10 @@
     <div class="wrap narrow" style="text-align:center">
       <h2 class="h2">Ready in about five minutes.</h2>
       <p class="sub" style="margin:0 auto 28px">One Slack token is all that's required.</p>
-      <div class="cta"><a class="btn btn-p" href="#/setup">Read the setup guide</a></div>
+      <div class="cta">
+        <a class="slackbtn" href="/slack/install"><svg viewBox="0 0 122 122" aria-hidden="true"><path fill="#E01E5A" d="M26 77a13 13 0 11-13-13h13zm6 0a13 13 0 0126 0v32a13 13 0 01-26 0z"/><path fill="#36C5F0" d="M45 26a13 13 0 1113-13v13zm0 6a13 13 0 010 26H13a13 13 0 010-26z"/><path fill="#2EB67D" d="M96 45a13 13 0 1113 13H96zm-6 0a13 13 0 01-26 0V13a13 13 0 0126 0z"/><path fill="#ECB22E" d="M77 96a13 13 0 11-13 13V96zm0-6a13 13 0 010-26h32a13 13 0 010 26z"/></svg>Add to Slack</a>
+        <a class="btn btn-s" href="#/setup">Read the setup guide</a>
+      </div>
     </div>
   </section>
 </main>

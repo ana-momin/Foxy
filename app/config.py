@@ -74,6 +74,10 @@ class Settings:
         "CLASSIFIER_MODEL", "claude-haiku-4-5-20251001"
     ).strip()
 
+    # --- Slack one-click install (optional) --------------------------------
+    slack_client_id: str = os.getenv("SLACK_CLIENT_ID", "").strip()
+    slack_client_secret: str = os.getenv("SLACK_CLIENT_SECRET", "").strip()
+
     # --- Pond --------------------------------------------------------------
     pond_access_key: str = os.getenv("POND_ACCESS_KEY", "").strip()
     public_base_url: str = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")

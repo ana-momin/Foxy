@@ -675,6 +675,12 @@ def index() -> HTMLResponse:
 
 app.include_router(router)
 
+# One-click Slack install. Self-contained, and inert unless SLACK_CLIENT_ID and
+# SLACK_CLIENT_SECRET are set.
+from .oauth import router as oauth_router  # noqa: E402
+
+app.include_router(oauth_router)
+
 
 # ---------------------------------------------------------------------------
 # Scheduler - this is what makes it a monitor rather than an API

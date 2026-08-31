@@ -57,6 +57,12 @@ When YC later lists a company Foxy called early, it replies **in that same threa
 
 You need a Slack workspace and either Docker or Python 3.11+. **No paid APIs.**
 
+**The quickest route** is the [Add to Slack](https://tryfoxy.vercel.app) button —
+approve in Slack, pick a channel from a dropdown, and you are handed the two lines to
+paste. You never see a token or a channel ID.
+
+Otherwise, from the terminal:
+
 ```bash
 git clone https://github.com/ana-momin/Foxy.git
 cd Foxy
