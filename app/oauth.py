@@ -112,6 +112,12 @@ background:var(--surface);color:var(--ink);font-family:inherit;font-size:15px;ma
 .warn{border-left:3px solid var(--accent);background:var(--sf);padding:14px 18px;
 border-radius:0 10px 10px 0;font-size:14px;color:var(--ink2);margin-bottom:18px}
 .muted{color:var(--muted);font-size:13.5px}
+.tabs{display:inline-flex;gap:3px;padding:3px;margin:0 0 12px;background:var(--bg);
+border:1px solid var(--border);border-radius:10px}
+.tabb{border:0;background:transparent;cursor:pointer;color:var(--ink2);font-family:inherit;
+font-size:13px;font-weight:500;padding:7px 13px;border-radius:7px}
+.tabb.on{background:var(--surface);color:var(--ink);box-shadow:var(--sh)}
+pre{white-space:pre-wrap;word-break:break-all}
 a{color:var(--accent)}
 """
 
@@ -242,45 +248,90 @@ def callback(request: Request) -> HTMLResponse:
         <select id="ch" style="display:none"></select>"""
     )
 
-    safe_token = html.escape(token)
+
+    tok = html.escape(token)
     return _page(
         "Installed",
-        f"""
-<img class="mark" src="/static/foxy.png" alt="" onerror="this.style.display='none'">
-<div class="ok">✓ Added to {html.escape(team)}</div>
-<h1>Almost there</h1>
-<p>Foxy is in your workspace. Two lines left — paste them into the
-<code>.env</code> file where you run Foxy.</p>
+        """
+<div class="ok">&#10003; Added to """ + html.escape(team) + """</div>
+<h1>One command left</h1>
+<p>Pick your channel, then paste the command into a terminal. It downloads Foxy,
+configures it with your details, and starts it — nothing to edit by hand.</p>
 
 <div class="card">
-  {picker}
-  <h2 style="margin-top:18px">3 · Paste this into <code>.env</code></h2>
-  <div class="wrap">
-    <button class="copy" type="button">Copy</button>
-    <pre id="env">SLACK_BOT_TOKEN={safe_token}
-SLACK_TARGET=</pre>
+  <h2>1 &middot; Choose a channel</h2>
+  """ + picker + """
+</div>
+
+<div class="card">
+  <h2>2 &middot; Paste this into a terminal</h2>
+  <div class="tabs">
+    <button class="tabb on" data-os="unix" type="button">macOS &middot; Linux</button>
+    <button class="tabb" data-os="win" type="button">Windows</button>
   </div>
+
+  <div class="wrap" data-os-panel="unix">
+    <button class="copy" type="button">Copy</button>
+    <pre id="cmd-unix"></pre>
+  </div>
+  <div class="wrap" data-os-panel="win" hidden>
+    <button class="copy" type="button">Copy</button>
+    <pre id="cmd-win"></pre>
+  </div>
+
+  <p class="muted" style="margin-top:14px;margin-bottom:0">
+    Needs <a href="https://www.docker.com/products/docker-desktop/">Docker</a>,
+    which is a normal app you install once. Foxy then runs quietly in the
+    background and checks every eight hours.
+  </p>
 </div>
 
 <div class="warn">
-  <b>This token is shown once and is not stored anywhere.</b> Foxy runs on your own
-  machine, so this server keeps nothing. Copy it now — if you lose it, reinstall
-  from <a href="/slack/install">here</a>.
+  <b>Your token is inside that command.</b> It is shown once and is not stored on
+  this server &mdash; Foxy runs on your machine, not ours. Keep the command
+  private; if you lose it, <a href="/slack/install">reinstall</a> to get a new one.
 </div>
 
-<p class="muted">Then start it:<br>
-<code>docker compose up -d</code> &nbsp;or&nbsp; <code>uvicorn app.main:app --port 8000</code></p>
-<p><a href="/#/setup">Full setup guide</a></p>
+<p class="muted">Prefer to do it step by step? See the
+<a href="/#/setup">setup guide</a>, or run <code>python -m app.cli init</code>
+after cloning.</p>
 
 <script>
-var TOKEN = {safe_token!r};
-function upd() {{
+var TOKEN = \"""" + tok + """\";
+var REPO = "https://github.com/ana-momin/Foxy.git";
+
+function channel() {
   var sel = document.getElementById("ch");
-  var id = sel && sel.value ? sel.value : "";
-  document.getElementById("env").textContent =
-    "SLACK_BOT_TOKEN=" + TOKEN + "\\nSLACK_TARGET=" + id;
-}}
-upd();
+  return sel && sel.value ? sel.value : "YOUR_CHANNEL_ID";
+}
+
+function render() {
+  var ch = channel();
+  document.getElementById("cmd-unix").textContent =
+    "git clone " + REPO + " && cd Foxy && \
+" +
+    "printf 'SLACK_BOT_TOKEN=" + TOKEN + "\nSLACK_TARGET=" + ch + "\n' > .env && \
+" +
+    "docker compose up -d";
+  document.getElementById("cmd-win").textContent =
+    "git clone " + REPO + "; cd Foxy; " +
+    "Set-Content .env -Encoding ascii -Value \"SLACK_BOT_TOKEN=" + TOKEN +
+    "`nSLACK_TARGET=" + ch + "\"; docker compose up -d";
+}
+
+var sel = document.getElementById("ch");
+if (sel) sel.addEventListener("change", render);
+render();
+
+document.querySelectorAll(".tabb").forEach(function (b) {
+  b.addEventListener("click", function () {
+    document.querySelectorAll(".tabb").forEach(function (x) { x.classList.remove("on"); });
+    b.classList.add("on");
+    document.querySelectorAll("[data-os-panel]").forEach(function (p) {
+      p.hidden = p.dataset.osPanel !== b.dataset.os;
+    });
+  });
+});
 </script>
 """,
     )
