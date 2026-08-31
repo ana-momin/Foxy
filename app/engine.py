@@ -68,14 +68,35 @@ def source_modes() -> dict[str, str]:
 
 
 class Engine:
-    def __init__(self, slack: SlackClient | None = None):
+    def __init__(
+        self,
+        slack: SlackClient | None = None,
+        *,
+        namespace: str = "",
+        min_confidence: float | None = None,
+    ):
         init_db()
         self.slack = slack or SlackClient()
         self.sources = build_sources()
+        # In hosted mode each workspace gets its own seen-set. Without this the
+        # second install would be told about nothing, because the first already
+        # consumed every company.
+        self.namespace = namespace
+        self.min_confidence = (
+            settings.min_confidence if min_confidence is None else min_confidence
+        )
+
+    def _key(self, sig: Signal) -> str:
+        return f"{self.namespace}{sig.fingerprint}"
 
     # -- main entry point --------------------------------------------------
 
-    def sweep(self, *, force_alerts: bool = False) -> SweepResult:
+    def sweep(
+        self,
+        *,
+        force_alerts: bool = False,
+        prefetched: dict[str, list[Signal]] | None = None,
+    ) -> SweepResult:
         """Run one full pass. `force_alerts` ignores the first-run backfill
         guard, used by the `test-alert` command."""
         result = SweepResult(started_at=dt.datetime.now(dt.timezone.utc))
@@ -97,7 +118,13 @@ class Engine:
             if sweep_no % max(1, rules.every_n(source.name)) != 0:
                 continue
 
-            self._run_source(source, result, first_run=first_run, cutoff=cutoff)
+            self._run_source(
+                source,
+                result,
+                first_run=first_run,
+                cutoff=cutoff,
+                prefetched=prefetched,
+            )
 
         # Promote anything YC has now confirmed, then deliver.
         self._promote_confirmations()
@@ -118,7 +145,14 @@ class Engine:
         *,
         first_run: bool,
         cutoff: dt.datetime,
+        prefetched: dict[str, list[Signal]] | None = None,
     ) -> None:
+        # Hosted mode fetches each source once and passes the results to every
+        # workspace, so the scraping cost does not multiply by install count.
+        if prefetched is not None:
+            signals = prefetched.get(source.name, [])
+            self._absorb(source, signals, result, first_run=first_run, cutoff=cutoff)
+            return
         try:
             signals = source.fetch()
         except Exception as exc:  # noqa: BLE001 - isolate every source
@@ -128,20 +162,32 @@ class Engine:
                 s.add(SourceRun(source=source.name, ok=False, error=str(exc)[:500]))
             return
 
+        self._absorb(source, signals, result, first_run=first_run, cutoff=cutoff)
+
+    def _absorb(
+        self,
+        source: Source,
+        signals: list[Signal],
+        result: SweepResult,
+        *,
+        first_run: bool,
+        cutoff: dt.datetime,
+    ) -> None:
+        """Dedupe, evaluate and record one source's signals for this tenant."""
         new_count = 0
         with session() as s:
             for sig in signals:
-                if already_seen(s, sig.fingerprint):
+                if already_seen(s, self._key(sig)):
                     continue
 
                 # Remember it immediately. Even if we decide not to alert, we
                 # must never reconsider the same item on the next sweep.
                 mark_seen(
                     s,
-                    fingerprint=sig.fingerprint,
+                    fingerprint=self._key(sig),
                     source=sig.source,
                     external_id=sig.external_id,
-                    entity_key=sig.entity_key,
+                    entity_key=f"{self.namespace}{sig.entity_key}",
                 )
                 new_count += 1
 
@@ -195,9 +241,9 @@ class Engine:
             sig.confidence *= load_rules().score_cfg("unverified_penalty", 0.6)
             sig.add_note("unverified - no company name to check against YC")
 
-        self._upsert_entity(s, sig, alerted=sig.confidence >= settings.min_confidence)
+        self._upsert_entity(s, sig, alerted=sig.confidence >= self.min_confidence)
 
-        if sig.confidence >= settings.min_confidence:
+        if sig.confidence >= self.min_confidence:
             result.alerts.append(sig)
         else:
             result.digest.append(sig)

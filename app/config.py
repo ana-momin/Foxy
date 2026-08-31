@@ -78,6 +78,13 @@ class Settings:
     slack_client_id: str = os.getenv("SLACK_CLIENT_ID", "").strip()
     slack_client_secret: str = os.getenv("SLACK_CLIENT_SECRET", "").strip()
 
+    # --- Hosted mode (optional) --------------------------------------------
+    # Encrypts stored Slack tokens. Falls back to the client secret so hosted
+    # mode still works if this is forgotten, but set it explicitly.
+    encryption_key: str = os.getenv("ENCRYPTION_KEY", "").strip()
+    # Shared secret the scheduled sweep presents to POST /internal/sweep.
+    sweep_key: str = os.getenv("SWEEP_KEY", "").strip()
+
     # --- Pond --------------------------------------------------------------
     pond_access_key: str = os.getenv("POND_ACCESS_KEY", "").strip()
     public_base_url: str = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")

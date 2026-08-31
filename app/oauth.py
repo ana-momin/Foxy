@@ -21,15 +21,20 @@ import hashlib
 import hmac
 import html
 import json
+import logging
 import time
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from . import installs
 from .config import settings
+from .db import session
 from .slack import SlackClient
 from .sources.base import client as http
+
+log = logging.getLogger("foxy.oauth")
 
 router = APIRouter()
 
@@ -386,7 +391,22 @@ def callback(request: Request) -> HTMLResponse:
         return _err("Slack rejected the install.", str(data.get("error", ""))[:120])
 
     token = data.get("access_token", "")
-    team = (data.get("team") or {}).get("name", "your workspace")
+    team_obj = data.get("team") or {}
+    team = team_obj.get("name", "your workspace")
+    team_id = team_obj.get("id", "")
+
+    # Hosted mode: keep the install and let them finish in the browser. There is
+    # nothing for them to run, so there is no command to show.
+    if installs.hosted_enabled() and team_id:
+        try:
+            with session() as s:
+                row = installs.upsert(
+                    s, team_id=team_id, team_name=team, token=token
+                )
+                install_id = row.id
+            return RedirectResponse(f"/app/{install_id}", 302)
+        except Exception:  # noqa: BLE001 - fall back to the self-hosted flow
+            log.exception("could not record the install; showing the manual flow")
 
     options = ""
     try:

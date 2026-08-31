@@ -1,0 +1,44 @@
+# Hosted mode's clock.
+#
+# Vercel is serverless, so there is no long-lived process to hold a scheduler.
+# This posts to /internal/sweep every eight hours instead. The endpoint does the
+# work: one shared fetch of all five sources, then a delivery pass per
+# installed workspace.
+#
+# Repository secrets required:
+#   FOXY_BASE_URL   e.g. https://tryfoxy.vercel.app
+#   SWEEP_KEY       must match the SWEEP_KEY set on the server
+
+name: Hosted sweep
+
+on:
+  schedule:
+    - cron: "0 */8 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: hosted-sweep
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Trigger sweep
+        env:
+          BASE: ${{ secrets.FOXY_BASE_URL }}
+          KEY: ${{ secrets.SWEEP_KEY }}
+        run: |
+          if [ -z "$BASE" ] || [ -z "$KEY" ]; then
+            echo "FOXY_BASE_URL and SWEEP_KEY must be set as repository secrets."
+            exit 1
+          fi
+          code=$(curl -sS -o response.json -w "%{http_code}" \
+            --max-time 600 \
+            -X POST "$BASE/internal/sweep" \
+            -H "X-Sweep-Key: $KEY")
+          echo "HTTP $code"
+          cat response.json
+          echo
+          test "$code" = "200"

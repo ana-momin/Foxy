@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import datetime as dt
+import hmac
 import logging
 import os
 import pathlib
@@ -622,15 +623,60 @@ def _do_health() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+@router.post("/internal/sweep")
+async def internal_sweep(
+    request: Request,
+    x_sweep_key: str | None = Header(default=None),
+):
+    """Run one hosted sweep. Called by the scheduler, not by people.
+
+    Serverless has no long-lived process to hold a scheduler, so the cadence
+    comes from outside: a GitHub Actions cron posts here every eight hours with
+    the shared key.
+    """
+    from . import installs
+    from .hosted import run_sweep
+
+    if not settings.sweep_key:
+        return perr(
+            "temporarily_unavailable",
+            "Scheduled sweeps are not configured on this server.",
+            503,
+        )
+    if not x_sweep_key or not hmac.compare_digest(x_sweep_key, settings.sweep_key):
+        return perr("unauthorized", "A valid sweep key is required.", 401)
+    if not installs.hosted_enabled():
+        return perr(
+            "temporarily_unavailable",
+            "Hosted mode needs a DATABASE_URL that is not SQLite.",
+            503,
+        )
+
+    return await asyncio.to_thread(run_sweep)
+
+
 @router.get("/healthz")
 def healthz() -> dict[str, Any]:
     with session() as s:
         snap = health_snapshot(s)
     degraded = [k for k, v in snap["sources"].items() if not v["ok"]]
+    from . import installs
+
+    hosted: dict[str, Any] = {"enabled": installs.hosted_enabled()}
+    if hosted["enabled"]:
+        try:
+            with session() as s2:
+                rows = installs.summary(s2)
+            hosted["workspaces"] = len(rows)
+            hosted["configured"] = sum(1 for r in rows if r["configured"] and r["active"])
+        except Exception:  # noqa: BLE001 - health must never fail on a detail
+            hosted["error"] = "could not read installs"
+
     return {
         "status": "degraded" if degraded else "ok",
         "degraded_sources": degraded,
         "agent_version": settings.agent_version,
+        "hosted": hosted,
         **snap,
     }
 
@@ -680,6 +726,11 @@ app.include_router(router)
 from .oauth import router as oauth_router  # noqa: E402
 
 app.include_router(oauth_router)
+
+# Hosted mode: the settings page a workspace lands on after installing.
+from .dashboard import router as dashboard_router  # noqa: E402
+
+app.include_router(dashboard_router)
 
 
 # ---------------------------------------------------------------------------
