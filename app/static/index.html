@@ -7,6 +7,7 @@
 <meta name="color-scheme" content="light dark">
 <meta property="og:title" content="Foxy">
 <meta property="og:description" content="Finds YC founders before YC announces them.">
+<meta property="og:url" content="https://tryfoxy.vercel.app">
 <meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%A6%8A</text></svg>">
 <title>Foxy</title>
@@ -448,7 +449,7 @@
       <div class="num">01</div>
       <div>
         <h3>Create the Slack app</h3>
-        <p>At <a href="https://api.slack.com/apps">api.slack.com/apps</a> choose <strong>From an app manifest</strong> and paste in <code>slack-app-manifest.json</code>. Install it, copy the <code>xoxb-</code> token, then invite it:</p>
+        <p>At <a href="https://api.slack.com/apps">api.slack.com/apps</a> choose <strong>From an app manifest</strong> and paste in <a href="https://github.com/ana-momin/Foxy/blob/main/slack-app-manifest.json">slack-app-manifest.json</a>. Install it, copy the <code>xoxb-</code> token, then invite it:</p>
         <div class="codewrap"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre>/invite @Foxy</pre></div>
       </div>
     </div>
@@ -512,6 +513,10 @@ python -m app.cli sweep --dry</pre></div>
       <div class="row">
         <dt>Public only</dt>
         <dd>No logins, no cookies. Every alert links back to the original post.</dd>
+      </div>
+      <div class="row">
+        <dt>Pond agent</dt>
+        <dd>Runs Pond Protocol V1 — <a href="https://tryfoxy.vercel.app/manifest">manifest</a> and <a href="https://tryfoxy.vercel.app/healthz">health</a> are public.</dd>
       </div>
     </dl>
   </section>

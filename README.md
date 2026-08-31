@@ -1,5 +1,7 @@
 # Foxy — YC Launch Monitor
 
+**Live:** [tryfoxy.vercel.app](https://tryfoxy.vercel.app) · [manifest](https://tryfoxy.vercel.app/manifest) · [health](https://tryfoxy.vercel.app/healthz)
+
 A Slack bot that watches for new Y Combinator and Speedrun companies, and —
 the point of the thing — catches founders who announce their acceptance
 **before YC publishes them**.
