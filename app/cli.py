@@ -1,5 +1,6 @@
 """Command line entry point.
 
+    python -m app.cli init          # interactive setup - start here
     python -m app.cli check         # verify configuration, touch nothing
     python -m app.cli sweep         # run one sweep now
     python -m app.cli sweep --dry   # ...without posting to Slack
@@ -29,6 +30,32 @@ def _setup_logging(verbose: bool) -> None:
 
 
 # ---------------------------------------------------------------------------
+
+
+def cmd_init(_args) -> int:
+    """Interactive setup - validates the token, picks a channel, writes .env."""
+    from .setup_wizard import run
+
+    return run()
+
+
+def cmd_channels(_args) -> int:
+    """List channels Foxy can post to, with their IDs."""
+    from .slack import SlackClient
+
+    channels = SlackClient().list_channels()
+    if not channels:
+        print("\n  No channels listed. The app is probably missing the")
+        print("  channels:read scope - reinstall it with the current")
+        print("  slack-app-manifest.json to add it.\n")
+        return 1
+    print()
+    for c in sorted(channels, key=lambda c: c.get("name", "")):
+        mark = "in " if c.get("is_member") else "   "
+        sym = "*" if c.get("is_private") else "#"
+        print(f"  {mark} {c['id']}  {sym}{c.get('name')}")
+    print()
+    return 0
 
 
 def cmd_check(_args) -> int:
@@ -267,6 +294,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("-v", "--verbose", action="store_true")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
+    sub.add_parser(
+        "init", help="interactive setup - start here"
+    ).set_defaults(fn=cmd_init)
+    sub.add_parser(
+        "channels", help="list channels and their IDs"
+    ).set_defaults(fn=cmd_channels)
     sub.add_parser("check", help="verify configuration").set_defaults(fn=cmd_check)
 
     p = sub.add_parser("sweep", help="run one sweep now")

@@ -70,6 +70,40 @@ class SlackClient:
         """Verify the token and report which workspace/bot it belongs to."""
         return self._call("auth.test", {})
 
+    def list_channels(self) -> list[dict[str, Any]]:
+        """Channels the bot can post to, so nobody has to hunt for a channel ID.
+
+        Needs channels:read / groups:read. Returns [] when the scope is absent
+        rather than raising, so the setup wizard can fall back to asking.
+        """
+        out: list[dict[str, Any]] = []
+        cursor = ""
+        try:
+            for _ in range(10):  # up to 1000 channels
+                payload: dict[str, Any] = {
+                    "types": "public_channel,private_channel",
+                    "exclude_archived": True,
+                    "limit": 100,
+                }
+                if cursor:
+                    payload["cursor"] = cursor
+                data = self._call("conversations.list", payload)
+                out.extend(data.get("channels") or [])
+                cursor = (data.get("response_metadata") or {}).get("next_cursor") or ""
+                if not cursor:
+                    break
+        except Exception:  # noqa: BLE001 - missing scope is not fatal here
+            return []
+        return out
+
+    def join_channel(self, channel_id: str) -> bool:
+        """Join a public channel so alerts land without a manual /invite."""
+        try:
+            self._call("conversations.join", {"channel": channel_id})
+            return True
+        except Exception:  # noqa: BLE001 - private channels need an invite
+            return False
+
     def post(
         self,
         blocks: list[dict],

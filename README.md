@@ -60,33 +60,66 @@ You need a Slack workspace and either Docker or Python 3.11+. **No paid APIs.**
 ```bash
 git clone https://github.com/ana-momin/Foxy.git
 cd Foxy
-cp .env.example .env
+pip install -r requirements.txt
+python -m app.cli init
 ```
 
-Create the Slack app from [`slack-app-manifest.json`](slack-app-manifest.json)
-(*api.slack.com/apps → Create New App → From an app manifest*), install it, then put
-two values in `.env`:
+`init` walks you through the whole thing — it tells you how to create the Slack app,
+checks your token, **lists your channels so you never have to hunt for a channel ID**,
+adds Foxy to the one you pick, sends a test message to prove it works, and writes
+`.env` for you.
+
+```
+  Foxy setup
+  --------------------------------------------------------
+
+  Step 1 - create the Slack app (about two minutes):
+
+     1. Open   https://api.slack.com/apps
+     2. Click  Create New App  ->  From an app manifest
+     3. Pick your workspace
+     4. Paste in  slack-app-manifest.json  (in this folder)
+     5. Click    Install to Workspace  ->  Allow
+     6. Copy the Bot User OAuth Token from OAuth & Permissions
+
+  Paste your bot token (xoxb-...): ****
+
+  Connected to Acme Inc as @Foxy
+
+  Step 2 - where should alerts go?
+
+      1. #yc-signals   (already added)
+      2. #general
+      3. #growth
+
+  Enter 1-3, or paste a channel ID: 1
+
+  Step 3 - sending a test message...
+  Sent - go and check Slack.
+
+  Saved to .env. Setup is done.
+```
+
+Then start it:
+
+```bash
+docker compose up -d          # or: uvicorn app.main:app --port 8000
+```
+
+<details>
+<summary>Prefer to configure it by hand?</summary>
+
+```bash
+cp .env.example .env
+```
 
 ```env
 SLACK_BOT_TOKEN=xoxb-your-token
 SLACK_TARGET=C0ABC123DEF
 ```
 
-Invite the bot to your channel with `/invite @Foxy`, then run it:
-
-```bash
-docker compose up -d
-```
-
-<details>
-<summary>Without Docker</summary>
-
-```bash
-pip install -r requirements.txt
-python -m app.cli check          # confirms your setup
-python -m app.cli test-alert     # posts a sample alert
-uvicorn app.main:app --port 8000 # runs continuously
-```
+`python -m app.cli channels` prints every channel with its ID, so you can find the one
+you want without leaving the terminal.
 </details>
 
 Verify it works:
@@ -216,6 +249,8 @@ Keywords, vetoes, batch codes and thresholds live in
 
 | Command | What it does |
 |---|---|
+| `python -m app.cli init` | **Interactive setup — start here** |
+| `python -m app.cli channels` | Lists your channels and their IDs |
 | `python -m app.cli check` | Shows what is configured and what is missing |
 | `python -m app.cli sweep` | Runs one sweep now |
 | `python -m app.cli sweep --dry` | Same, without posting to Slack |
