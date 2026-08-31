@@ -1,6 +1,6 @@
 """LinkedIn providers.
 
-A deliberate constraint first: Bellwether never logs into LinkedIn, never uses
+A deliberate constraint first: Foxy never logs into LinkedIn, never uses
 session cookies, and never touches non-public data. LinkedIn sued Proxycurl out
 of existence in July 2026 and is actively enforcing. Shipping a logged-in
 scraper into someone's GTM stack would put their account at risk and would
@@ -31,7 +31,7 @@ from ..config import settings
 from ..sources.base import client
 from . import websearch
 
-log = logging.getLogger("bellwether.linkedin")
+log = logging.getLogger("foxy.linkedin")
 
 POST_RE = re.compile(
     r"https?://(?:[a-z]{2,3}\.)?linkedin\.com/(?:posts|feed/update)/([A-Za-z0-9_\-%:.]+)",

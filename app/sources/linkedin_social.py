@@ -21,7 +21,7 @@ from ..models import Signal
 from ..providers import linkedin_provider
 from .base import Source
 
-log = logging.getLogger("bellwether.linkedin")
+log = logging.getLogger("foxy.linkedin")
 
 PER_QUERY = 12
 

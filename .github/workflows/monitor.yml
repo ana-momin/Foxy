@@ -16,7 +16,7 @@
 # Optional secrets, all of which simply raise recall:
 #   SERPER_API_KEY, TWITTERAPI_KEY, APIFY_TOKEN, ANTHROPIC_API_KEY
 
-name: Bellwether sweep
+name: Foxy sweep
 
 on:
   schedule:
@@ -24,7 +24,7 @@ on:
   workflow_dispatch:         # and a manual "Run workflow" button
 
 concurrency:
-  group: bellwether-sweep
+  group: foxy-sweep
   cancel-in-progress: false
 
 jobs:

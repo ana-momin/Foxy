@@ -1,4 +1,4 @@
-# Bellwether - single container running both the monitor and the Pond agent.
+# Foxy - single container running both the monitor and the Pond agent.
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \

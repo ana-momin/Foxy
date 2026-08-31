@@ -1,4 +1,4 @@
-# The simplest way to run Bellwether persistently.
+# The simplest way to run Foxy persistently.
 #
 #   cp .env.example .env   # fill in SLACK_BOT_TOKEN and SLACK_TARGET
 #   docker compose up -d
@@ -8,18 +8,18 @@
 # already seen.
 
 services:
-  bellwether:
+  foxy:
     build: .
-    container_name: bellwether
+    container_name: foxy
     restart: unless-stopped
     env_file: .env
     environment:
       # Keep SQLite on the persistent volume rather than inside the container.
-      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/bellwether.db}
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/foxy.db}
     ports:
       - "8000:8000"
     volumes:
-      - bellwether-data:/data
+      - foxy-data:/data
 
 volumes:
-  bellwether-data:
+  foxy-data:

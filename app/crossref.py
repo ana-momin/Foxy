@@ -23,7 +23,7 @@ from rapidfuzz import fuzz
 from .models import domain_of
 from .sources.yc_directory import search_directory
 
-log = logging.getLogger("bellwether.crossref")
+log = logging.getLogger("foxy.crossref")
 
 # Name similarity above this counts as the same company.
 NAME_THRESHOLD = 88

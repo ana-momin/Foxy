@@ -187,7 +187,7 @@ class YCSpeedrunWatcher(Source):
                 title="YC appears to have launched a Speedrun page",
                 url=u,
                 description=(
-                    "Bellwether's sitemap watcher found a Speedrun path on "
+                    "Foxy's sitemap watcher found a Speedrun path on "
                     "ycombinator.com. This did not exist when the bot was built. "
                     "Enable a dedicated adapter for it."
                 ),

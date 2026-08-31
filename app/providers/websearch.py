@@ -1,7 +1,7 @@
 """Free public-web search, used to discover social posts without paying for a
 platform API.
 
-This is the backbone of Bellwether's free mode. Rather than hitting X's or
+This is the backbone of Foxy's free mode. Rather than hitting X's or
 LinkedIn's APIs (which now cost money and, for LinkedIn, carry real account
 risk), we ask a search engine for indexed *public* posts matching our
 announcement phrases, then hydrate what we find.
@@ -23,16 +23,16 @@ than cost. The engine chain below degrades quietly through every option it has.
 from __future__ import annotations
 
 import logging
-import os
 import random
 import re
 import time
 from dataclasses import dataclass
 from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 
+from ..config import settings
 from ..sources.base import client
 
-log = logging.getLogger("bellwether.websearch")
+log = logging.getLogger("foxy.websearch")
 
 # Signatures of a bot-check / throttle page rather than real results.
 _BLOCK_MARKERS = ("anomaly", "unusual traffic", "captcha", "are you a robot")
@@ -163,15 +163,29 @@ def _mojeek(query: str, limit: int) -> list[WebResult]:
 def _serper(query: str, limit: int) -> list[WebResult]:
     """serper.dev - Google results via API. 2,500 free credits on signup, which
     at the default cadence lasts months. Optional: set SERPER_API_KEY."""
-    key = os.getenv("SERPER_API_KEY", "").strip()
+    # Read through settings, not os.getenv - settings is what loads .env, and
+    # this module can be imported without app.config ever being touched.
+    key = settings.serper_api_key
     if not key:
         raise SearchUnavailable("no SERPER_API_KEY")
+    # Free serper accounts reject any page size other than 10 with
+    # "Query pattern not allowed for free accounts" - so always ask for 10 and
+    # trim locally. Paid accounts accept 20/30/…, but 10 costs one credit and
+    # is plenty per query at this cadence.
     with client(headers={"X-API-KEY": key, "Content-Type": "application/json"}) as c:
         r = c.post(
             "https://google.serper.dev/search",
-            json={"q": query, "num": min(limit, 20)},
+            json={"q": query, "num": 10},
         )
-        r.raise_for_status()
+        if r.status_code in (401, 403):
+            raise SearchUnavailable("serper rejected the API key")
+        if r.status_code == 429:
+            raise SearchUnavailable("serper credits exhausted or rate limited")
+        if r.status_code >= 400:
+            # A malformed query is this query's problem, not the engine's, so
+            # report empty rather than benching serper for every later query.
+            log.debug("serper %s for %r: %s", r.status_code, query, r.text[:160])
+            return []
         data = r.json()
     return [
         WebResult(
@@ -242,12 +256,12 @@ def search_site(site: str, phrase: str, limit: int = 20) -> list[WebResult]:
 
 
 def engine_status() -> dict[str, str]:
-    """Reported in `/bellwether status` so a degraded free mode is visible
+    """Reported in `/foxy status` so a degraded free mode is visible
     rather than silently returning nothing."""
     now = time.monotonic()
     out = {}
     for name, _ in ENGINES:
-        if name == "serper" and not os.getenv("SERPER_API_KEY", "").strip():
+        if name == "serper" and not settings.serper_api_key:
             out[name] = "not configured"
         elif now < _cooldown.get(name, 0.0):
             out[name] = f"cooling down {int(_cooldown[name] - now)}s"

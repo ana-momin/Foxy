@@ -34,11 +34,11 @@ from .db import health_snapshot, init_db, recent_alerts, session
 from .engine import Engine, source_modes
 from .slack import build_status
 
-log = logging.getLogger("bellwether.api")
+log = logging.getLogger("foxy.api")
 
 PROTOCOL_VERSION = "1.0"
 
-app = FastAPI(title="Bellwether", docs_url=None, redoc_url=None)
+app = FastAPI(title="Foxy", docs_url=None, redoc_url=None)
 router = APIRouter()
 
 # In-memory task store for HTTP 202 responses. Long sweeps exceed a sensible
@@ -235,13 +235,13 @@ def manifest() -> dict[str, Any]:
         "protocol_version": PROTOCOL_VERSION,
         "agent_version": settings.agent_version,
         "metadata": {
-            "name": "Bellwether — YC Launch Monitor",
+            "name": "Foxy — YC Launch Monitor",
             "short_description": (
                 "Detects new Y Combinator and Speedrun companies, and catches "
                 "founders who announce before YC does."
             ),
             "description": (
-                "<p>Bellwether continuously monitors the YC startup directory, "
+                "<p>Foxy continuously monitors the YC startup directory, "
                 "Launch YC, the a16z Speedrun directory, X and LinkedIn. It "
                 "alerts on new YC and Speedrun companies, and — the point of "
                 "the tool — on founders announcing an acceptance that YC has "
@@ -594,7 +594,7 @@ def _do_health() -> dict[str, Any]:
     modes = source_modes()
 
     lines = [
-        "## Bellwether health",
+        "## Foxy health",
         "",
         f"- Sweeps completed: **{snap['sweeps_completed']}**",
         f"- Last sweep: `{snap['last_sweep_at'] or 'never'}`",
@@ -636,7 +636,7 @@ def healthz() -> dict[str, Any]:
 
 @router.post("/slack/command")
 async def slack_command(request: Request):
-    """Handles `/bellwether status` and `/bellwether scan` from Slack.
+    """Handles `/foxy status` and `/foxy scan` from Slack.
 
     Slack expects a reply within 3 seconds, so a scan is acknowledged
     immediately and runs in the background.
@@ -661,7 +661,7 @@ async def slack_command(request: Request):
 @router.get("/")
 def index() -> dict[str, str]:
     return {
-        "name": "Bellwether — YC Launch Monitor",
+        "name": "Foxy — YC Launch Monitor",
         "manifest": "/manifest",
         "health": "/healthz",
     }
@@ -711,7 +711,7 @@ async def _startup() -> None:
         coalesce=True,
     )
     _scheduler.start()
-    log.info("Bellwether started; sweeping every %sh", settings.scan_interval_hours)
+    log.info("Foxy started; sweeping every %sh", settings.scan_interval_hours)
 
 
 @app.on_event("shutdown")

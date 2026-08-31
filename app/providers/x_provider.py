@@ -30,7 +30,7 @@ from ..config import settings
 from ..sources.base import client
 from . import websearch
 
-log = logging.getLogger("bellwether.x")
+log = logging.getLogger("foxy.x")
 
 STATUS_RE = re.compile(
     r"https?://(?:www\.)?(?:x|twitter)\.com/([A-Za-z0-9_]{1,15})/status/(\d+)", re.I

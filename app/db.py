@@ -1,6 +1,6 @@
 """Persistent state.
 
-This is what makes Bellwether a monitor rather than a script. Four tables:
+This is what makes Foxy a monitor rather than a script. Four tables:
 
   seen        - every fingerprint we have ever processed (dedupe)
   entities    - one row per company, tracking early -> confirmed promotion
@@ -227,7 +227,7 @@ def recent_alerts(s: Session, limit: int = 20) -> list[Alert]:
 
 
 def health_snapshot(s: Session) -> dict[str, Any]:
-    """Used by /healthz, the Pond manifest and `/bellwether status`."""
+    """Used by /healthz, the Pond manifest and `/foxy status`."""
     out: dict[str, Any] = {
         "sweeps_completed": int(meta_get(s, "sweeps_completed", "0") or 0),
         "last_sweep_at": meta_get(s, "last_sweep_at", "") or None,

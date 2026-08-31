@@ -15,7 +15,7 @@ import httpx
 
 from ..models import Signal
 
-log = logging.getLogger("bellwether.sources")
+log = logging.getLogger("foxy.sources")
 
 # A plain desktop UA. We only ever read public, unauthenticated pages.
 UA = (

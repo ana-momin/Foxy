@@ -52,12 +52,15 @@ class Settings:
 
     # --- State -------------------------------------------------------------
     database_url: str = (os.getenv("DATABASE_URL") or "").strip() or (
-        f"sqlite:///{ROOT / 'bellwether.db'}"
+        f"sqlite:///{ROOT / 'foxy.db'}"
     )
 
     # --- Providers ---------------------------------------------------------
     x_provider: str = os.getenv("X_PROVIDER", "free").strip().lower()
     twitterapi_key: str = os.getenv("TWITTERAPI_KEY", "").strip()
+
+    # Optional Google-quality search, used by the free X/LinkedIn providers.
+    serper_api_key: str = os.getenv("SERPER_API_KEY", "").strip()
 
     linkedin_provider: str = os.getenv("LINKEDIN_PROVIDER", "free").strip().lower()
     apify_token: str = os.getenv("APIFY_TOKEN", "").strip()

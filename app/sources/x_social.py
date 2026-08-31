@@ -17,7 +17,7 @@ from ..models import Signal
 from ..providers import x_provider
 from .base import Source
 
-log = logging.getLogger("bellwether.x")
+log = logging.getLogger("foxy.x")
 
 # Per-query result cap. Free mode is limited by what a search engine returns
 # anyway; paid mode uses this to keep spend predictable.

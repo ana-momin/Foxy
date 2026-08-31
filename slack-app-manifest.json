@@ -1,18 +1,18 @@
 {
   "display_information": {
-    "name": "Bellwether",
+    "name": "Foxy",
     "description": "Alerts on new YC and Speedrun companies, and on founders who announce before YC does.",
     "background_color": "#d14708",
-    "long_description": "Bellwether watches the YC startup directory, Launch YC, the a16z Speedrun directory, X and LinkedIn. It posts an alert the moment a new company appears \u2014 and, more usefully, when a founder announces a YC or Speedrun acceptance that YC has not yet published. Every alert carries the company name, batch, source, description and a link, plus the founder's own words. State is persistent, so nothing is ever reported twice."
+    "long_description": "Foxy watches the YC startup directory, Launch YC, the a16z Speedrun directory, X and LinkedIn. It posts an alert the moment a new company appears \u2014 and, more usefully, when a founder announces a YC or Speedrun acceptance that YC has not yet published. Every alert carries the company name, batch, source, description and a link, plus the founder's own words. State is persistent, so nothing is ever reported twice."
   },
   "features": {
     "bot_user": {
-      "display_name": "Bellwether",
+      "display_name": "Foxy",
       "always_online": true
     },
     "slash_commands": [
       {
-        "command": "/bellwether",
+        "command": "/foxy",
         "url": "https://REPLACE-WITH-YOUR-PUBLIC-URL/slack/command",
         "description": "Check monitor status or trigger a scan",
         "usage_hint": "status | scan",

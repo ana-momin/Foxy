@@ -19,7 +19,7 @@ from .config import settings
 from .models import Signal
 from .sources.base import client
 
-log = logging.getLogger("bellwether.slack")
+log = logging.getLogger("foxy.slack")
 
 API = "https://slack.com/api"
 PT = ZoneInfo("America/Los_Angeles")
@@ -198,7 +198,7 @@ def build_promotion(company: str, days: int | None, url: str) -> tuple[list[dict
         f"*{company}* is now listed in the YC directory."
         if days is None
         else f"*{company}* is now listed in the YC directory — "
-        f"*{days} day{'s' if days != 1 else ''}* after Bellwether flagged it."
+        f"*{days} day{'s' if days != 1 else ''}* after Foxy flagged it."
     )
     blocks = [
         {
@@ -222,17 +222,17 @@ def build_health(failures: dict[str, str]) -> tuple[list[dict], str]:
             "text": {
                 "type": "mrkdwn",
                 "text": (
-                    ":warning: *Bellwether — source degraded*\n"
+                    ":warning: *Foxy — source degraded*\n"
                     f"{lines}\n\n_Other sources are still running normally._"
                 ),
             },
         }
     ]
-    return blocks, "Bellwether: source degraded"
+    return blocks, "Foxy: source degraded"
 
 
 def build_status(snapshot: dict[str, Any], modes: dict[str, str]) -> tuple[list[dict], str]:
-    """Response to `/bellwether status`."""
+    """Response to `/foxy status`."""
     rows = []
     for name, mode in modes.items():
         info = snapshot.get("sources", {}).get(name)
@@ -250,14 +250,14 @@ def build_status(snapshot: dict[str, Any], modes: dict[str, str]) -> tuple[list[
             "text": {
                 "type": "mrkdwn",
                 "text": (
-                    f"*Bellwether status*\n"
+                    f"*Foxy status*\n"
                     f"Sweeps completed: *{snapshot.get('sweeps_completed', 0)}*\n"
                     f"Last sweep: `{last}`\n\n" + "\n".join(rows)
                 ),
             },
         }
     ]
-    return blocks, "Bellwether status"
+    return blocks, "Foxy status"
 
 
 def build_digest(signals: list[Signal]) -> tuple[list[dict], str]:

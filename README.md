@@ -1,4 +1,4 @@
-# Bellwether — YC Launch Monitor
+# Foxy — YC Launch Monitor
 
 A Slack bot that watches for new Y Combinator and Speedrun companies, and —
 the point of the thing — catches founders who announce their acceptance
@@ -30,14 +30,14 @@ public. By then the whole market can see them.
 
 The gap is this: **YC's directory currently lists 24 Fall 2026 companies.**
 The batch runs several hundred. Those founders are announcing on X and
-LinkedIn right now, weeks before YC publishes them. Bellwether treats the
+LinkedIn right now, weeks before YC publishes them. Foxy treats the
 directory as the *verification* set, never the discovery set — a founder post
 is cross-referenced against it, and if YC does not know the company yet, that
 is an early signal.
 
-When YC later lists a company Bellwether called early, it replies **in the
+When YC later lists a company Foxy called early, it replies **in the
 original Slack thread**: _"Acme AI is now listed in the YC directory — 11 days
-after Bellwether flagged it."_
+after Foxy flagged it."_
 
 ---
 
@@ -48,7 +48,7 @@ after Bellwether flagged it."_
 1. Go to <https://api.slack.com/apps> → **Create New App** → **From an app manifest**
 2. Pick your workspace, paste the contents of [`slack-app-manifest.json`](slack-app-manifest.json)
 3. **Install to Workspace**, then copy the **Bot User OAuth Token** (`xoxb-…`)
-4. In Slack, invite the bot to your channel: `/invite @Bellwether`
+4. In Slack, invite the bot to your channel: `/invite @Foxy`
 
 ### 2. Configure
 
@@ -103,7 +103,7 @@ python -m app.cli status         # per-source health
 | `python -m app.cli check-post <url>` | Run one X post through the full pipeline; add `--post` to send it to Slack |
 | `python -m app.cli reset --yes` | Clears memory (everything becomes "new" again) |
 
-In Slack: `/bellwether status` and `/bellwether scan`.
+In Slack: `/foxy status` and `/foxy scan`.
 
 ---
 
@@ -114,8 +114,8 @@ In Slack: `/bellwether status` and `/bellwether scan`.
 | **YC Directory** | Algolia launch-date index, credentials re-read from the live page each run | free | 6,194 companies |
 | **Launch YC** | Inertia JSON feed — often fires *before* the directory | free | 20 launches |
 | **Speedrun (a16z)** | Next.js data endpoint, cohort-tagged | free | 30 companies, SR003–SR006 |
-| **X / Twitter** | Post discovery + free syndication hydration | free or paid | reference post confirmed |
-| **LinkedIn** | Public post + company-page search, no login | free or paid | — |
+| **X / Twitter** | Post discovery + free syndication hydration | free or paid | 7 signals in a live sweep |
+| **LinkedIn** | Public post + company-page search, no login | free or paid | 49 signals in a live sweep |
 
 Two of these deserve explanation.
 
@@ -144,7 +144,7 @@ is correct today and correct if the brief becomes true later.
 read and full-archive search sits behind a $42,000/month enterprise contract.
 There is no free official search route. Anyone claiming otherwise is wrong.
 
-So Bellwether splits the job:
+So Foxy splits the job:
 
 - **Hydration is free, always.** Given a post ID, X's own syndication endpoint
   returns the full text and author with no key and no cost. Confirmed against
@@ -156,7 +156,7 @@ So Bellwether splits the job:
   will find founder announcements; it will not find all of them.**
 
 **LinkedIn is in an enforcement era.** LinkedIn sued Proxycurl out of existence
-on 4 July 2026. Bellwether never logs in, never uses cookies, and never touches
+on 4 July 2026. Foxy never logs in, never uses cookies, and never touches
 private data — free mode reads public search results, paid mode uses a managed
 cookie-free provider.
 
@@ -166,7 +166,7 @@ If recall matters more than cost, see the upgrade table below.
 
 ## Free vs paid — same code, one env var
 
-Bellwether is built so **you** can run it for nothing while **the person you
+Foxy is built so **you** can run it for nothing while **the person you
 hand it to** can turn on higher recall by pasting in keys. No code changes.
 
 | | Free (default) | Upgrade | Cost |
@@ -180,9 +180,15 @@ hand it to** can turn on higher recall by pasting in keys. No code changes.
 | **Web search** | DuckDuckGo → Bing → Mojeek | `SERPER_API_KEY` | 2,500 free queries (~5 weeks), then paid |
 | **Classifier** | rule engine | `ANTHROPIC_API_KEY` | under $2 / month |
 
-**Recommended middle ground:** set `SERPER_API_KEY` (2,500 free queries, no
-credit card). It gives Google-quality results and removes the throttling
-problem entirely. Bellwether issues roughly 20 queries per sweep, so at the
+**Strongly recommended:** set `SERPER_API_KEY` (2,500 free queries, no credit
+card, sign-up takes two minutes). In testing, DuckDuckGo throttled after a
+burst of queries and Bing returned almost no X post URLs, so without a serper
+key the X and LinkedIn sources fire only intermittently. With it, both return
+results on every sweep.
+
+Note for free serper accounts: only a page size of 10 is permitted — anything
+larger returns *"Query pattern not allowed for free accounts"*. Foxy always
+requests 10 and trims locally, so this is handled. Foxy issues roughly 20 queries per sweep, so at the
 default 8-hour cadence the free credits last about **5 weeks**. Trim the query
 lists in `config.yaml` — or lower `lookahead_batches` — to stretch that
 further.
@@ -301,7 +307,7 @@ sweeps and set `DATABASE_URL`.
 
 ## Pond agent integration
 
-Bellwether implements **Pond Protocol V1** in the same process as the monitor —
+Foxy implements **Pond Protocol V1** in the same process as the monitor —
 the scheduler and the agent endpoints share one database, so Pond's manifest
 revalidation doubles as the health check.
 
@@ -354,7 +360,7 @@ down.
 ## Design decisions worth knowing
 
 **Credentials are never hardcoded.** YC rotates its public Algolia key — the
-one copied into older open-source projects is already dead (403). Bellwether
+one copied into older open-source projects is already dead (403). Foxy
 re-reads `window.AlgoliaOpts` from the live page every run, so rotation heals
 itself. Same pattern for YC's Inertia version hash and a16z's Next.js build ID.
 

@@ -36,7 +36,7 @@ def cmd_check(_args) -> int:
     from .engine import source_modes
     from .providers.websearch import engine_status
 
-    print("\n  Bellwether configuration\n  " + "-" * 52)
+    print("\n  Foxy configuration\n  " + "-" * 52)
 
     ok = True
     if settings.slack_configured():
@@ -263,7 +263,7 @@ def cmd_reset(args) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="bellwether", description=__doc__)
+    parser = argparse.ArgumentParser(prog="foxy", description=__doc__)
     parser.add_argument("-v", "--verbose", action="store_true")
     sub = parser.add_subparsers(dest="cmd", required=True)
 

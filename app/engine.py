@@ -45,7 +45,7 @@ from .sources.x_social import XSource
 from .sources.yc_directory import YCDirectorySource
 from .sources.yc_launches import YCLaunchesSource
 
-log = logging.getLogger("bellwether.engine")
+log = logging.getLogger("foxy.engine")
 
 
 def build_sources() -> list[Source]:

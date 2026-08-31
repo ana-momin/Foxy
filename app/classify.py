@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from .config import active_batch_codes, load_rules, settings
 from .sources.base import client
 
-log = logging.getLogger("bellwether.classify")
+log = logging.getLogger("foxy.classify")
 
 # "YC S26", "YC W27", "S26 batch", "Y Combinator Summer 2026"
 BATCH_RE = re.compile(
