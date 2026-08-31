@@ -22,12 +22,13 @@ import contextlib
 import datetime as dt
 import logging
 import os
+import pathlib
 import uuid
 from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import APIRouter, FastAPI, Header, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from .config import active_batch_codes, settings
 from .db import health_snapshot, init_db, recent_alerts, session
@@ -658,13 +659,18 @@ async def slack_command(request: Request):
     return {"response_type": "ephemeral", "blocks": blocks, "text": fallback}
 
 
-@router.get("/")
-def index() -> dict[str, str]:
-    return {
-        "name": "Foxy — YC Launch Monitor",
-        "manifest": "/manifest",
-        "health": "/healthz",
-    }
+_STATIC = pathlib.Path(__file__).parent / "static" / "index.html"
+
+
+@router.get("/", response_class=HTMLResponse)
+def index() -> HTMLResponse:
+    """Serve the documentation page, so one deploy gives both the site and the
+    agent. Falls back to a small JSON pointer if the page is not bundled."""
+    if _STATIC.exists():
+        return HTMLResponse(_STATIC.read_text(encoding="utf-8"))
+    return HTMLResponse(
+        "<h1>Foxy</h1><p>Agent manifest: <a href='/manifest'>/manifest</a></p>"
+    )
 
 
 app.include_router(router)

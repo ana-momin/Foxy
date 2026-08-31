@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Foxy finds YC founders before YC announces them. A Slack bot watching five sources every eight hours.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:title" content="Foxy">
+<meta property="og:description" content="Finds YC founders before YC announces them.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%A6%8A</text></svg>">
+<title>Foxy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* ------------------------------------------------------------------
+     Restraint is the whole idea. One warm near-white ground, one ink,
+     one accent — the orange taken from the fox — used perhaps six times
+     on the entire page. Hairlines instead of boxes. Space does the work.
+     ------------------------------------------------------------------ */
+  :root {
+    --bg:      #FCFBF9;
+    --ink:     #191714;
+    --ink-2:   #56514A;
+    --muted:   #9C958A;
+    --faint:   #C7C0B4;
+    --rule:    #E9E5DE;
+    --accent:  #DE5A16;
+    --wash:    #F5F2EC;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:     #0E0D0B;
+      --ink:    #F2F0EC;
+      --ink-2:  #A8A29A;
+      --muted:  #736D64;
+      --faint:  #4A443C;
+      --rule:   #232120;
+      --accent: #FF7A3D;
+      --wash:   #171514;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg:     #0E0D0B;
+    --ink:    #F2F0EC;
+    --ink-2:  #A8A29A;
+    --muted:  #736D64;
+    --faint:  #4A443C;
+    --rule:   #232120;
+    --accent: #FF7A3D;
+    --wash:   #171514;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 16.5px;
+    line-height: 1.72;
+    letter-spacing: -0.005em;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 592px;
+    margin: 0 auto;
+    padding: 0 28px;
+  }
+
+  /* Vertical rhythm is the primary structural device. */
+  section { padding: 108px 0 0; }
+  section:last-of-type { padding-bottom: 108px; }
+  @media (max-width: 600px) { section { padding-top: 78px; } }
+
+  h1, h2 { margin: 0; font-weight: 400; }
+
+  .label {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 28px;
+  }
+
+  p { margin: 0 0 20px; color: var(--ink-2); }
+  p:last-child { margin-bottom: 0; }
+  strong { color: var(--ink); font-weight: 500; }
+  em { font-style: italic; }
+
+  a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--faint); }
+  a:hover { border-bottom-color: var(--accent); color: var(--accent); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 1px; }
+
+  code {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.85em;
+    color: var(--ink);
+    background: var(--wash);
+    padding: 1.5px 5px;
+    border-radius: 2px;
+  }
+
+  /* ---------- opening ---------- */
+  .top { padding: 132px 0 0; }
+  @media (max-width: 600px) { .top { padding-top: 84px; } }
+
+  .mark {
+    width: 60px;
+    height: 60px;
+    display: block;
+    border-radius: 14px;
+    margin-bottom: 40px;
+  }
+
+  h1 {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-size: clamp(46px, 9vw, 66px);
+    line-height: 1.04;
+    letter-spacing: -0.021em;
+    margin-bottom: 26px;
+    text-wrap: balance;
+  }
+  h1 em { font-style: italic; color: var(--accent); }
+
+  .sub {
+    font-size: 19px;
+    line-height: 1.6;
+    color: var(--ink-2);
+    max-width: 40ch;
+    margin-bottom: 40px;
+  }
+
+  .meta {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+  .meta span::after { content: "·"; margin-left: 14px; color: var(--faint); }
+  .meta span:last-child::after { content: ""; margin: 0; }
+
+  h2 {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-size: clamp(27px, 5vw, 33px);
+    line-height: 1.2;
+    letter-spacing: -0.014em;
+    margin-bottom: 24px;
+    text-wrap: balance;
+  }
+
+  /* ---------- the numbers ---------- */
+  .figures {
+    display: flex;
+    gap: 56px;
+    margin: 40px 0 34px;
+    flex-wrap: wrap;
+  }
+  .fig-n {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-size: 52px;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    display: block;
+    margin-bottom: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .figures div:first-child .fig-n { color: var(--muted); }
+  .figures div:last-child .fig-n { color: var(--accent); }
+  .fig-l {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ---------- lists: hairlines, never boxes ---------- */
+  .rows { border-top: 1px solid var(--rule); }
+  .row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2px 24px;
+    padding: 17px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  @media (min-width: 560px) {
+    .row { grid-template-columns: 138px 1fr; align-items: baseline; }
+  }
+  .row dt { font-weight: 500; color: var(--ink); margin: 0; }
+  .row dd { margin: 0; color: var(--ink-2); font-size: 15.5px; }
+  .row dd .n {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: 8px;
+    white-space: nowrap;
+  }
+
+  /* ---------- alert ---------- */
+  .alert {
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    padding: 26px 0;
+    margin-top: 6px;
+  }
+  .alert-hd {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 20px;
+  }
+  .alert dl {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px 32px;
+    margin: 0 0 22px;
+  }
+  @media (min-width: 480px) { .alert dl { grid-template-columns: 1fr 1fr; } }
+  .alert dt {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1px;
+  }
+  .alert dd { margin: 0; font-size: 15.5px; color: var(--ink); }
+  .quote {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-size: 19px;
+    line-height: 1.45;
+    color: var(--ink);
+    margin: 0 0 20px;
+    padding-left: 18px;
+    border-left: 1px solid var(--accent);
+  }
+  .alert-ft {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+
+  /* ---------- steps ---------- */
+  .step {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px 26px;
+    padding: 30px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .step:first-of-type { border-top: 1px solid var(--rule); }
+  @media (min-width: 560px) { .step { grid-template-columns: 40px 1fr; } }
+  .step .num {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    padding-top: 4px;
+  }
+  .step h3 {
+    margin: 0 0 10px;
+    font-size: 17px;
+    font-weight: 500;
+    letter-spacing: -0.008em;
+    color: var(--ink);
+  }
+  .step p { font-size: 15.5px; margin-bottom: 14px; }
+
+  pre {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12.5px;
+    line-height: 1.85;
+    background: var(--wash);
+    color: var(--ink);
+    padding: 15px 17px;
+    border-radius: 3px;
+    overflow-x: auto;
+    margin: 0 0 12px;
+  }
+  pre:last-child { margin-bottom: 0; }
+  pre .c { color: var(--muted); }
+  pre .a { color: var(--accent); }
+
+  .aside {
+    color: var(--muted);
+    font-size: 14.5px;
+    line-height: 1.65;
+    margin-top: 34px;
+    padding-left: 18px;
+    border-left: 1px solid var(--rule);
+  }
+
+
+  /* ---------- slim masthead ---------- */
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 26px 0 0;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .bar .name { color: var(--ink); display: flex; align-items: center; gap: 9px; }
+  .bar .name img { width: 19px; height: 19px; border-radius: 5px; display: block; }
+  .bar a { color: var(--muted); border-bottom: none; }
+  .bar a:hover { color: var(--accent); }
+
+  /* ---------- copy button on code ---------- */
+  .codewrap { position: relative; margin-bottom: 12px; }
+  .codewrap:last-child { margin-bottom: 0; }
+  .codewrap pre { margin: 0; }
+  .copy {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 4px 7px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .18s ease, color .18s ease, border-color .18s ease;
+  }
+  .codewrap:hover .copy,
+  .copy:focus-visible { opacity: 1; }
+  .copy:hover { color: var(--accent); border-color: var(--accent); }
+  .copy[data-done="1"] { opacity: 1; color: var(--accent); border-color: var(--accent); }
+  @media (hover: none) { .copy { opacity: 1; } }
+
+  /* ---------- row hover ---------- */
+  .row { transition: border-color .2s ease; }
+  .rows:hover .row { border-bottom-color: var(--rule); }
+  .row:hover dt { color: var(--accent); }
+  .row dt { transition: color .2s ease; }
+
+  /* ---------- entrance ---------- */
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal { opacity: 0; transform: translateY(14px); }
+    .reveal.in { opacity: 1; transform: none; transition: opacity .7s cubic-bezier(.22,.61,.36,1), transform .7s cubic-bezier(.22,.61,.36,1); }
+  }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding: 32px 0 72px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+</style>
+<style>
+  html { -webkit-text-size-adjust: 100%; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <nav class="bar">
+    <span class="name"><img src="data:image/webp;base64,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" alt="">Foxy</span>
+    <a href="https://github.com/ana-momin/Foxy">GitHub</a>
+  </nav>
+
+  <header class="top reveal">
+    <img class="mark" src="data:image/webp;base64,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" alt="Foxy" width="256" height="256">
+    <h1>Finds YC founders <em>before</em> YC announces them.</h1>
+    <p class="sub">A Slack bot that watches five sources and tells you which new companies the market hasn't seen yet.</p>
+    <div class="meta">
+      <span>Runs free</span>
+      <span>Every 8 hours</span>
+      <span>Python or Docker</span>
+    </div>
+  </header>
+
+  <section class="reveal">
+    <p class="label">Why</p>
+    <h2>The directory is a lagging indicator.</h2>
+    <div class="figures">
+      <div>
+        <span class="fig-n">24</span>
+        <span class="fig-l">Listed by YC</span>
+      </div>
+      <div>
+        <span class="fig-n">100s</span>
+        <span class="fig-l">Actually in the batch</span>
+      </div>
+    </div>
+    <p>Everyone scraping YC's directory finds the same companies on the same day. The founders not yet listed are already posting about it.</p>
+    <p>Foxy reads those posts first, then checks the directory. If YC hasn't published them, it says so — <strong>that's the window where an email still lands first.</strong></p>
+  </section>
+
+  <section class="reveal">
+    <p class="label">Watches</p>
+    <dl class="rows">
+      <div class="row"><dt>YC Directory</dt><dd>New companies, newest first</dd></div>
+      <div class="row"><dt>Launch YC</dt><dd>Founder launch posts</dd></div>
+      <div class="row"><dt>Speedrun</dt><dd>a16z cohorts<span class="n">251 companies</span></dd></div>
+      <div class="row"><dt>X</dt><dd>Founder announcements</dd></div>
+      <div class="row"><dt>LinkedIn</dt><dd>Posts and new company pages</dd></div>
+    </dl>
+    <p class="aside">Nothing here needs an API key. Foxy runs on free sources by default.</p>
+  </section>
+
+  <section class="reveal">
+    <p class="label">Alert</p>
+    <h2>What arrives in Slack.</h2>
+    <div class="alert">
+      <p class="alert-hd">Early signal — founder announced before YC</p>
+      <dl>
+        <div><dt>Company</dt><dd>Adalat AI</dd></div>
+        <div><dt>Source</dt><dd>X</dd></div>
+        <div><dt>Status</dt><dd>Not in YC directory</dd></div>
+        <div><dt>Confidence</dt><dd>100%</dd></div>
+      </dl>
+      <p class="quote">“Adalat AI is now backed by Y Combinator. We're the first nonprofit…”</p>
+      <p class="alert-ft">Original post · Website</p>
+    </div>
+    <p class="aside">Each alert says <em>why</em> Foxy believes it's early, so you can check its work. When YC later lists the company, Foxy replies in the same thread with how many days it beat them by.</p>
+  </section>
+
+  <section class="reveal">
+    <p class="label">Setup</p>
+    <h2>Five minutes, one token.</h2>
+
+    <div class="step">
+      <div class="num">01</div>
+      <div>
+        <h3>Create the Slack app</h3>
+        <p>At <a href="https://api.slack.com/apps">api.slack.com/apps</a> choose <strong>From an app manifest</strong> and paste in <code>slack-app-manifest.json</code>. Install it, copy the <code>xoxb-</code> token, then invite it:</p>
+        <div class="codewrap"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre>/invite @Foxy</pre></div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="num">02</div>
+      <div>
+        <h3>Add two values</h3>
+        <div class="codewrap"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><span class="c"># .env</span>
+SLACK_BOT_TOKEN=<span class="a">xoxb-…</span>
+SLACK_TARGET=<span class="a">C0ABC123DEF</span></pre></div>
+        <p>The channel ID is at the bottom of <strong>View channel details</strong>.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="num">03</div>
+      <div>
+        <h3>Run it</h3>
+        <div class="codewrap"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre>docker compose up -d</pre></div>
+        <p>Or directly:</p>
+        <div class="codewrap"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre>pip install -r requirements.txt
+uvicorn app.main:app --port 8000</pre></div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="num">04</div>
+      <div>
+        <h3>Confirm</h3>
+        <div class="codewrap"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre>python -m app.cli test-alert
+python -m app.cli sweep --dry</pre></div>
+        <p>Run the sweep twice. The second should report <strong>0 new</strong> — that's the memory working.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="reveal">
+    <p class="label">Optional</p>
+    <h2>Add a key, sharpen a source.</h2>
+    <dl class="rows">
+      <div class="row"><dt>Serper</dt><dd>Much better X and LinkedIn recall<span class="n">2,500 free</span></dd></div>
+      <div class="row"><dt>Anthropic</dt><dd>Catches unusual phrasings<span class="n">&lt;$2/mo</span></dd></div>
+      <div class="row"><dt>twitterapi.io</dt><dd>Full X search<span class="n">$0.15/1k</span></dd></div>
+      <div class="row"><dt>Apify</dt><dd>Full LinkedIn post text<span class="n">$0.005/post</span></dd></div>
+    </dl>
+    <p class="aside">Phrases, batch codes and thresholds live in <code>config.yaml</code>. No code changes.</p>
+  </section>
+
+  <section class="reveal">
+    <p class="label">Notes</p>
+    <dl class="rows">
+      <div class="row">
+        <dt>Speedrun</dt>
+        <dd>It's a16z's programme, not YC's. Foxy monitors the real one, and watches YC's sitemap in case that changes.</dd>
+      </div>
+      <div class="row">
+        <dt>Unverified</dt>
+        <dd>When Foxy can't identify a company, it says so rather than claiming the company is missing from YC.</dd>
+      </div>
+      <div class="row">
+        <dt>Public only</dt>
+        <dd>No logins, no cookies. Every alert links back to the original post.</dd>
+      </div>
+    </dl>
+  </section>
+
+  <footer>Foxy — YC &amp; Speedrun launch monitor</footer>
+
+</div>
+
+<script>
+  // Copy-to-clipboard on the setup commands. This is a setup guide; the
+  // commands exist to be run, so make them one click to take.
+  document.querySelectorAll(".copy").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var pre = btn.parentElement.querySelector("pre");
+      if (!pre) return;
+      // Strip the comment spans' text? No - the comments are part of what a
+      // reader would paste, so copy the block verbatim.
+      var text = pre.innerText.replace(/ /g, " ");
+      var done = function () {
+        btn.textContent = "Copied";
+        btn.dataset.done = "1";
+        setTimeout(function () {
+          btn.textContent = "Copy";
+          delete btn.dataset.done;
+        }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () {});
+      } else {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand("copy"); done(); } catch (e) {}
+        document.body.removeChild(ta);
+      }
+    });
+  });
+
+  // Reveal blocks as they enter. Skipped entirely when the viewer prefers
+  // reduced motion, and everything is shown if IntersectionObserver is absent.
+  (function () {
+    var blocks = document.querySelectorAll(".reveal");
+    var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced || !("IntersectionObserver" in window)) {
+      blocks.forEach(function (b) { b.classList.add("in"); });
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) {
+          e.target.classList.add("in");
+          io.unobserve(e.target);
+        }
+      });
+    }, { rootMargin: "0px 0px -8% 0px", threshold: 0.04 });
+    blocks.forEach(function (b) { io.observe(b); });
+  })();
+</script>
+</body>
+</html>
