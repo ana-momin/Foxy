@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Foxy watches Y Combinator, Speedrun, X and LinkedIn, then pings your Slack when a new company appears or a founder announces before YC does.">
+<meta name="description" content="Foxy watches Y Combinator, Speedrun, X and LinkedIn, then pings your Slack when a new company appears or a founder announces before YC does. Nothing to install.">
 <meta name="color-scheme" content="light dark">
 <meta property="og:title" content="Foxy · Know about new YC startups first">
-<meta property="og:description" content="A Slack bot that catches founders announcing YC before YC announces them.">
+<meta property="og:description" content="A Slack bot that catches founders announcing YC before YC announces them. Click, choose a channel, done.">
 <meta property="og:url" content="https://tryfoxy.vercel.app">
 <meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%A6%8A</text></svg>">
@@ -328,6 +328,13 @@
   .inlink:hover { border-bottom-color: var(--accent); }
 
 
+
+  .steps3 { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 30px; }
+  @media (min-width: 720px) { .steps3 { grid-template-columns: repeat(3, 1fr); gap: 16px; } }
+  .s3 { background: var(--surface); border: 1px solid var(--border); border-radius: 13px; padding: 20px; box-shadow: var(--shadow-s); }
+  .s3-n { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--accent); color: #fff; font-family: "JetBrains Mono", monospace; font-size: 12px; font-weight: 600; margin-bottom: 13px; }
+  .s3 b { display: block; font-size: 15.5px; font-weight: 600; margin-bottom: 4px; }
+  .s3 span:last-child { font-size: 14px; color: var(--ink-2); line-height: 1.5; }
 
   footer { border-top: 1px solid var(--border); padding: 34px 0 60px; }
   .foot { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 13.5px; color: var(--muted); }
@@ -652,7 +659,7 @@
         <a class="slackbtn" href="/slack/install"><svg viewBox="0 0 122 122" aria-hidden="true"><path fill="#E01E5A" d="M26 77a13 13 0 11-13-13h13zm6 0a13 13 0 0126 0v32a13 13 0 01-26 0z"/><path fill="#36C5F0" d="M45 26a13 13 0 1113-13v13zm0 6a13 13 0 010 26H13a13 13 0 010-26z"/><path fill="#2EB67D" d="M96 45a13 13 0 1113 13H96zm-6 0a13 13 0 01-26 0V13a13 13 0 0126 0z"/><path fill="#ECB22E" d="M77 96a13 13 0 11-13 13V96zm0-6a13 13 0 010-26h32a13 13 0 010 26z"/></svg>Add to Slack</a>
         <a class="btn btn-s" href="#/how">How it works</a>
       </div>
-      <p class="microcopy">Free &middot; about five minutes</p>
+      <p class="microcopy">Free &middot; nothing to install</p>
     </div>
   </div>
 
@@ -802,8 +809,8 @@
 
   <section>
     <div class="wrap narrow" style="text-align:center">
-      <h2 class="h2">Ready in five minutes.</h2>
-      <p class="sub" style="margin:0 auto 28px">One click, one channel, done.</p>
+      <h2 class="h2">Ready in one minute.</h2>
+      <p class="sub" style="margin:0 auto 28px">Approve it, choose a channel, and Foxy takes it from there.</p>
       <div class="cta">
         <a class="slackbtn" href="/slack/install"><svg viewBox="0 0 122 122" aria-hidden="true"><path fill="#E01E5A" d="M26 77a13 13 0 11-13-13h13zm6 0a13 13 0 0126 0v32a13 13 0 01-26 0z"/><path fill="#36C5F0" d="M45 26a13 13 0 1113-13v13zm0 6a13 13 0 010 26H13a13 13 0 010-26z"/><path fill="#2EB67D" d="M96 45a13 13 0 1113 13H96zm-6 0a13 13 0 01-26 0V13a13 13 0 0126 0z"/><path fill="#ECB22E" d="M77 96a13 13 0 11-13 13V96zm0-6a13 13 0 010-26h32a13 13 0 010 26z"/></svg>Add to Slack</a>
         <a class="btn btn-s" href="#/setup">Setup guide</a>
@@ -918,17 +925,40 @@
   <div class="wrap narrow">
     <section style="border:0">
       <p class="eyebrow">Setup</p>
-      <h2 class="h2">Two ways in.</h2>
+      <h2 class="h2">Click, choose a channel, done.</h2>
+      <p class="sub">Nothing to install and nothing to run. Foxy is hosted, so
+      approving it in Slack is the whole setup.</p>
 
-      <div class="card hero-card">
-        <div class="hc-l">
-          <b>One click</b>
-          <span>Approve in Slack, pick a channel from a list, then paste one command. You never see a token or a channel ID.</span>
+      <div class="steps3">
+        <div class="s3">
+          <span class="s3-n">1</span>
+          <b>Add to Slack</b>
+          <span>Approve the app in your workspace.</span>
         </div>
-        <a class="slackbtn" href="/slack/install"><svg viewBox="0 0 122 122" aria-hidden="true"><path fill="#E01E5A" d="M26 77a13 13 0 11-13-13h13zm6 0a13 13 0 0126 0v32a13 13 0 01-26 0z"/><path fill="#36C5F0" d="M45 26a13 13 0 1113-13v13zm0 6a13 13 0 010 26H13a13 13 0 010-26z"/><path fill="#2EB67D" d="M96 45a13 13 0 1113 13H96zm-6 0a13 13 0 01-26 0V13a13 13 0 0126 0z"/><path fill="#ECB22E" d="M77 96a13 13 0 11-13 13V96zm0-6a13 13 0 010-26h32a13 13 0 010 26z"/></svg>Add to Slack</a>
+        <div class="s3">
+          <span class="s3-n">2</span>
+          <b>Choose a channel</b>
+          <span>Pick it from a dropdown. No channel IDs.</span>
+        </div>
+        <div class="s3">
+          <span class="s3-n">3</span>
+          <b>That is it</b>
+          <span>Alerts arrive every eight hours.</span>
+        </div>
       </div>
 
-      <p class="sub" style="margin-top:34px">Or do it from the terminal. Same result.</p>
+      <div class="cta" style="margin-top:30px">
+        <a class="slackbtn" href="/slack/install"><svg viewBox="0 0 122 122" aria-hidden="true"><path fill="#E01E5A" d="M26 77a13 13 0 11-13-13h13zm6 0a13 13 0 0126 0v32a13 13 0 01-26 0z"/><path fill="#36C5F0" d="M45 26a13 13 0 1113-13v13zm0 6a13 13 0 010 26H13a13 13 0 010-26z"/><path fill="#2EB67D" d="M96 45a13 13 0 1113 13H96zm-6 0a13 13 0 01-26 0V13a13 13 0 0126 0z"/><path fill="#ECB22E" d="M77 96a13 13 0 11-13 13V96zm0-6a13 13 0 010-26h32a13 13 0 010 26z"/></svg>Add to Slack</a>
+      </div>
+      <p class="microcopy" style="margin-top:22px">Free &middot; about one minute</p>
+
+      <div class="callout" style="margin-top:34px">
+        <b>Prefer to run it yourself?</b> Everything below still works, and the code
+        is <a class="inlink" href="https://github.com/ana-momin/Foxy">on GitHub</a>.
+        Self-hosting means your data never leaves your machine.
+      </div>
+
+      <p class="sub" style="margin-top:34px">Self-hosted, from the terminal:</p>
 
       <div class="tabs" role="tablist">
         <button class="tab on" data-tab="docker" role="tab" aria-selected="true">Docker</button>

@@ -143,7 +143,7 @@ def build_alert(sig: Signal) -> tuple[list[dict], str]:
     early = sig.is_early
 
     if early:
-        header = ":fire: EARLY YC SIGNAL — founder announced before YC"
+        header = ":fire: EARLY YC SIGNAL · founder announced before YC"
         status = ":zap: Founder announced / not yet listed by YC"
     elif sig.program == "Speedrun":
         header = ":checkered_flag: NEW SPEEDRUN COMPANY"
@@ -231,7 +231,7 @@ def build_promotion(company: str, days: int | None, url: str) -> tuple[list[dict
     lead = (
         f"*{company}* is now listed in the YC directory."
         if days is None
-        else f"*{company}* is now listed in the YC directory — "
+        else f"*{company}* is now listed in the YC directory · "
         f"*{days} day{'s' if days != 1 else ''}* after Foxy flagged it."
     )
     blocks = [
@@ -249,14 +249,14 @@ def build_health(failures: dict[str, str]) -> tuple[list[dict], str]:
     Silent failure is the only unrecoverable bug in a monitoring product, so
     the bot reports on itself rather than just going quiet.
     """
-    lines = "\n".join(f"• *{src}* — {err}" for src, err in failures.items())
+    lines = "\n".join(f"• *{src}* · {err}" for src, err in failures.items())
     blocks = [
         {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
                 "text": (
-                    ":warning: *Foxy — source degraded*\n"
+                    ":warning: *Foxy · source degraded*\n"
                     f"{lines}\n\n_Other sources are still running normally._"
                 ),
             },
@@ -271,11 +271,11 @@ def build_status(snapshot: dict[str, Any], modes: dict[str, str]) -> tuple[list[
     for name, mode in modes.items():
         info = snapshot.get("sources", {}).get(name)
         if not info:
-            rows.append(f"• *{name}* — `{mode}` — _not run yet_")
+            rows.append(f"• *{name}* · `{mode}` · _not run yet_")
             continue
         icon = ":large_green_circle:" if info["ok"] else ":red_circle:"
         detail = info.get("error") or f"{info['found']} seen, {info['new']} new"
-        rows.append(f"{icon} *{name}* — `{mode}` — {detail}")
+        rows.append(f"{icon} *{name}* · `{mode}` · {detail}")
 
     last = snapshot.get("last_sweep_at") or "never"
     blocks = [
@@ -304,7 +304,7 @@ def build_digest(signals: list[Signal]) -> tuple[list[dict], str]:
     for s in signals[:20]:
         who = f"@{s.author_handle}" if s.author_handle else (s.author_name or "unknown")
         name = s.company_name or s.title
-        lines.append(f"• <{s.url}|{name}> — {who} — {s.source_label} — {s.confidence:.0%}")
+        lines.append(f"• <{s.url}|{name}> · {who} · {s.source_label} · {s.confidence:.0%}")
 
     blocks = [
         {

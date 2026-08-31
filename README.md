@@ -7,7 +7,7 @@
 **Know about new YC startups first.**
 
 Foxy watches Y Combinator, Speedrun, X and LinkedIn, then messages your Slack the
-moment a new company appears — or a founder announces before YC does.
+moment a new company appears, or a founder announces before YC does.
 
 [**Website**](https://tryfoxy.vercel.app) · [Manifest](https://tryfoxy.vercel.app/manifest) · [Health](https://tryfoxy.vercel.app/healthz)
 
@@ -30,14 +30,14 @@ a batch of several hundred. The founders who aren't listed yet are already posti
 about it on X and LinkedIn.
 
 Foxy reads those posts *first*, then checks the directory. If YC hasn't published
-them, it says so — and that's the window where an outreach email still lands first.
+them, it says so, and that's the window where an outreach email still lands first.
 
 ---
 
 ## What an alert looks like
 
 ```
-🔥 EARLY YC SIGNAL — founder announced before YC
+🔥 EARLY YC SIGNAL, founder announced before YC
 
   Company     Adalat AI            Source      X
   Status      Not in YC directory  Confidence  100%
@@ -49,19 +49,25 @@ them, it says so — and that's the window where an outreach email still lands f
 ```
 
 When YC later lists a company Foxy called early, it replies **in that same thread**:
-*"now listed in the YC directory — 11 days after Foxy flagged it."*
+*"now listed in the YC directory, 11 days after Foxy flagged it."*
 
 ---
 
-## Quick start
+## Getting started
 
-You need a Slack workspace and either Docker or Python 3.11+. **No paid APIs.**
+There are two ways to run Foxy. Pick whichever suits you.
 
-**The quickest route** is the [Add to Slack](https://tryfoxy.vercel.app) button —
-approve in Slack, pick a channel from a dropdown, and you are handed the two lines to
-paste. You never see a token or a channel ID.
+### Hosted: click, choose a channel, done
 
-Otherwise, from the terminal:
+**[Add to Slack](https://tryfoxy.vercel.app)** &rarr; approve &rarr; pick a channel from a
+dropdown. That is the whole setup. Nothing to install, nothing to run, no terminal.
+
+You land on a settings page where you can also paste an optional API key or change
+the alert threshold. Keep that link if you want to adjust things later or stop alerts.
+
+### Self-hosted: run it yourself
+
+Clone it and let the wizard do the rest.
 
 ```bash
 git clone https://github.com/ana-momin/Foxy.git
@@ -70,39 +76,19 @@ pip install -r requirements.txt
 python -m app.cli init
 ```
 
-`init` walks you through the whole thing — it tells you how to create the Slack app,
-checks your token, **lists your channels so you never have to hunt for a channel ID**,
-adds Foxy to the one you pick, sends a test message to prove it works, and writes
-`.env` for you.
+`init` checks your token, lists your channels so you never hunt for a channel ID,
+joins the one you pick, sends a test message, and writes `.env`.
 
 ```
-  Foxy setup
-  --------------------------------------------------------
-
-  Step 1 - create the Slack app (about two minutes):
-
-     1. Open   https://api.slack.com/apps
-     2. Click  Create New App  ->  From an app manifest
-     3. Pick your workspace
-     4. Paste in  slack-app-manifest.json  (in this folder)
-     5. Click    Install to Workspace  ->  Allow
-     6. Copy the Bot User OAuth Token from OAuth & Permissions
-
-  Paste your bot token (xoxb-...): ****
-
   Connected to Acme Inc as @Foxy
 
-  Step 2 - where should alerts go?
+  Where should alerts go?
+     1. #yc-signals   (already added)
+     2. #general
 
-      1. #yc-signals   (already added)
-      2. #general
-      3. #growth
+  Enter 1-2: 1
 
-  Enter 1-3, or paste a channel ID: 1
-
-  Step 3 - sending a test message...
-  Sent - go and check Slack.
-
+  Sent, go and check Slack.
   Saved to .env. Setup is done.
 ```
 
@@ -113,7 +99,7 @@ docker compose up -d          # or: uvicorn app.main:app --port 8000
 ```
 
 <details>
-<summary>Prefer to configure it by hand?</summary>
+<summary>Configuring by hand instead</summary>
 
 ```bash
 cp .env.example .env
@@ -124,19 +110,63 @@ SLACK_BOT_TOKEN=xoxb-your-token
 SLACK_TARGET=C0ABC123DEF
 ```
 
-`python -m app.cli channels` prints every channel with its ID, so you can find the one
-you want without leaving the terminal.
+`python -m app.cli channels` prints every channel with its ID.
 </details>
 
-Verify it works:
+Verify it remembers:
 
 ```bash
-python -m app.cli sweep --dry    # run once, don't post
+python -m app.cli sweep --dry    # run once, do not post
 python -m app.cli sweep --dry    # second run should say "0 new"
 ```
 
-That second run reporting **0 new** is the persistence working — Foxy never alerts
-on the same company twice.
+That **0 new** is the persistence working. Foxy never alerts on the same company twice.
+
+---
+
+## Hosting it for others
+
+Foxy can serve several Slack workspaces from one deployment. The five sources return
+the same public data for everyone, so a sweep fetches them **once** and fans the
+results out. A second workspace costs one extra `chat.postMessage`, not another set
+of scrapes.
+
+Turn it on by pointing `DATABASE_URL` at a real database. It stays off on SQLite,
+which on serverless is a filesystem that vanishes between requests.
+
+```env
+DATABASE_URL=postgresql+psycopg://...   # neon.tech and supabase.com are free
+ENCRYPTION_KEY=...                      # encrypts stored Slack tokens at rest
+SWEEP_KEY=...                           # the scheduler presents this
+SLACK_CLIENT_ID=...                     # from Basic Information in your Slack app
+SLACK_CLIENT_SECRET=...
+PUBLIC_BASE_URL=https://your-domain
+```
+
+Generate the two secrets with:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Add `<your-domain>/slack/oauth/callback` to **OAuth &amp; Permissions &rarr; Redirect URLs**
+in your Slack app, then set `FOXY_BASE_URL` and `SWEEP_KEY` as repository secrets so
+[`hosted-sweep.yml`](.github/workflows/hosted-sweep.yml) can drive the schedule.
+
+**What is kept per workspace, and why**
+
+| | |
+|---|---|
+| Seen-set | A shared one would mean the second workspace to install is told about nothing, because the first already consumed every company |
+| API keys | So one workspace's spend never lands on another's |
+| Alert threshold | Different people want different noise levels |
+
+**Tokens are encrypted at rest** with an HMAC-SHA256 keystream, a fresh nonce per
+value and an authentication tag. That is not a substitute for keeping the database
+private, but a leaked dump is not immediately a set of live Slack credentials.
+
+Re-installing a workspace updates it in place rather than creating a duplicate that
+would double every alert.
 
 ---
 
@@ -145,7 +175,7 @@ on the same company twice.
 | Source | What it catches | Cost |
 |---|---|---|
 | **YC Directory** | Every newly listed company, newest first | Free |
-| **Launch YC** | Founder launch posts — often ahead of the directory | Free |
+| **Launch YC** | Founder launch posts, often ahead of the directory | Free |
 | **Speedrun** | All 251 a16z companies, cohorts SR001–SR007 | Free |
 | **X** | Founder announcement posts | Free / better with a key |
 | **LinkedIn** | Public launch posts and new company pages | Free / better with a key |
@@ -192,17 +222,17 @@ not listed  listed    no company found
                         (routed to digest)
 ```
 
-**First-person voice is the strongest signal.** A post with no *I* / *we* / *our* — and
-no announcement opener — is someone reporting on another company, so it is rejected
+**First-person voice is the strongest signal.** A post with no *I* / *we* / *our*, and
+no announcement opener, is someone reporting on another company, so it is rejected
 outright rather than scored.
 
 **"Unverified" is a real third state.** If Foxy cannot identify a company, it does *not*
-claim the company is missing from YC — it doesn't know. Conflating *"I couldn't check"*
+claim the company is missing from YC, it doesn't know. Conflating *"I couldn't check"*
 with *"it isn't there"* is how a monitor starts crying wolf.
 
 ### Accuracy
 
-Measured against **15 real X posts** collected live and labelled by hand — 8 genuine
+Measured against **15 real X posts** collected live and labelled by hand, 8 genuine
 founder announcements, 7 lookalikes.
 
 | Metric | Result |
@@ -213,10 +243,10 @@ founder announcements, 7 lookalikes.
 
 Every lookalike contains a textbook announcement phrase and would fool a keyword search:
 
-> *"8 startups I referred got into YC"* — a referrer
-> *"The guy behind the $Rosie coin just got accepted"* — third party
-> *"exactly one year ago today, we got into Y Combinator"* — anniversary
-> *"I invested early into a startup that was recently accepted"* — investor
+> *"8 startups I referred got into YC"*, a referrer
+> *"The guy behind the $Rosie coin just got accepted"*, third party
+> *"exactly one year ago today, we got into Y Combinator"*, anniversary
+> *"I invested early into a startup that was recently accepted"*, investor
 
 ---
 
@@ -226,22 +256,22 @@ Only the Slack pair is required. Everything else widens coverage.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `SLACK_BOT_TOKEN` | — | **required** |
-| `SLACK_TARGET` | — | **required** — channel ID or user ID for DMs |
+| `SLACK_BOT_TOKEN` |, | **required** |
+| `SLACK_TARGET` |, | **required**, channel ID or user ID for DMs |
 | `DATABASE_URL` | local SQLite | set to Postgres on ephemeral hosts |
 | `SCAN_INTERVAL_HOURS` | `8` | sweep cadence |
 | `MIN_CONFIDENCE` | `0.55` | alert threshold; below this goes to the digest |
 | `BACKFILL_DAYS` | `7` | first-run quiet window |
 | `DRY_RUN` | `0` | log alerts instead of posting |
-| `SERPER_API_KEY` | — | Google-quality search — **recommended**, 2,500 free |
-| `ANTHROPIC_API_KEY` | — | enables the LLM classifier |
+| `SERPER_API_KEY` |, | Google-quality search, **recommended**, 2,500 free |
+| `ANTHROPIC_API_KEY` |, | enables the LLM classifier |
 | `X_PROVIDER` | `free` | `free` / `twitterapi` / `none` |
 | `LINKEDIN_PROVIDER` | `free` | `free` / `apify` / `none` |
-| `POND_ACCESS_KEY` | — | Pond agent auth |
-| `PUBLIC_BASE_URL` | — | your public HTTPS URL |
+| `POND_ACCESS_KEY` |, | Pond agent auth |
+| `PUBLIC_BASE_URL` |, | your public HTTPS URL |
 
 Keywords, vetoes, batch codes and thresholds live in
-[`config.yaml`](config.yaml) — adding a phrase is a config edit, never a code change.
+[`config.yaml`](config.yaml), adding a phrase is a config edit, never a code change.
 
 > **On free X/LinkedIn coverage.** X removed its free tier in February 2026 and full
 > archive search sits behind a $42k/mo contract. Foxy's free mode discovers posts
@@ -255,12 +285,12 @@ Keywords, vetoes, batch codes and thresholds live in
 
 | Command | What it does |
 |---|---|
-| `python -m app.cli init` | **Interactive setup — start here** |
+| `python -m app.cli init` | **Interactive setup, start here** |
 | `python -m app.cli channels` | Lists your channels and their IDs |
 | `python -m app.cli check` | Shows what is configured and what is missing |
 | `python -m app.cli sweep` | Runs one sweep now |
 | `python -m app.cli sweep --dry` | Same, without posting to Slack |
-| `python -m app.cli test-alert` | Posts a sample alert — verifies Slack |
+| `python -m app.cli test-alert` | Posts a sample alert, verifies Slack |
 | `python -m app.cli check-post <url>` | Runs one X post through the full pipeline |
 | `python -m app.cli status` | Per-source health |
 | `python -m app.cli reset --yes` | Clears memory |
@@ -274,7 +304,8 @@ In Slack: `/foxy status` and `/foxy scan`.
 | Option | Notes |
 |---|---|
 | **Docker** | `docker compose up -d`. Restarts itself, keeps state on a volume. |
-| **GitHub Actions** | [`monitor.yml`](.github/workflows/monitor.yml) runs every 8h free. **Requires `DATABASE_URL`** — each run starts on a clean machine. |
+| **GitHub Actions** | [`monitor.yml`](.github/workflows/monitor.yml) runs every 8h free. **Requires `DATABASE_URL`**, since each run starts on a clean machine. |
+| **Hosted** | [`hosted-sweep.yml`](.github/workflows/hosted-sweep.yml) drives `/internal/sweep` for every installed workspace. |
 | **Vercel** | Hosts the Pond agent endpoints. Pair with Actions for the schedule. |
 
 Free hosting in 2026, honestly: Render free services spin down after 15 minutes, Fly has
@@ -293,7 +324,9 @@ manifest revalidation doubles as the health check.
 | `GET /manifest` | none *(per spec)* | discovery |
 | `POST /runs` | `Bearer` + `X-Agent-Protocol-Version: 1.0` | execution |
 | `GET /tasks/{id}` | same | polling for long scans |
-| `GET /healthz` | none | uptime |
+| `GET /healthz` | none | uptime, and hosted-mode state |
+| `GET /slack/install` | none | one-click install |
+| `POST /internal/sweep` | `X-Sweep-Key` | the scheduled hosted sweep |
 
 **Actions:** `scan_now` · `search_early_signals` · `lookup_company` ·
 `recent_detections` · `health_check`
@@ -314,17 +347,25 @@ terminal response, and the full error-code table.
 
 ```
 app/
-├── main.py              FastAPI — Pond agent + scheduler in one process
-├── engine.py            the sweep: fetch → dedupe → verify → alert
-├── classify.py          rules + optional LLM
-├── crossref.py          "does the official directory know this company?"
-├── slack.py             Block Kit alerts
-├── db.py                persistent state (SQLite or Postgres)
-├── sources/             one file per monitored surface
-│   ├── yc_directory.py  ├── yc_launches.py   ├── speedrun.py
-│   └── x_social.py      └── linkedin_social.py
-└── providers/           swappable implementations per source
-    ├── websearch.py     ├── x_provider.py    └── linkedin_provider.py
+├── main.py           FastAPI: Pond agent, scheduler and the site, one process
+├── engine.py         the sweep: fetch, dedupe, verify, alert
+├── classify.py       rules plus an optional LLM pass
+├── crossref.py       "does the official directory know this company?"
+├── slack.py          Block Kit alerts, channel listing
+├── db.py             persistent state (SQLite or Postgres)
+├── cli.py            command line entry point
+├── setup_wizard.py   `init`: the guided self-hosted setup
+│
+├── oauth.py          one-click Slack install
+├── installs.py       hosted mode: workspaces, encrypted tokens
+├── dashboard.py      hosted mode: the settings page
+├── hosted.py         hosted mode: fetch once, deliver to every workspace
+│
+├── sources/          one file per monitored surface
+│   ├── yc_directory.py   ├── yc_launches.py   ├── speedrun.py
+│   └── x_social.py       └── linkedin_social.py
+└── providers/        swappable implementations per source
+    ├── websearch.py      ├── x_provider.py    └── linkedin_provider.py
 ```
 
 ### Adding a platform
@@ -336,17 +377,17 @@ Every source implements one interface. To add Bluesky:
 3. Add its queries to `config.yaml`
 
 Dedupe, scoring, cross-reference, Slack formatting, health tracking and the Pond
-actions all work automatically — nothing downstream knows where a signal came from.
+actions all work automatically, nothing downstream knows where a signal came from.
 
 ### Design decisions worth knowing
 
-**Credentials are never hardcoded.** YC rotates its public Algolia key — the one copied
+**Credentials are never hardcoded.** YC rotates its public Algolia key, the one copied
 into older open-source projects is already dead (403). Foxy re-reads it from the live
 page every run, so rotation heals itself. Same for YC's Inertia version hash and a16z's
 Next.js build ID.
 
 **One failing source never aborts a sweep.** Each is isolated and its health recorded.
-If a source fails twice running, Foxy **posts to Slack about itself** — silent failure
+If a source fails twice running, Foxy **posts to Slack about itself**, silent failure
 is the only unrecoverable bug in a monitoring product.
 
 **The first run does not spam.** Without a guard, day one would fire hundreds of
@@ -360,7 +401,7 @@ Public data only. No authenticated scraping, no login automation, no cookie reus
 captcha solving, no republication. Alerts link back to the original source so founders
 get the traffic and the credit.
 
-LinkedIn sued Proxycurl out of existence in July 2026 — Foxy never logs in, and its
+LinkedIn sued Proxycurl out of existence in July 2026, Foxy never logs in, and its
 LinkedIn providers read only public, already-indexed material.
 
 If you operate in the EU, treat post authors as data subjects under GDPR.
