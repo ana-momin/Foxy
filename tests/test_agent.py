@@ -183,3 +183,22 @@ def test_double_slash_tasks_reaches_the_handler():
     )
     assert got["status"] != 308
     assert json.loads(got["body"])["error"]["code"] == "task_not_found"
+
+
+def test_head_is_accepted_wherever_get_is():
+    """Starlette does not derive HEAD from a GET route, so a checker that
+    probes with HEAD first saw 405 and reported the endpoint as missing."""
+    for path in ("/manifest", "/healthz"):
+        assert client.request("HEAD", path).status_code == 200, path
+
+
+def test_options_is_answered_everywhere():
+    for path in ("/manifest", "/runs", "/tasks/anything"):
+        r = client.request("OPTIONS", path)
+        assert r.status_code == 204, path
+        assert "GET" in r.headers.get("Allow", "")
+
+
+def test_manifest_is_readable_cross_origin():
+    r = client.get("/manifest")
+    assert r.headers.get("Access-Control-Allow-Origin") == "*"

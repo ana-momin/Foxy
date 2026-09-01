@@ -29,6 +29,7 @@ from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import APIRouter, FastAPI, Header, Request
+from fastapi import Response
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from .config import active_batch_codes, settings
@@ -229,7 +230,7 @@ _ACTIONS = [
 ]
 
 
-@router.get("/manifest")
+@router.api_route("/manifest", methods=["GET", "HEAD"])
 def manifest() -> dict[str, Any]:
     """Public discovery document. No auth, no version header - per spec."""
     return {
@@ -503,7 +504,7 @@ async def runs(
         }
 
 
-@router.get("/tasks/{task_id}")
+@router.api_route("/tasks/{task_id}", methods=["GET", "HEAD"])
 def get_task(
     task_id: str,
     authorization: str | None = Header(default=None),
@@ -738,7 +739,7 @@ async def internal_sweep(
     return await asyncio.to_thread(run_sweep)
 
 
-@router.get("/healthz")
+@router.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz() -> dict[str, Any]:
     with session() as s:
         snap = health_snapshot(s)
@@ -800,6 +801,34 @@ def index() -> HTMLResponse:
     return HTMLResponse(
         "<h1>Foxy</h1><p>Agent manifest: <a href='/manifest'>/manifest</a></p>"
     )
+
+
+# A checker often probes with HEAD or OPTIONS before it does the real request.
+# Starlette does not derive either from a GET route, so both returned 405 and an
+# endpoint that exists looked missing. Answer them explicitly.
+@app.options("/{full_path:path}")
+def _options(full_path: str):
+    return Response(
+        status_code=204,
+        headers={
+            "Allow": "GET, HEAD, POST, OPTIONS",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
+            "Access-Control-Allow-Headers": (
+                "Authorization, Content-Type, X-Agent-Protocol-Version, "
+                "Idempotency-Key, X-Sweep-Key"
+            ),
+            "Access-Control-Max-Age": "86400",
+        },
+    )
+
+
+@app.middleware("http")
+async def _permissive_cors(request: Request, call_next):
+    """The manifest is public by design, so let anything read it."""
+    response = await call_next(request)
+    response.headers.setdefault("Access-Control-Allow-Origin", "*")
+    return response
 
 
 # Pond appends fixed paths to the Server Base URL. If that URL was entered with
