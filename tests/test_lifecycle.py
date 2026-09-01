@@ -325,3 +325,45 @@ def test_an_unusable_client_reports_why(world):
     result = engine.sweep(prefetched={"yc_directory": world["signals"]["yc_directory"]})
     assert result.delivery_errors, "an undeliverable sweep must say so"
     assert not result.ok
+
+
+def test_every_row_a_sweep_writes_belongs_to_its_workspace(world):
+    """Seen, Entity and Alert are all per-workspace state.
+
+    Alert and Entity were not namespaced. Two consequences, both silent: an
+    alert row could not be attributed to the workspace that received it, and
+    `confirm_notified` was shared, so the first workspace to sweep marked a
+    promotion delivered on behalf of every other one.
+    """
+    from app.db import Alert, Entity, Seen, session
+    from sqlalchemy import select
+
+    _sweep(world, "i:one:")
+
+    with session() as s:
+        keys = (
+            [r.fingerprint for r in s.execute(select(Seen)).scalars().all()]
+            + [r.fingerprint for r in s.execute(select(Alert)).scalars().all()]
+            + [r.entity_key for r in s.execute(select(Entity)).scalars().all()]
+        )
+
+    assert keys, "the sweep must have written something"
+    stray = [k for k in keys if not k.startswith("i:one:")]
+    assert not stray, f"rows not attributable to the workspace: {stray[:5]}"
+
+
+def test_a_promotion_belongs_to_one_workspace_only(world):
+    """Workspace A's sweep must not consume B's pending confirmations."""
+    from app.db import Entity, session
+    from sqlalchemy import select
+
+    _sweep(world, "i:a:")
+    _sweep(world, "i:b:")
+
+    with session() as s:
+        by_ns = {}
+        for e in s.execute(select(Entity)).scalars().all():
+            by_ns.setdefault(e.entity_key.split(":")[1], []).append(e)
+
+    assert set(by_ns) == {"a", "b"}, f"expected both workspaces, got {set(by_ns)}"
+    assert len(by_ns["a"]) == len(by_ns["b"]), "each keeps its own copy"

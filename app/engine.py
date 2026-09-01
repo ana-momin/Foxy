@@ -278,13 +278,22 @@ class Engine:
         else:
             result.digest.append(sig)
 
+    def _entity_key(self, sig: Signal) -> str:
+        """Entities are per-workspace too.
+
+        `confirm_notified` records that *this* channel has been told a company
+        was confirmed. Shared across workspaces, the first one to sweep would
+        silence the promotion for everybody else.
+        """
+        return f"{self.namespace}{sig.entity_key}"
+
     def _upsert_entity(self, s, sig: Signal, *, alerted: bool) -> None:
-        ent = s.get(Entity, sig.entity_key)
+        ent = s.get(Entity, self._entity_key(sig))
         now = dt.datetime.now(dt.timezone.utc)
         if ent is None:
             s.add(
                 Entity(
-                    entity_key=sig.entity_key,
+                    entity_key=self._entity_key(sig),
                     name=sig.company_name or sig.title,
                     program=sig.program,
                     batch=sig.batch,
@@ -317,6 +326,11 @@ class Engine:
             pending = (
                 s.query(Entity)
                 .filter(
+                    # This workspace's entities only. Unscoped, the first
+                    # workspace to sweep would take everyone's pending
+                    # promotions, try to post them into channels its token
+                    # cannot reach, and mark them notified either way.
+                    Entity.entity_key.like(f"{self.namespace}%"),
                     Entity.was_early.is_(True),
                     Entity.confirmed.is_(True),
                     Entity.confirm_notified.is_(False),
@@ -344,7 +358,7 @@ class Engine:
                     ent.confirm_notified = True
                     s.add(
                         Alert(
-                            fingerprint=f"promo:{ent.entity_key}",
+                            fingerprint=f"{self.namespace}promo:{ent.entity_key}",
                             entity_key=ent.entity_key,
                             source="yc_directory",
                             kind="promotion",
@@ -408,8 +422,11 @@ class Engine:
         with session() as s:
             s.add(
                 Alert(
-                    fingerprint=sig.fingerprint,
-                    entity_key=sig.entity_key,
+                    # Namespaced like the seen-set. Without this an alert row
+                    # belongs to no particular workspace, so in hosted mode
+                    # there is no way to ask what a given one actually received.
+                    fingerprint=self._key(sig),
+                    entity_key=self._entity_key(sig),
                     source=sig.source,
                     kind="early" if sig.is_early else "confirmed",
                     channel=channel,

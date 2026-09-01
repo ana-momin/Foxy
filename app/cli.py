@@ -375,6 +375,62 @@ def cmd_hosted_doctor(args) -> int:
     return 1 if problems else 0
 
 
+def cmd_hosted_repair(_args) -> int:
+    """Clear up after a delivery outage, using only facts we can check.
+
+    Two kinds of wreckage are left when hosted delivery has been failing:
+
+      * installs whose token this environment cannot read. They look healthy -
+        active, configured, sweeping - and can never deliver. They are parked,
+        with a reason the settings page can show, so the workspace is told to
+        reinstall instead of waiting for alerts that cannot come.
+      * alert rows with no Slack message id. Those were never sent, so they are
+        not history; keeping them means the next sweep stays silent about
+        companies nobody was ever told about.
+
+    Quota is corrected to match: a workspace is only charged for alerts that
+    carry a message id.
+    """
+    from sqlalchemy import delete, func, select
+
+    from . import installs
+    from .db import Alert, init_db, session
+
+    init_db()
+    with session() as s:
+        rows = s.execute(select(installs.Install)).scalars().all()
+        for row in rows:
+            problem = installs.token_problem(row.token_enc or "")
+            if problem:
+                row.active = False
+                row.last_error = f"{problem} - please reinstall Foxy"
+                print(f"  {row.team_name:<12} parked: {problem[:70]}")
+            else:
+                print(f"  {row.team_name:<12} token reads fine")
+
+        phantom = s.execute(
+            select(func.count()).select_from(Alert).where(Alert.ts.is_(None))
+        ).scalar()
+        if phantom:
+            s.execute(delete(Alert).where(Alert.ts.is_(None)))
+            print(f"\n  {phantom} alert(s) had no Slack message id and were never sent")
+
+        # Recount from what Slack actually acknowledged.
+        for row in rows:
+            sent = s.execute(
+                select(func.count())
+                .select_from(Alert)
+                .where(Alert.ts.isnot(None), Alert.fingerprint.like(f"{row.namespace}%"))
+            ).scalar()
+            if (row.alerts_used or 0) != sent:
+                print(f"  {row.team_name:<12} quota {row.alerts_used} -> {sent} (delivered)")
+                row.alerts_used = sent
+                row.quota_notified = False
+
+    print("")
+    return 0
+
+
 def cmd_status(_args) -> int:
     from .db import health_snapshot, init_db, session
     from .engine import source_modes
@@ -447,6 +503,9 @@ def main(argv: list[str] | None = None) -> int:
         "--post", action="store_true", help="send a probe and read it back"
     )
     p.set_defaults(fn=cmd_hosted_doctor)
+    sub.add_parser(
+        "hosted-repair", help="park unreadable installs and drop unsent alerts"
+    ).set_defaults(fn=cmd_hosted_repair)
     sub.add_parser("status", help="per-source health").set_defaults(fn=cmd_status)
 
     p = sub.add_parser("reset", help="wipe local state")
