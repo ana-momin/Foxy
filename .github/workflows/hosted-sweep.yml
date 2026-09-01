@@ -1,13 +1,16 @@
 # Hosted mode's clock.
 #
-# Vercel is serverless, so there is no long-lived process to hold a scheduler.
-# This posts to /internal/sweep every eight hours instead. The endpoint does the
-# work: one shared fetch of all five sources, then a delivery pass per
-# installed workspace.
+# The sweep runs HERE, not behind an HTTP call to the web app. A full pass over
+# five sources takes minutes, and a serverless function is killed long before
+# that: calling /internal/sweep returned FUNCTION_INVOCATION_TIMEOUT after five
+# minutes. The runner has hours, and can reach Postgres and Slack directly.
 #
 # Repository secrets required:
-#   FOXY_BASE_URL   e.g. https://tryfoxy.vercel.app
-#   SWEEP_KEY       must match the SWEEP_KEY set on the server
+#   DATABASE_URL     the same Postgres the web app uses
+#   ENCRYPTION_KEY   must match the web app, or stored tokens will not decrypt
+#
+# Optional, and shared across every workspace that has not set its own:
+#   SERPER_API_KEY, ANTHROPIC_API_KEY
 
 name: Hosted sweep
 
@@ -23,22 +26,27 @@ concurrency:
 jobs:
   sweep:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
-      - name: Trigger sweep
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Sweep every installed workspace
         env:
-          BASE: ${{ secrets.FOXY_BASE_URL }}
-          KEY: ${{ secrets.SWEEP_KEY }}
+          DATABASE_URL:      ${{ secrets.DATABASE_URL }}
+          ENCRYPTION_KEY:    ${{ secrets.ENCRYPTION_KEY }}
+          SERPER_API_KEY:    ${{ secrets.SERPER_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          if [ -z "$BASE" ] || [ -z "$KEY" ]; then
-            echo "FOXY_BASE_URL and SWEEP_KEY must be set as repository secrets."
+          if [ -z "$DATABASE_URL" ] || [ -z "$ENCRYPTION_KEY" ]; then
+            echo "DATABASE_URL and ENCRYPTION_KEY must be set as repository secrets."
             exit 1
           fi
-          code=$(curl -sS -o response.json -w "%{http_code}" \
-            --max-time 600 \
-            -X POST "$BASE/internal/sweep" \
-            -H "X-Sweep-Key: $KEY")
-          echo "HTTP $code"
-          cat response.json
-          echo
-          test "$code" = "200"
+          python -m app.cli hosted-sweep

@@ -251,6 +251,27 @@ def cmd_check_post(args) -> int:
     return 0
 
 
+def cmd_hosted_sweep(_args) -> int:
+    """Run one hosted sweep: fetch the sources once, deliver to every workspace.
+
+    This is what the scheduler runs. It lives here rather than behind an HTTP
+    call because a full sweep takes minutes and a serverless function is killed
+    long before that; the runner has hours.
+    """
+    import json
+
+    from .hosted import run_sweep
+
+    result = run_sweep()
+    print(json.dumps(result, indent=2, default=str))
+
+    failed = [r for r in result.get("results", []) if r.get("error")]
+    if failed:
+        print(f"\n  {len(failed)} workspace(s) failed delivery")
+        return 1
+    return 0
+
+
 def cmd_status(_args) -> int:
     from .db import health_snapshot, init_db, session
     from .engine import source_modes
@@ -300,6 +321,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "channels", help="list channels and their IDs"
     ).set_defaults(fn=cmd_channels)
+    sub.add_parser(
+        "hosted-sweep", help="run one sweep for every installed workspace"
+    ).set_defaults(fn=cmd_hosted_sweep)
     sub.add_parser("check", help="verify configuration").set_defaults(fn=cmd_check)
 
     p = sub.add_parser("sweep", help="run one sweep now")
