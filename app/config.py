@@ -93,6 +93,8 @@ class Settings:
     scan_interval_hours: int = _i("SCAN_INTERVAL_HOURS", 8)
     min_confidence: float = _f("MIN_CONFIDENCE", 0.55)
     backfill_days: int = _i("BACKFILL_DAYS", 7)
+    # Hard ceiling on alerts posted in one sweep, per workspace.
+    max_alerts_per_sweep: int = _i("MAX_ALERTS_PER_SWEEP", 25)
     dry_run: bool = _b("DRY_RUN")
 
     agent_version: str = "2026.08.29"

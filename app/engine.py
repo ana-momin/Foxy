@@ -85,6 +85,9 @@ class Engine:
         self.min_confidence = (
             settings.min_confidence if min_confidence is None else min_confidence
         )
+        # Nobody wants 200 messages at once. Anything past this lands in the
+        # digest instead, so a bad sweep is noisy in one message, not hundreds.
+        self.max_alerts = settings.max_alerts_per_sweep
 
     def _key(self, sig: Signal) -> str:
         return f"{self.namespace}{sig.fingerprint}"
@@ -103,8 +106,8 @@ class Engine:
         rules = load_rules()
 
         with session() as s:
-            first_run = is_first_run(s) and not force_alerts
-            sweep_no = bump_sweep_counter(s)
+            first_run = is_first_run(s, self.namespace) and not force_alerts
+            sweep_no = bump_sweep_counter(s, self.namespace)
 
         cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=settings.backfill_days)
 
@@ -243,7 +246,7 @@ class Engine:
 
         self._upsert_entity(s, sig, alerted=sig.confidence >= self.min_confidence)
 
-        if sig.confidence >= self.min_confidence:
+        if sig.confidence >= self.min_confidence and len(result.alerts) < self.max_alerts:
             result.alerts.append(sig)
         else:
             result.digest.append(sig)

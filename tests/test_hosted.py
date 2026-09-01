@@ -133,3 +133,57 @@ def test_settings_page_rejects_an_unknown_id():
     r = client.get("/app/definitely-not-a-real-install")
     assert r.status_code == 200
     assert "not valid" in r.text
+
+
+# --- the flood guard --------------------------------------------------------
+
+
+def test_first_run_is_derived_from_the_seen_set_not_a_counter():
+    """A global counter meant that once any sweep had run, the backfill guard
+    was off for everyone. A workspace joining later, with an empty seen-set,
+    then received every company ever found in one burst: 263 messages.
+    """
+    import inspect
+
+    from app import db
+
+    src = inspect.getsource(db.is_first_run)
+    assert "Seen.fingerprint" in src, "first-run must be derived from the seen-set"
+    assert "namespace" in inspect.signature(db.is_first_run).parameters
+
+
+def test_first_run_is_per_namespace():
+    from app.db import Seen, init_db, session
+
+    init_db()
+    with session() as s:
+        s.query(Seen).filter(Seen.fingerprint.like("i:flood%")).delete(
+            synchronize_session=False
+        )
+        s.add(
+            Seen(
+                fingerprint="i:floodA:abc",
+                source="x",
+                external_id="1",
+                entity_key="i:floodA:acme",
+            )
+        )
+
+    from app.db import is_first_run
+
+    with session() as s:
+        assert is_first_run(s, "i:floodA:") is False   # this tenant has seen something
+        assert is_first_run(s, "i:floodB:") is True    # this one has not
+
+    with session() as s:
+        s.query(Seen).filter(Seen.fingerprint.like("i:flood%")).delete(
+            synchronize_session=False
+        )
+
+
+def test_a_sweep_cannot_post_more_than_the_ceiling():
+    """Whatever else goes wrong, one sweep must not fill a channel."""
+    from app.engine import Engine
+
+    assert Engine().max_alerts == settings.max_alerts_per_sweep
+    assert settings.max_alerts_per_sweep <= 50

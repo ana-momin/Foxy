@@ -191,13 +191,25 @@ def meta_set(s: Session, key: str, value: str) -> None:
         s.add(Meta(key=key, value=value))
 
 
-def is_first_run(s: Session) -> bool:
-    return meta_get(s, "sweeps_completed", "0") == "0"
+def is_first_run(s: Session, namespace: str = "") -> bool:
+    """Has this tenant ever seen anything?
+
+    Derived from the seen-set rather than a counter. A counter was global, so
+    once any sweep had run the guard was off for everyone: a workspace joining
+    later, with an empty seen-set, got every company ever found in one burst.
+    A counter also cannot recover from a sweep that died part-way, which is
+    exactly how that happened.
+    """
+    row = s.execute(
+        select(Seen.fingerprint).where(Seen.fingerprint.like(f"{namespace}%")).limit(1)
+    ).first()
+    return row is None
 
 
-def bump_sweep_counter(s: Session) -> int:
-    n = int(meta_get(s, "sweeps_completed", "0") or 0) + 1
-    meta_set(s, "sweeps_completed", str(n))
+def bump_sweep_counter(s: Session, namespace: str = "") -> int:
+    key = f"sweeps_completed:{namespace}" if namespace else "sweeps_completed"
+    n = int(meta_get(s, key, "0") or 0) + 1
+    meta_set(s, key, str(n))
     return n
 
 
