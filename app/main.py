@@ -270,19 +270,102 @@ def manifest() -> dict[str, Any]:
             ),
             "faqs": [
                 {
-                    "question": "Does this run continuously?",
+                    "question": "How is this different from just watching the YC directory?",
                     "answer": (
-                        "<p>Yes. It sweeps every 8 hours by default and keeps "
-                        "persistent state, so a company is never reported "
-                        "twice.</p>"
+                        "<p>The directory runs late. It currently lists 24 Fall 2026 "
+                        "companies against a batch of several hundred, and everyone "
+                        "scraping it finds the same names on the same day.</p>"
+                        "<p>Foxy reads what founders post on X and LinkedIn first, then "
+                        "checks the directory. If YC has not published them yet, you hear "
+                        "about it while nobody else has.</p>"
                     ),
                 },
                 {
-                    "question": "What counts as an early signal?",
+                    "question": "How often does it check?",
                     "answer": (
-                        "<p>A founder announcing a YC or Speedrun acceptance on "
-                        "X or LinkedIn where the company is not yet present in "
-                        "the official YC directory.</p>"
+                        "<p>Every eight hours, three times a day. It is not sitting there "
+                        "listening; it wakes, checks all five sources, posts anything new, "
+                        "and sleeps.</p><p>Silence means nothing new since the last run, "
+                        "which is most of the time. YC adds roughly one to three companies "
+                        "a day.</p>"
+                    ),
+                },
+                {
+                    "question": "Will it flood my channel?",
+                    "answer": (
+                        "<p>No. Every company is remembered, so nothing is reported twice, "
+                        "and the first run deliberately stays quiet instead of dumping "
+                        "history at you.</p><p>There is also a hard ceiling on how many "
+                        "alerts a single run may post. Anything past it arrives as one "
+                        "digest line rather than fifty messages.</p>"
+                    ),
+                },
+                {
+                    "question": "How accurate is it?",
+                    "answer": (
+                        "<p>Measured against 15 real posts collected live and labelled by "
+                        "hand: 100% precision, 88% recall, zero false alarms.</p>"
+                        "<p>The hard cases are posts that contain a textbook announcement "
+                        "phrase but are not one, such as “8 startups I referred got "
+                        "into YC” or “exactly one year ago today, we got into Y "
+                        "Combinator”. Those are rejected.</p>"
+                    ),
+                },
+                {
+                    "question": "What if it cannot tell?",
+                    "answer": (
+                        "<p>It says so. When a post is a genuine announcement but names no "
+                        "company, Foxy marks it unverified and files it in a digest rather "
+                        "than claiming the company is missing from YC.</p><p>Treating "
+                        "“I could not check” as “it is not there” is "
+                        "how a monitor starts crying wolf.</p>"
+                    ),
+                },
+                {
+                    "question": "Do I need any API keys?",
+                    "answer": (
+                        "<p>No. The three YC and Speedrun sources are public feeds that "
+                        "cost nothing.</p><p>X and LinkedIn find more with an optional "
+                        "search key, which you can paste into your settings page at any "
+                        "time. Without one they still work, just with narrower reach.</p>"
+                    ),
+                },
+                {
+                    "question": "Is Speedrun a YC programme?",
+                    "answer": (
+                        "<p>No, it is a16z's, and Foxy monitors the real one. Y Combinator "
+                        "does not run a programme called Speedrun: its own site returns 404 "
+                        "for that path, its sitemap never mentions it, and it appears in "
+                        "none of the 50 batches the directory lists.</p><p>A watcher checks "
+                        "YC's sitemap on every run in case that ever changes.</p>"
+                    ),
+                },
+                {
+                    "question": "What happens to my Slack token?",
+                    "answer": (
+                        "<p>It is encrypted at rest and used only to post into the channel "
+                        "you chose. Foxy asks for the minimum scopes needed to post and to "
+                        "list your channels so you never have to hunt for a channel ID.</p>"
+                        "<p>You can stop alerts at any time from your settings link, or "
+                        "remove the app from Slack.</p>"
+                    ),
+                },
+                {
+                    "question": "Can I run it myself instead?",
+                    "answer": (
+                        "<p>Yes. It is open source under MIT. Clone it, run one setup "
+                        "command, and it runs on your own machine or server with Docker.</p>"
+                        "<p>Self-hosting means nothing touches anyone else's "
+                        "infrastructure.</p>"
+                    ),
+                },
+                {
+                    "question": "What happens when the free alerts run out?",
+                    "answer": (
+                        "<p>Foxy tells you once and then stays quiet, rather than nagging. "
+                        "Nothing is lost; monitoring resumes the moment the plan is "
+                        "upgraded.</p><p>The free plan is metered by alerts actually "
+                        "delivered, so a quiet week costs you nothing.</p>"
                     ),
                 },
             ],
