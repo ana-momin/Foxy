@@ -48,6 +48,9 @@ SCOPES = [
     "commands",
     "links:write",
     "channels:read",
+    # Without this, conversations.join always fails, so the bot is never a
+    # member of anything and no channel can say "Foxy is already in this one".
+    "channels:join",
     "groups:read",
 ]
 

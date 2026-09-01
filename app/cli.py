@@ -272,6 +272,108 @@ def cmd_hosted_sweep(_args) -> int:
     return 0
 
 
+def cmd_hosted_doctor(args) -> int:
+    """Ask Slack, not our own logs, whether each workspace can be reached.
+
+    Every hosted delivery bug so far was invisible from this side: the sweep
+    reported alerts it had decided on, the database agreed, and the channel was
+    empty. So this checks the chain end to end against Slack itself - the token
+    decrypts, the token is live, the channel exists, the bot is in it - and with
+    --post it sends a probe and reads it back.
+
+    Nothing here prints a token.
+    """
+    from sqlalchemy import select
+
+    from . import installs
+    from .db import init_db, session
+    from .slack import SlackClient
+
+    init_db()
+    with session() as s:
+        rows = [
+            {
+                "id": i.id,
+                "team": i.team_name,
+                "channel": i.channel_id,
+                "token": i.token,
+                "enc_len": len(i.token_enc or ""),
+                "active": i.active,
+                "used": i.alerts_used or 0,
+                "err": i.last_error,
+            }
+            for i in s.execute(select(installs.Install)).scalars().all()
+        ]
+
+    if not rows:
+        print("\n  no installs\n")
+        return 0
+
+    problems = 0
+    for r in rows:
+        print(f"\n  {r['team'] or r['id']}   active={r['active']}  alerts_used={r['used']}")
+        if r["err"]:
+            print(f"    last error       {r['err'][:120]}")
+
+        if not r["token"]:
+            print(f"    token            CANNOT DECRYPT ({r['enc_len']} bytes stored)")
+            print("                     ENCRYPTION_KEY differs from the one used at install")
+            problems += 1
+            continue
+        print("    token            decrypts")
+
+        client = SlackClient(token=r["token"], target=r["channel"])
+        try:
+            who = client.auth_test()
+            print(f"    auth.test        ok, @{who.get('user')} in {who.get('team')}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"    auth.test        FAILED  {exc}")
+            problems += 1
+            continue
+
+        if not r["channel"]:
+            print("    channel          not configured")
+            problems += 1
+            continue
+
+        try:
+            info = client._call("conversations.info", {"channel": r["channel"]})
+            ch = info.get("channel") or {}
+            member = ch.get("is_member")
+            print(f"    channel          #{ch.get('name')}  bot_is_member={member}")
+            if not member:
+                print("                     alerts would fail with not_in_channel")
+                problems += 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"    channel          FAILED  {exc}")
+            problems += 1
+            continue
+
+        if getattr(args, "post", False):
+            try:
+                resp = client.post(
+                    [{"type": "section",
+                      "text": {"type": "mrkdwn", "text": ":wrench: Foxy delivery check."}}],
+                    "Foxy delivery check",
+                )
+                ts = resp.get("ts")
+                print(f"    test post        sent, ts={ts}")
+                # Read it back. A ts we cannot find is not a delivery.
+                hist = client._call(
+                    "conversations.history", {"channel": r["channel"], "limit": 5}
+                )
+                seen = any(m.get("ts") == ts for m in hist.get("messages") or [])
+                print(f"    read back        {'found in channel' if seen else 'NOT FOUND'}")
+                if not seen:
+                    problems += 1
+            except Exception as exc:  # noqa: BLE001
+                print(f"    test post        FAILED  {exc}")
+                problems += 1
+
+    print(f"\n  {problems} problem(s)\n")
+    return 1 if problems else 0
+
+
 def cmd_status(_args) -> int:
     from .db import health_snapshot, init_db, session
     from .engine import source_modes
@@ -337,6 +439,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--post", action="store_true", help="also send the alert to Slack")
     p.set_defaults(fn=cmd_check_post)
 
+    p = sub.add_parser(
+        "hosted-doctor", help="check every workspace against Slack itself"
+    )
+    p.add_argument(
+        "--post", action="store_true", help="send a probe and read it back"
+    )
+    p.set_defaults(fn=cmd_hosted_doctor)
     sub.add_parser("status", help="per-source health").set_defaults(fn=cmd_status)
 
     p = sub.add_parser("reset", help="wipe local state")

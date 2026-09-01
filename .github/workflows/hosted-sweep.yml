@@ -18,6 +18,12 @@ on:
   schedule:
     - cron: "0 */8 * * *"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "sweep, or doctor to check every workspace against Slack"
+        type: choice
+        default: sweep
+        options: [sweep, doctor, doctor-post]
 
 concurrency:
   group: hosted-sweep
@@ -49,4 +55,8 @@ jobs:
             echo "DATABASE_URL and ENCRYPTION_KEY must be set as repository secrets."
             exit 1
           fi
-          python -m app.cli hosted-sweep
+          case "${{ inputs.mode || 'sweep' }}" in
+            doctor)      python -m app.cli hosted-doctor ;;
+            doctor-post) python -m app.cli hosted-doctor --post ;;
+            *)           python -m app.cli hosted-sweep ;;
+          esac

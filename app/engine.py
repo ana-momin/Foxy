@@ -363,6 +363,17 @@ class Engine:
         # Highest-value first: early signals lead, then official listings.
         result.alerts.sort(key=lambda s: (not s.is_early, -s.confidence))
 
+        if result.alerts and not (settings.dry_run or self.slack.usable):
+            # Nowhere to post. Say so loudly: a sweep that decides on alerts it
+            # cannot deliver is a failure, not a quiet success.
+            # getattr, because the only thing the engine requires of a client
+            # is `usable` and `post`; the rest is detail for the message.
+            result.delivery_errors.append(
+                "no usable Slack client: "
+                f"token={'set' if getattr(self.slack, 'token', '') else 'missing'}, "
+                f"channel={getattr(self.slack, 'target', '') or 'missing'}"
+            )
+
         for sig in result.alerts:
             blocks, text = build_alert(sig)
             if settings.dry_run or not self.slack.usable:
@@ -372,8 +383,16 @@ class Engine:
             try:
                 resp = self.slack.post(blocks, text)
                 self._record_alert(sig, channel=resp.get("channel"), ts=resp.get("ts"))
-            except Exception:  # noqa: BLE001
+                # Slack answers with a message id. Only that counts as sent.
+                if resp.get("ts"):
+                    result.delivered.append(sig)
+                else:
+                    result.delivery_errors.append(
+                        f"{sig.title}: Slack accepted the call but returned no message id"
+                    )
+            except Exception as exc:  # noqa: BLE001
                 log.exception("failed to post alert for %s", sig.title)
+                result.delivery_errors.append(f"{sig.title}: {exc}"[:200])
 
         if result.digest:
             blocks, text = build_digest(result.digest)

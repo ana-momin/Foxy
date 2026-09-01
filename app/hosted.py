@@ -157,6 +157,22 @@ def run_sweep(only: tuple[str, ...] | None = None) -> dict[str, Any]:
             results.append(entry)
             continue
 
+        # A token that will not decrypt is the one failure that looks exactly
+        # like success: the workspace stays "active", the sweep runs, alerts are
+        # decided, and nothing is ever sent. Catch it before that happens.
+        if not p["token"]:
+            entry["error"] = (
+                "stored Slack token could not be decrypted - "
+                "ENCRYPTION_KEY does not match the one used at install"
+            )
+            with session() as s:
+                row = installs.get(s, p["id"])
+                if row:
+                    row.last_error = entry["error"]
+            log.error("%s: %s", p["team"], entry["error"])
+            results.append(entry)
+            continue
+
         try:
             engine = Engine(
                 slack=SlackClient(token=p["token"], target=p["channel"]),
@@ -169,18 +185,28 @@ def run_sweep(only: tuple[str, ...] | None = None) -> dict[str, Any]:
             engine.max_alerts = min(engine.max_alerts, p["remaining"])
 
             outcome = engine.sweep(prefetched=signals)
-            entry["alerts"] = len(outcome.alerts)
-            entry["remaining"] = max(0, p["remaining"] - len(outcome.alerts))
+            sent = len(outcome.delivered)
+
+            # Report deliveries, not decisions. `alerts` is kept alongside so a
+            # gap between the two is visible rather than rounded away.
+            entry["alerts"] = sent
+            entry["decided"] = len(outcome.alerts)
+            entry["remaining"] = max(0, p["remaining"] - sent)
             entry["digest"] = len(outcome.digest)
             entry["new"] = {k: v.get("new", 0) for k, v in outcome.per_source.items()}
+            if outcome.delivery_errors:
+                entry["error"] = "; ".join(outcome.delivery_errors)[:300]
+                entry["undelivered"] = outcome.undelivered
 
             with session() as s:
                 row = installs.get(s, p["id"])
                 if row:
-                    row.last_error = None
-                    if outcome.alerts:
+                    row.last_error = entry.get("error")
+                    # Charge the quota for what arrived. An alert nobody
+                    # received is not one the workspace has spent.
+                    if sent:
                         row.last_alert_at = dt.datetime.now(dt.timezone.utc)
-                        row.alerts_used = (row.alerts_used or 0) + len(outcome.alerts)
+                        row.alerts_used = (row.alerts_used or 0) + sent
         except Exception as exc:  # noqa: BLE001 - one workspace must not break the rest
             log.exception("delivery failed for %s", p["team"])
             entry["error"] = f"{type(exc).__name__}: {exc}"[:200]

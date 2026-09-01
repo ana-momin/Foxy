@@ -29,6 +29,7 @@
         "commands",
         "links:write",
         "channels:read",
+        "channels:join",
         "groups:read"
       ]
     }

@@ -265,3 +265,63 @@ def test_delivery_is_decided_by_the_client_not_global_settings(world, monkeypatc
     src = inspect.getsource(engine_mod.Engine._deliver)
     assert "slack_configured" not in src, "delivery must not consult global settings"
     assert "self.slack.usable" in src
+
+
+def test_a_failed_post_is_not_counted_as_an_alert(world, monkeypatch):
+    """The workspace saw "6 of 50 alerts used" and an empty channel.
+
+    chat.postMessage failed, the exception was logged and swallowed, and the
+    sweep still reported the alerts it had decided on. Quota was charged for
+    messages nobody received.
+    """
+    from app.engine import Engine
+
+    class FailingSlack:
+        usable = True
+
+        def post(self, *a, **k):
+            raise RuntimeError("Slack chat.postMessage failed: not_in_channel")
+
+    engine = Engine(slack=FailingSlack(), namespace="i:fail:")
+    result = engine.sweep(prefetched={"yc_directory": world["signals"]["yc_directory"]})
+
+    assert result.alerts, "the sweep should still have decided on some"
+    assert result.delivered == [], "nothing was delivered"
+    assert result.delivery_errors, "and the failure must be reported, not swallowed"
+    assert not result.ok, "a sweep that delivered nothing is not a success"
+
+
+def test_delivery_is_counted_from_slacks_own_reply(world):
+    """A message id from Slack is the only evidence of delivery."""
+    from app.engine import Engine
+
+    class NoTimestamp:
+        """Answers ok, but never returns a ts. Nothing was really posted."""
+
+        usable = True
+
+        def post(self, *a, **k):
+            return {"ok": True, "channel": "C1"}
+
+    engine = Engine(slack=NoTimestamp(), namespace="i:nots:")
+    result = engine.sweep(prefetched={"yc_directory": world["signals"]["yc_directory"]})
+    assert result.delivered == []
+    assert result.undelivered == len(result.alerts)
+
+
+def test_an_unusable_client_reports_why(world):
+    """Silence is what hid this for a whole day."""
+    from app.engine import Engine
+
+    class NoTarget:
+        usable = False
+        token = ""
+        target = ""
+
+        def post(self, *a, **k):
+            raise AssertionError("must not attempt to post")
+
+    engine = Engine(slack=NoTarget(), namespace="i:silent:")
+    result = engine.sweep(prefetched={"yc_directory": world["signals"]["yc_directory"]})
+    assert result.delivery_errors, "an undeliverable sweep must say so"
+    assert not result.ok

@@ -110,12 +110,28 @@ class SweepResult:
     alerts: list[Signal] = field(default_factory=list)
     digest: list[Signal] = field(default_factory=list)
 
+    # Alerts that Slack actually accepted, and why any of them did not land.
+    #
+    # `alerts` counts decisions; this counts deliveries. Conflating the two is
+    # how 687 alerts came to be recorded and reported without a single one
+    # being sent, so quota and success are both measured from here.
+    delivered: list[Signal] = field(default_factory=list)
+    delivery_errors: list[str] = field(default_factory=list)
+
     def record(self, source: str, *, found: int, new: int, error: str | None = None) -> None:
         self.per_source[source] = {"found": found, "new": new, "error": error}
 
     @property
     def ok(self) -> bool:
-        return all(v.get("error") is None for v in self.per_source.values())
+        return (
+            all(v.get("error") is None for v in self.per_source.values())
+            and not self.delivery_errors
+        )
+
+    @property
+    def undelivered(self) -> int:
+        """Alerts that were decided on but never reached Slack."""
+        return len(self.alerts) - len(self.delivered)
 
     @property
     def failed_sources(self) -> list[str]:
