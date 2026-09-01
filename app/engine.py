@@ -234,7 +234,14 @@ class Engine:
             sig.confirmed = True
             sig.is_early = False
             self._upsert_entity(s, sig, alerted=True)
-            result.alerts.append(sig)
+            # The ceiling applies here too. It did not, and that is the path
+            # the 263-message flood came down: Speedrun is an official source,
+            # so every one of its companies went straight to Slack while the
+            # cap sat on the other branch doing nothing.
+            if len(result.alerts) < self.max_alerts:
+                result.alerts.append(sig)
+            else:
+                result.digest.append(sig)
             return
 
         # Social signal. The whole question is whether YC already knows.
