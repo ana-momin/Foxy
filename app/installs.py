@@ -53,12 +53,28 @@ def _utcnow() -> dt.datetime:
 
 
 def _root_key() -> bytes:
-    raw = settings.encryption_key or settings.slack_client_secret or ""
+    raw = settings.encryption_key
     if not raw:
         raise RuntimeError(
             "Set ENCRYPTION_KEY before storing Slack tokens in hosted mode."
         )
     return hashlib.sha256(raw.encode()).digest()
+
+
+def key_fingerprint() -> str:
+    """A short, non-secret id for the key in this environment.
+
+    Stamped into every blob. The web app and the scheduler are separate
+    deployments with separately configured secrets, and when their keys drifted
+    apart the only symptom was silence: tokens decrypted to "", every sweep took
+    the dry-run path, and hundreds of alerts were recorded and never sent. A
+    fingerprint turns that into a statement of fact - this row was written by a
+    different key - instead of a shrug.
+    """
+    return hashlib.sha256(_root_key()).hexdigest()[:8]
+
+
+VERSION = b""
 
 
 def _keystream(nonce: bytes, length: int) -> bytes:
@@ -79,23 +95,62 @@ def encrypt(plain: str) -> str:
     data = plain.encode()
     body = bytes(a ^ b for a, b in zip(data, _keystream(nonce, len(data))))
     tag = hmac.new(_root_key(), nonce + body, hashlib.sha256).digest()[:16]
-    return base64.urlsafe_b64encode(nonce + tag + body).decode()
+    stamp = key_fingerprint().encode()  # 8 bytes, not secret
+    return base64.urlsafe_b64encode(VERSION + stamp + nonce + tag + body).decode()
+
+
+class WrongKey(Exception):
+    """The blob was encrypted by a different ENCRYPTION_KEY than this one."""
+
+
+def _decrypt(blob: str) -> str:
+    """Decrypt, or raise WrongKey. `decrypt` is the forgiving wrapper."""
+    raw = base64.urlsafe_b64decode(blob.encode())
+
+    if raw[:1] == VERSION:
+        stamp, raw = raw[1:9].decode(), raw[9:]
+        if stamp != key_fingerprint():
+            raise WrongKey(
+                f"stored under key {stamp}, this environment holds "
+                f"{key_fingerprint()}"
+            )
+
+    nonce, tag, body = raw[:16], raw[16:32], raw[32:]
+    expected = hmac.new(_root_key(), nonce + body, hashlib.sha256).digest()[:16]
+    if not hmac.compare_digest(tag, expected):
+        # No stamp and a failed tag: an older blob from a different key.
+        raise WrongKey("integrity check failed; this is not the key that wrote it")
+    return bytes(a ^ b for a, b in zip(body, _keystream(nonce, len(body)))).decode()
 
 
 def decrypt(blob: str) -> str:
     if not blob:
         return ""
     try:
-        raw = base64.urlsafe_b64decode(blob.encode())
-        nonce, tag, body = raw[:16], raw[16:32], raw[32:]
-        expected = hmac.new(_root_key(), nonce + body, hashlib.sha256).digest()[:16]
-        if not hmac.compare_digest(tag, expected):
-            log.warning("stored token failed its integrity check")
-            return ""
-        return bytes(a ^ b for a, b in zip(body, _keystream(nonce, len(body)))).decode()
-    except Exception:  # noqa: BLE001 - a bad blob is not worth crashing over
-        log.warning("could not decrypt a stored token")
+        return _decrypt(blob)
+    except WrongKey as exc:
+        log.error("stored token is unreadable here: %s", exc)
         return ""
+    except Exception:  # noqa: BLE001 - a malformed blob is not worth crashing over
+        log.error("could not decrypt a stored token")
+        return ""
+
+
+def token_problem(blob: str) -> str:
+    """Why a stored token cannot be used, or "" when it is fine.
+
+    Reported by the doctor and the health endpoint, so a key mismatch is
+    something you read rather than something you deduce from an empty channel.
+    """
+    if not blob:
+        return "no token stored"
+    try:
+        _decrypt(blob)
+        return ""
+    except WrongKey as exc:
+        return f"encrypted with a different ENCRYPTION_KEY ({exc})"
+    except Exception as exc:  # noqa: BLE001
+        return f"unreadable: {type(exc).__name__}"
 
 
 # ---------------------------------------------------------------------------

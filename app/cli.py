@@ -297,7 +297,7 @@ def cmd_hosted_doctor(args) -> int:
                 "team": i.team_name,
                 "channel": i.channel_id,
                 "token": i.token,
-                "enc_len": len(i.token_enc or ""),
+                "enc": i.token_enc or "",
                 "active": i.active,
                 "used": i.alerts_used or 0,
                 "err": i.last_error,
@@ -315,12 +315,13 @@ def cmd_hosted_doctor(args) -> int:
         if r["err"]:
             print(f"    last error       {r['err'][:120]}")
 
-        if not r["token"]:
-            print(f"    token            CANNOT DECRYPT ({r['enc_len']} bytes stored)")
-            print("                     ENCRYPTION_KEY differs from the one used at install")
+        problem = installs.token_problem(r["enc"])
+        if problem:
+            print(f"    token            UNUSABLE - {problem}")
+            print("                     the workspace must reinstall Foxy")
             problems += 1
             continue
-        print("    token            decrypts")
+        print(f"    token            decrypts (key {installs.key_fingerprint()})")
 
         client = SlackClient(token=r["token"], target=r["channel"])
         try:

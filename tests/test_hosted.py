@@ -283,3 +283,41 @@ def test_the_first_run_budget_is_shared_across_sources():
     src = inspect.getsource(Engine._absorb)
     assert "_first_run_budget" in src
     assert "reverse=True" in src, "the newest signals are the ones worth showing"
+
+
+# --- the key mismatch that stopped every hosted alert ------------------------
+
+
+def test_a_blob_from_another_key_is_named_not_silently_empty():
+    """The web app and the scheduler are separately configured deployments.
+
+    Their ENCRYPTION_KEYs drifted apart, and the only symptom was silence:
+    every token decrypted to "", every sweep took the dry-run path, and 687
+    alerts were recorded without one being sent. The mismatch must be a
+    statement, not a shrug.
+    """
+    from app import installs
+    from app.config import settings
+
+    blob = installs.encrypt("xoxb-written-by-the-web-app")
+    assert installs.token_problem(blob) == ""
+
+    original = settings.encryption_key
+    try:
+        settings.encryption_key = "the-schedulers-different-key"
+        why = installs.token_problem(blob)
+        assert "different ENCRYPTION_KEY" in why, why
+        assert installs.decrypt(blob) == "", "and it must not return a bad token"
+    finally:
+        settings.encryption_key = original
+
+    assert installs.decrypt(blob) == "xoxb-written-by-the-web-app"
+
+
+def test_the_key_fingerprint_does_not_leak_the_key():
+    from app import installs
+    from app.config import settings
+
+    fp = installs.key_fingerprint()
+    assert len(fp) == 8
+    assert settings.encryption_key not in fp
