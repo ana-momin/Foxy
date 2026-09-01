@@ -12,3 +12,5 @@ python-multipart==0.0.20
 APScheduler==3.11.0
 rapidfuzz==3.11.0
 psycopg[binary]==3.2.3
+# Validates the Pond manifest against the published schema in tests.
+jsonschema==4.23.0

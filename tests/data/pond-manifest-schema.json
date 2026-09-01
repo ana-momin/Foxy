@@ -1,0 +1,669 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://docs.joinpond.ai/schemas/pond-agent-manifest-v1.json",
+  "title": "Pond Agent Manifest V1",
+  "type": "object",
+  "required": [
+    "protocol",
+    "protocol_version",
+    "agent_version",
+    "capabilities",
+    "input_modes",
+    "output_modes",
+    "limits"
+  ],
+  "properties": {
+    "protocol": {
+      "description": "Pond discovery protocol identifier.",
+      "const": "marketplace-agent"
+    },
+    "protocol_version": {
+      "description": "Exact Pond Protocol Major.Minor version.",
+      "const": "1.0"
+    },
+    "agent_version": {
+      "description": "Non-empty identifier for this Agent release.",
+      "type": "string",
+      "minLength": 1
+    },
+    "metadata": {
+      "description": "Optional marketplace data. Invalid values are ignored during field-level import and do not invalidate the protocol manifest.",
+      "type": "object",
+      "additionalProperties": true
+    },
+    "actions": {
+      "description": "Optional distinct operations Pond may select from user intent.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/action"
+      }
+    },
+    "input_schema": {
+      "description": "Optional structured input contract for an Agent that does not declare actions.",
+      "$ref": "#/$defs/inputSchema"
+    },
+    "capabilities": {
+      "description": "Streaming and content capabilities plus advisory ordinary-JSON response hints.",
+      "$ref": "#/$defs/capabilities"
+    },
+    "input_modes": {
+      "description": "Media types the Agent accepts from Pond.",
+      "$ref": "#/$defs/mediaModes"
+    },
+    "output_modes": {
+      "description": "Media types the Agent can return to Pond.",
+      "$ref": "#/$defs/mediaModes"
+    },
+    "limits": {
+      "description": "Request, attachment, and execution limits used before dispatch.",
+      "$ref": "#/$defs/limits"
+    }
+  },
+  "not": {
+    "required": [
+      "actions",
+      "input_schema"
+    ]
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "action": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "description"
+      ],
+      "properties": {
+        "id": {
+          "description": "Stable unique action identifier returned in /runs.action_id.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "name": {
+          "description": "Concise developer-facing action name.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "description": {
+          "description": "Routing guidance describing when Pond should select this action.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "input_schema": {
+          "description": "Optional structured values Pond collects for this action.",
+          "$ref": "#/$defs/inputSchema"
+        }
+      },
+      "additionalProperties": false
+    },
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "type",
+        "properties",
+        "additionalProperties"
+      ],
+      "properties": {
+        "type": {
+          "description": "The /runs.parameters root is always a JSON object.",
+          "const": "object"
+        },
+        "properties": {
+          "description": "Named parameter definitions Pond may collect and send.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/valueSchema"
+          }
+        },
+        "required": {
+          "description": "Parameter names Pond must collect before dispatch.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "additionalProperties": {
+          "description": "Must be false so Pond never sends undeclared parameters.",
+          "const": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "valueSchema": {
+      "type": "object",
+      "required": [
+        "type",
+        "description"
+      ],
+      "properties": {
+        "type": {
+          "description": "Expected JSON value type.",
+          "enum": [
+            "string",
+            "integer",
+            "number",
+            "boolean",
+            "array",
+            "object"
+          ]
+        },
+        "description": {
+          "description": "Human-readable meaning Pond uses when collecting the value.",
+          "type": "string",
+          "minLength": 1
+        },
+        "enum": {
+          "description": "Optional fixed choices accepted for this value.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "minLength": {
+          "description": "Optional minimum string length.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxLength": {
+          "description": "Optional maximum string length.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "minimum": {
+          "description": "Optional inclusive numeric minimum.",
+          "type": "number"
+        },
+        "maximum": {
+          "description": "Optional inclusive numeric maximum.",
+          "type": "number"
+        },
+        "items": {
+          "description": "Schema for each value in an array parameter.",
+          "$ref": "#/$defs/valueSchema"
+        },
+        "properties": {
+          "description": "Nested definitions for an object parameter.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/valueSchema"
+          }
+        },
+        "required": {
+          "description": "Required keys for an object parameter.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "additionalProperties": {
+          "description": "Whether an object parameter may contain undeclared keys.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "importableMetadata": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Agent name shown on Pond.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "logo_url": {
+          "description": "HTTP or HTTPS logo URL used on the publishing page.",
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "maxLength": 2000
+        },
+        "short_description": {
+          "description": "Short Agent summary shown in listings.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "description": {
+          "description": "Detailed Agent description; Pond sanitizes rich text.",
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "description": "Pond marketplace category.",
+          "enum": [
+            "sales",
+            "content",
+            "marketing",
+            "analytics",
+            "research",
+            "coding",
+            "compliance",
+            "productivity",
+            "agent_infrastructure",
+            "others"
+          ]
+        },
+        "demo_materials": {
+          "description": "Optional examples shown on the publishing page.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/importableDemoMaterial"
+          }
+        },
+        "key_features": {
+          "description": "Rich text describing the Agent's main features.",
+          "type": "string",
+          "minLength": 1
+        },
+        "use_cases": {
+          "description": "Rich text describing suitable use cases.",
+          "type": "string",
+          "minLength": 1
+        },
+        "setup_instructions": {
+          "description": "Instructions users should follow before using the Agent.",
+          "type": "string",
+          "minLength": 1
+        },
+        "developer_x_url": {
+          "description": "Developer's X profile URL.",
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://(www\\.)?(x\\.com|twitter\\.com)/"
+        },
+        "developer_linkedin_url": {
+          "description": "Developer's LinkedIn profile URL.",
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://(www\\.)?linkedin\\.com/"
+        },
+        "github_url": {
+          "description": "Public GitHub repository URL for the Agent.",
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://github\\.com/[^/]+/[^/]+/?$"
+        },
+        "faqs": {
+          "description": "Frequently asked questions shown on the publishing page.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/importableFaq"
+          }
+        },
+        "pricing_plans": {
+          "description": "Structured pricing plans imported atomically into the publishing draft.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/importablePricingPlan"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "importableDemoMaterial": {
+      "type": "object",
+      "required": [
+        "url",
+        "file_type",
+        "file_name"
+      ],
+      "properties": {
+        "url": {
+          "description": "Public HTTP or HTTPS demo asset URL.",
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://"
+        },
+        "file_type": {
+          "description": "Demo asset presentation type.",
+          "enum": [
+            "image",
+            "video",
+            "pdf",
+            "ppt",
+            "pptx"
+          ]
+        },
+        "file_name": {
+          "description": "Non-empty display filename.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "importableFaq": {
+      "type": "object",
+      "required": [
+        "question",
+        "answer"
+      ],
+      "properties": {
+        "question": {
+          "description": "FAQ question.",
+          "type": "string",
+          "minLength": 1
+        },
+        "answer": {
+          "description": "FAQ answer; Pond sanitizes rich text.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "importablePricingPlan": {
+      "type": "object",
+      "required": [
+        "name",
+        "pricing_model",
+        "amount_minor",
+        "usage_unit"
+      ],
+      "properties": {
+        "name": {
+          "description": "Plan name shown to users.",
+          "type": "string",
+          "minLength": 1
+        },
+        "pricing_model": {
+          "description": "How users are charged.",
+          "enum": [
+            "free",
+            "pay_as_you_go",
+            "subscription"
+          ]
+        },
+        "amount_minor": {
+          "description": "Price in minor USD units; 100 means $1.00.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "usage_quantity": {
+          "description": "For pay-as-you-go pricing, the number of units purchased for amount_minor.",
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "usage_unit": {
+          "description": "Unit the Agent reports in terminal usage.",
+          "enum": [
+            "token",
+            "result",
+            "other"
+          ]
+        },
+        "custom_usage_unit": {
+          "description": "Concrete unit required when usage_unit is other.",
+          "type": "string",
+          "minLength": 1
+        },
+        "billing_interval": {
+          "description": "Subscription renewal interval.",
+          "const": "month"
+        },
+        "included_units": {
+          "description": "Positive allowance included with a free or subscription plan.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "validity_days": {
+          "description": "Optional free-plan validity; zero means no expiry.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "description": {
+          "description": "Optional plan explanation shown to users.",
+          "type": "string"
+        },
+        "sort_order": {
+          "description": "Optional positive display position.",
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "usage_unit": {
+                "const": "other"
+              }
+            },
+            "required": [
+              "usage_unit"
+            ]
+          },
+          "then": {
+            "required": [
+              "custom_usage_unit"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "custom_usage_unit"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "pricing_model": {
+                "const": "free"
+              }
+            },
+            "required": [
+              "pricing_model"
+            ]
+          },
+          "then": {
+            "required": [
+              "included_units"
+            ],
+            "properties": {
+              "amount_minor": {
+                "const": 0
+              }
+            },
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "usage_quantity"
+                  ]
+                },
+                {
+                  "required": [
+                    "billing_interval"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "pricing_model": {
+                "const": "pay_as_you_go"
+              }
+            },
+            "required": [
+              "pricing_model"
+            ]
+          },
+          "then": {
+            "properties": {
+              "amount_minor": {
+                "minimum": 1
+              }
+            },
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "billing_interval"
+                  ]
+                },
+                {
+                  "required": [
+                    "included_units"
+                  ]
+                },
+                {
+                  "required": [
+                    "validity_days"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "pricing_model": {
+                "const": "subscription"
+              }
+            },
+            "required": [
+              "pricing_model"
+            ]
+          },
+          "then": {
+            "required": [
+              "billing_interval",
+              "included_units"
+            ],
+            "properties": {
+              "amount_minor": {
+                "minimum": 1
+              }
+            },
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "usage_quantity"
+                  ]
+                },
+                {
+                  "required": [
+                    "validity_days"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "capabilities": {
+      "type": "object",
+      "required": [
+        "sync",
+        "streaming",
+        "async_tasks",
+        "cancellation",
+        "attachments",
+        "feedback"
+      ],
+      "properties": {
+        "sync": {
+          "description": "Advisory hint that ordinary JSON commonly returns an immediate terminal result; does not restrict the actual response.",
+          "type": "boolean"
+        },
+        "streaming": {
+          "description": "Supports Server-Sent Events streaming.",
+          "type": "boolean"
+        },
+        "async_tasks": {
+          "description": "Advisory hint that ordinary JSON may commonly return task acceptance; does not restrict the actual response.",
+          "type": "boolean"
+        },
+        "cancellation": {
+          "description": "Reserved in V1 and must be false.",
+          "const": false
+        },
+        "attachments": {
+          "description": "Accepts user-uploaded file parts from Pond.",
+          "type": "boolean"
+        },
+        "feedback": {
+          "description": "Reserved in V1 and must be false.",
+          "const": false
+        }
+      },
+      "anyOf": [
+        {
+          "properties": {
+            "sync": {
+              "const": true
+            }
+          }
+        },
+        {
+          "properties": {
+            "streaming": {
+              "const": true
+            }
+          }
+        },
+        {
+          "properties": {
+            "async_tasks": {
+              "const": true
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "mediaModes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "limits": {
+      "type": "object",
+      "required": [
+        "max_request_bytes",
+        "max_attachment_bytes",
+        "max_run_seconds"
+      ],
+      "properties": {
+        "max_request_bytes": {
+          "description": "Maximum /runs request-body size accepted by the Agent.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_attachment_bytes": {
+          "description": "Maximum size of one user-uploaded input attachment.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_run_seconds": {
+          "description": "Maximum execution duration accepted by the Agent.",
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

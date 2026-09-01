@@ -126,6 +126,7 @@ _ACTIONS = [
                     "description": "Limit the scan to these sources. Omit to scan all.",
                     "items": {
                         "type": "string",
+                        "description": "One monitored source.",
                         "enum": [
                             "yc_directory",
                             "yc_launches",
@@ -384,7 +385,8 @@ def manifest() -> dict[str, Any]:
         "output_modes": ["text/markdown"],
         "limits": {
             "max_request_bytes": 262144,
-            "max_execution_ms": 600000,
+            "max_attachment_bytes": 10485760,
+            "max_run_seconds": 600,
         },
     }
 
