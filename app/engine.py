@@ -88,6 +88,9 @@ class Engine:
         # Nobody wants 200 messages at once. Anything past this lands in the
         # digest instead, so a bad sweep is noisy in one message, not hundreds.
         self.max_alerts = settings.max_alerts_per_sweep
+        # Budget for a first sweep. Spent across sources in the order they run,
+        # so the YC directory gets it before the noisier social feeds.
+        self._first_run_budget = settings.first_run_alerts
 
     def _key(self, sig: Signal) -> str:
         return f"{self.namespace}{sig.fingerprint}"
@@ -178,6 +181,20 @@ class Engine:
     ) -> None:
         """Dedupe, evaluate and record one source's signals for this tenant."""
         new_count = 0
+
+        # On a first sweep, let the newest few through and seed the rest
+        # quietly. Suppressing everything meant a new workspace saw nothing at
+        # all until the next company happened to appear, which could be a day.
+        introduce: set[int] = set()
+        if first_run and self._first_run_budget > 0:
+            dated = sorted(
+                (x for x in signals if x.posted_at is not None),
+                key=lambda x: x.posted_at,
+                reverse=True,
+            )
+            for sig in dated[: self._first_run_budget]:
+                introduce.add(id(sig))
+
         with session() as s:
             for sig in signals:
                 if already_seen(s, self._key(sig)):
@@ -194,10 +211,13 @@ class Engine:
                 )
                 new_count += 1
 
-                # First run: seed state quietly rather than firing history.
-                if first_run and (sig.posted_at is None or sig.posted_at < cutoff):
+                # First run: introduce the newest few, seed the rest quietly
+                # rather than firing months of history.
+                if first_run and id(sig) not in introduce:
                     self._upsert_entity(s, sig, alerted=False)
                     continue
+                if first_run and id(sig) in introduce:
+                    self._first_run_budget -= 1
 
                 self._evaluate(s, sig, result)
 

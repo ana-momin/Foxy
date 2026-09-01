@@ -260,3 +260,26 @@ def test_install_retries_before_falling_back():
 
     src = inspect.getsource(oauth.callback)
     assert "for attempt in" in src, "a transient error must not downgrade the flow"
+
+
+def test_a_first_sweep_introduces_the_newest_few():
+    """A brand-new workspace used to receive nothing at all: the backfill guard
+    suppressed every signal, so the channel stayed empty until some company
+    happened to appear, possibly a day later. It now gets a small, recent
+    sample so the first sweep shows what Foxy actually does."""
+    from app.engine import Engine
+
+    assert Engine()._first_run_budget == settings.first_run_alerts
+    assert 1 <= settings.first_run_alerts <= 15
+
+
+def test_the_first_run_budget_is_shared_across_sources():
+    """Spent in source order, so the YC directory gets it before the noisier
+    social feeds, and the total stays small."""
+    import inspect
+
+    from app.engine import Engine
+
+    src = inspect.getsource(Engine._absorb)
+    assert "_first_run_budget" in src
+    assert "reverse=True" in src, "the newest signals are the ones worth showing"

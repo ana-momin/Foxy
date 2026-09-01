@@ -95,6 +95,10 @@ class Settings:
     backfill_days: int = _i("BACKFILL_DAYS", 7)
     # Hard ceiling on alerts posted in one sweep, per workspace.
     max_alerts_per_sweep: int = _i("MAX_ALERTS_PER_SWEEP", 25)
+    # How many of the newest detections a brand-new workspace receives on its
+    # very first sweep. Without this it receives nothing at all and has to wait
+    # for the next genuinely new company, which is a poor first impression.
+    first_run_alerts: int = _i("FIRST_RUN_ALERTS", 6)
     # Alerts included on the free plan, per workspace, lifetime.
     free_alert_quota: int = _i("FREE_ALERT_QUOTA", 50)
     dry_run: bool = _b("DRY_RUN")
