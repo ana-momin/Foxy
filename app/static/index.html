@@ -34,7 +34,10 @@
     --shadow-m:  0 1px 3px rgba(30,20,10,.05), 0 8px 24px -12px rgba(30,20,10,.14);
     --shadow-l:  0 2px 6px rgba(30,20,10,.06), 0 24px 60px -28px rgba(30,20,10,.26);
     --nav-bg:    rgba(255,253,251,.82);
-    --dotc:      rgba(120,100,80,.09);
+    --gridline:  rgba(120,100,80,.055);
+    --bloom-a:   rgba(255,170,90,.13);
+    --bloom-b:   rgba(255,120,60,.09);
+    --vignette:  rgba(120,95,70,.05);
   }
 
   @media (prefers-color-scheme: dark) {
@@ -57,7 +60,10 @@
       --shadow-m:  0 1px 3px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
       --shadow-l:  0 2px 6px rgba(0,0,0,.5), 0 24px 60px -28px rgba(0,0,0,.9);
       --nav-bg:    rgba(16,12,9,.82);
-      --dotc:      rgba(255,220,180,.06);
+      --gridline:  rgba(255,215,175,.035);
+      --bloom-a:   rgba(255,140,60,.11);
+      --bloom-b:   rgba(255,100,40,.08);
+      --vignette:  rgba(0,0,0,.34);
     }
   }
 
@@ -80,7 +86,10 @@
     --shadow-m:  0 1px 3px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
     --shadow-l:  0 2px 6px rgba(0,0,0,.5), 0 24px 60px -28px rgba(0,0,0,.9);
     --nav-bg:    rgba(16,12,9,.82);
-      --dotc:      rgba(255,220,180,.06);
+      --gridline:  rgba(255,215,175,.035);
+      --bloom-a:   rgba(255,140,60,.11);
+      --bloom-b:   rgba(255,100,40,.08);
+      --vignette:  rgba(0,0,0,.34);
   }
 
   * { box-sizing: border-box; }
@@ -90,14 +99,14 @@
     background: var(--bg);
     color: var(--ink);
     font-family: "Schibsted Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    font-size: 16px;
-    line-height: 1.65;
+    font-size: 17.5px;
+    line-height: 1.7;
     letter-spacing: -0.006em;
     -webkit-font-smoothing: antialiased;
   }
 
-  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
-  .narrow { max-width: 720px; margin: 0 auto; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  .narrow { max-width: 780px; margin: 0 auto; }
 
   h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.028em; line-height: 1.1; }
   p { margin: 0 0 18px; }
@@ -116,13 +125,13 @@
   }
   .nav-in {
     max-width: 1000px; margin: 0 auto; padding: 0 24px;
-    height: 60px; display: flex; align-items: center; gap: 8px;
+    height: 66px; display: flex; align-items: center; gap: 8px;
   }
   .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16.5px; margin-right: auto; }
-  .brand img { width: 26px; height: 26px; border-radius: 7px; display: block; }
+  .brand img { width: 29px; height: 29px; border-radius: 7px; display: block; }
   .navlinks { display: flex; gap: 2px; }
   .navlinks a {
-    padding: 7px 12px; border-radius: 8px; font-size: 14.5px; font-weight: 500;
+    padding: 8px 14px; border-radius: 9px; font-size: 15px; font-weight: 500;
     color: var(--ink-2); transition: background .16s ease, color .16s ease;
   }
   .navlinks a:hover { color: var(--ink); background: var(--surface); }
@@ -146,19 +155,19 @@
   @media (prefers-reduced-motion: reduce) { .page { animation: none; } }
 
   .eyebrow {
-    font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 500;
-    letter-spacing: .15em; text-transform: uppercase; color: var(--accent);
-    margin: 0 0 16px;
+    font-family: "JetBrains Mono", monospace; font-size: 11.5px; font-weight: 500;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--accent);
+    margin: 0 0 20px;
   }
-  .h2 { font-size: clamp(26px, 3.6vw, 34px); margin-bottom: 14px; }
-  .sub { color: var(--ink-2); font-size: 17px; max-width: 58ch; }
+  .h2 { font-size: clamp(29px, 4vw, 40px); margin-bottom: 18px; }
+  .sub { color: var(--ink-2); font-size: 18.5px; max-width: 58ch; }
 
-  section { padding: 88px 0; }
+  section { padding: 116px 0; }
   section + section { border-top: 1px solid var(--border); }
 
   .btn {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 11px 19px; border-radius: 10px; font-size: 15px; font-weight: 500;
+    padding: 13px 22px; border-radius: 11px; font-size: 15.5px; font-weight: 500;
     border: 1px solid transparent; cursor: pointer;
     transition: transform .14s ease, box-shadow .18s ease, background .16s ease, border-color .16s ease;
   }
@@ -169,7 +178,7 @@
   .btn-s:hover { border-color: var(--accent); color: var(--accent); }
 
   /* ================= hero ================= */
-  .hero { position: relative; padding: 96px 0 84px; text-align: center; overflow: hidden; }
+  .hero { position: relative; padding: 124px 0 108px; text-align: center; overflow: hidden; }
   .hero::before {
     content: ""; position: absolute; inset: -30% 50% auto; width: 760px; height: 560px;
     transform: translateX(-50%); pointer-events: none;
@@ -177,7 +186,7 @@
   }
   .hero > * { position: relative; }
   .heromark {
-    width: 92px; height: 92px; border-radius: 24px; display: block; margin: 0 auto 30px;
+    width: 104px; height: 104px; border-radius: 27px; display: block; margin: 0 auto 30px;
     box-shadow: var(--shadow-l);
   }
   .live {
@@ -192,11 +201,11 @@
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
   }
   h1 {
-    font-size: clamp(38px, 6.4vw, 60px); line-height: 1.04; letter-spacing: -0.035em;
+    font-size: clamp(44px, 7.2vw, 72px); line-height: 1.03; letter-spacing: -0.037em;
     max-width: 17ch; margin: 0 auto 22px; text-wrap: balance;
   }
   h1 em { font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-weight: 400; color: var(--accent); letter-spacing: -0.01em; }
-  .herosub { font-size: 18.5px; color: var(--ink-2); max-width: 50ch; margin: 0 auto 34px; }
+  .herosub { font-size: 20.5px; color: var(--ink-2); max-width: 50ch; margin: 0 auto 34px; }
   .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
   /* ================= slack mock ================= */
@@ -240,10 +249,10 @@
 
 
   /* ================= stats ================= */
-  .stats { display: grid; grid-template-columns: 1fr; gap: 14px; margin: 34px 0; }
+  .stats { display: grid; grid-template-columns: 1fr; gap: 16px; margin: 40px 0; }
   @media (min-width: 620px) { .stats { grid-template-columns: repeat(3, 1fr); } }
-  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 13px; padding: 22px; }
-  .stat .v { font-size: 34px; font-weight: 600; letter-spacing: -0.035em; line-height: 1; font-variant-numeric: tabular-nums; margin-bottom: 6px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 26px; }
+  .stat .v { font-size: 40px; font-weight: 600; letter-spacing: -0.035em; line-height: 1; font-variant-numeric: tabular-nums; margin-bottom: 6px; }
   .stat .k { font-family: "JetBrains Mono", monospace; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
   .stat.hot .v { color: var(--accent); }
 
@@ -272,8 +281,8 @@
   .out b { color: var(--ink); font-weight: 600; display: block; margin-bottom: 5px; font-size: 15px; }
 
   /* ================= rows ================= */
-  .rows { border: 1px solid var(--border); border-radius: 13px; overflow: hidden; background: var(--surface); margin-top: 28px; }
-  .r { display: grid; grid-template-columns: 1fr; gap: 2px 20px; padding: 16px 20px; }
+  .rows { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface); margin-top: 32px; }
+  .r { display: grid; grid-template-columns: 1fr; gap: 3px 22px; padding: 19px 24px; }
   .r + .r { border-top: 1px solid var(--border); }
   @media (min-width: 620px) { .r { grid-template-columns: 160px 1fr auto; align-items: baseline; } }
   .r b { font-weight: 500; font-size: 15px; }
@@ -318,7 +327,7 @@
   code { font-family: "JetBrains Mono", monospace; font-size: .87em; background: var(--surface); border: 1px solid var(--border); padding: 1px 5px; border-radius: 5px; }
 
   .callout {
-    margin-top: 30px; border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    margin-top: 34px; border: 1px solid var(--border); border-left: 3px solid var(--accent);
     background: var(--surface); border-radius: 0 12px 12px 0; padding: 18px 22px;
     font-size: 14.5px; color: var(--ink-2);
   }
@@ -351,7 +360,7 @@
   .slackbtn {
     display: inline-flex; align-items: center; gap: 10px;
     background: #4A154B; color: #fff; border-radius: 10px;
-    padding: 12px 20px; font-size: 15px; font-weight: 500;
+    padding: 14px 23px; font-size: 15.5px; font-weight: 500;
     box-shadow: var(--shadow-m); transition: transform .14s ease, box-shadow .2s ease;
   }
   .slackbtn:hover { transform: translateY(-1px); box-shadow: var(--shadow-l); }
@@ -359,7 +368,7 @@
   .slackbtn svg { width: 17px; height: 17px; flex: none; }
 
   /* ---- timeline: the gap, shown rather than described ---- */
-  .tl { margin: 34px 0 30px; }
+  .tl { margin: 42px 0 38px; }
   .tl-track {
     position: relative; height: 3px; border-radius: 2px;
     background: var(--border); margin: 0 0 22px;
@@ -480,26 +489,36 @@
 
   /* ============ additions ============ */
 
-  /* Page ground: a very faint dot grid, fading out down the page, with a warm
-     bloom behind the hero. Fixed so it does not scroll, and behind everything. */
+  /* Page ground: three warm blooms of different sizes, a fine ruled grid, and
+     a vignette that pulls the edges down. Fixed, so it does not scroll, and
+     masked so it fades before the footer rather than tiling the whole page. */
   .bg-grid {
     position: fixed; inset: 0; z-index: -1; pointer-events: none;
     background-image:
-      radial-gradient(760px 460px at 50% -8%, var(--glow), transparent 70%),
-      radial-gradient(circle at center, var(--dotc) 1px, transparent 1px);
-    background-size: 100% 100%, 22px 22px;
-    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 30%, transparent 78%);
-    mask-image: linear-gradient(180deg, #000 0%, #000 30%, transparent 78%);
+      radial-gradient(620px 380px at 18% -6%, var(--bloom-a), transparent 68%),
+      radial-gradient(820px 520px at 82% 2%, var(--bloom-b), transparent 70%),
+      radial-gradient(1100px 640px at 50% -12%, var(--glow), transparent 72%),
+      linear-gradient(var(--gridline) 1px, transparent 1px),
+      linear-gradient(90deg, var(--gridline) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 100% 100%, 64px 64px, 64px 64px;
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 24%, rgba(0,0,0,.35) 58%, transparent 86%);
+    mask-image: linear-gradient(180deg, #000 0%, #000 24%, rgba(0,0,0,.35) 58%, transparent 86%);
   }
 
-  .microcopy { margin-top: 26px; font-size: 13.5px; color: var(--muted); }
+  /* A soft edge vignette, so the page does not end at a hard rectangle. */
+  .bg-grid::after {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(120% 80% at 50% 30%, transparent 55%, var(--vignette) 100%);
+  }
+
+  .microcopy { margin-top: 40px; font-size: 13.5px; color: var(--muted); }
   .ser { font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-weight: 400; color: var(--accent); }
 
   /* ---- Slack install button ---- */
   .slackbtn {
     display: inline-flex; align-items: center; gap: 10px;
     background: #4A154B; color: #fff; border-radius: 10px;
-    padding: 12px 20px; font-size: 15px; font-weight: 500;
+    padding: 14px 23px; font-size: 15.5px; font-weight: 500;
     box-shadow: var(--shadow-m); transition: transform .14s ease, box-shadow .2s ease;
   }
   .slackbtn:hover { transform: translateY(-1px); box-shadow: var(--shadow-l); }
@@ -507,7 +526,7 @@
   .slackbtn svg { width: 17px; height: 17px; flex: none; }
 
   /* ---- timeline ---- */
-  .tl { margin: 34px 0 30px; }
+  .tl { margin: 42px 0 38px; }
   .tl-track { position: relative; height: 3px; border-radius: 2px; background: var(--border); margin: 0 0 22px; }
   .tl-fill { position: absolute; inset: 0 auto 0 0; width: 18%; background: var(--accent); border-radius: 2px; }
   @media (prefers-reduced-motion: no-preference) {
@@ -524,7 +543,7 @@
 
   .gapnums { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
   .gapnums div { border-top: 1px solid var(--border); padding-top: 14px; }
-  .gapnums b { display: block; font-size: 32px; font-weight: 600; letter-spacing: -.035em; line-height: 1; margin-bottom: 5px; font-variant-numeric: tabular-nums; }
+  .gapnums b { display: block; font-size: 38px; font-weight: 600; letter-spacing: -.035em; line-height: 1; margin-bottom: 5px; font-variant-numeric: tabular-nums; }
   .gapnums .hot b { color: var(--accent); }
   .gapnums span { font-size: 13.5px; color: var(--muted); }
 
@@ -540,23 +559,28 @@
   .panel-note { margin-top: 20px; font-size: 14px; color: var(--muted); }
 
   /* ---- feature switcher ---- */
-  .sw { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 30px; }
-  @media (min-width: 780px) { .sw { grid-template-columns: 268px 1fr; gap: 22px; align-items: start; } }
+  .sw { display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 38px; }
+  @media (min-width: 820px) { .sw { grid-template-columns: 300px 1fr; gap: 26px; align-items: start; } }
   .sw-list { display: grid; gap: 8px; }
   .sw-b {
-    display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left;
+    display: flex; align-items: flex-start; gap: 14px; width: 100%; text-align: left;
     background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-    padding: 14px 15px; cursor: pointer; font-family: inherit;
+    padding: 17px 18px; cursor: pointer; font-family: inherit;
     transition: border-color .18s ease, box-shadow .2s ease, transform .18s ease;
   }
   .sw-b:hover { border-color: var(--border-2); transform: translateY(-1px); }
   .sw-b.on { border-color: var(--accent); box-shadow: var(--shadow-m); }
-  .sw-i { font-size: 17px; line-height: 1.2; flex: none; }
-  .sw-t b { display: block; font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
-  .sw-t em { font-style: normal; font-size: 13.5px; color: var(--ink-2); line-height: 1.45; }
+  .sw-n {
+    font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 500;
+    color: var(--muted); flex: none; padding-top: 3px; letter-spacing: .04em;
+    transition: color .18s ease;
+  }
+  .sw-b.on .sw-n { color: var(--accent); }
+  .sw-t b { display: block; font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
+  .sw-t em { font-style: normal; font-size: 14px; color: var(--ink-2); line-height: 1.45; }
   .sw-b.on .sw-t b { color: var(--accent); }
 
-  .sw-view { background: var(--surface); border: 1px solid var(--border); border-radius: 13px; padding: 22px; box-shadow: var(--shadow-s); }
+  .sw-view { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 26px; box-shadow: var(--shadow-s); }
   .sw-p { display: none; }
   .sw-p.on { display: block; animation: fade .3s ease both; }
   .sw-p p { font-size: 14.5px; color: var(--ink-2); margin: 18px 0 0; }
@@ -581,7 +605,7 @@
 
   /* ---- accordion ---- */
   .acc { border: 1px solid var(--border); border-radius: 13px; overflow: hidden; background: var(--surface); }
-  .acc-h { width: 100%; display: flex; align-items: center; gap: 14px; background: transparent; border: 0; cursor: pointer; text-align: left; font-family: inherit; font-size: 15.5px; color: var(--ink); padding: 16px 18px; transition: background .16s ease; }
+  .acc-h { width: 100%; display: flex; align-items: center; gap: 16px; background: transparent; border: 0; cursor: pointer; text-align: left; font-family: inherit; font-size: 15.5px; color: var(--ink); padding: 19px 22px; transition: background .16s ease; }
   .acc-h ~ .acc-h { border-top: 1px solid var(--border); }
   .acc-h:hover { background: var(--bg); }
   .acc-h b { font-weight: 500; flex: 1; }
@@ -604,7 +628,7 @@
   .vd-k.hot { background: var(--accent); }
   .vd-k.ok { background: var(--good); }
   .vd-k.mut { background: var(--muted); }
-  .vd-p { display: none; padding: 22px; }
+  .vd-p { display: none; padding: 26px; }
   .vd-p.on { display: block; animation: fade .3s ease both; }
   .vd-q { font-size: 15.5px; color: var(--ink); line-height: 1.55; margin: 0 0 16px; padding-left: 14px; border-left: 2px solid var(--border-2); }
   .vd-r { display: flex; align-items: center; gap: 11px; flex-wrap: wrap; font-size: 14px; color: var(--ink-2); }
@@ -762,15 +786,15 @@
       <div class="sw">
         <div class="sw-list" role="tablist">
           <button class="sw-b on" data-sw="early" role="tab" aria-selected="true">
-            <span class="sw-i">⚡</span>
-            <span class="sw-t"><b>Early</b><em>Founder posts, not just the directory</em></span>
+            <span class="sw-n">01</span>
+            <span class="sw-t"><b>Early</b><em>Reads founder posts, not just the directory</em></span>
           </button>
           <button class="sw-b" data-sw="dedupe" role="tab" aria-selected="false">
-            <span class="sw-i">🔁</span>
-            <span class="sw-t"><b>Never repeats</b><em>Remembers everything it has seen</em></span>
+            <span class="sw-n">02</span>
+            <span class="sw-t"><b>Never repeats</b><em>Remembers every company it has seen</em></span>
           </button>
           <button class="sw-b" data-sw="free" role="tab" aria-selected="false">
-            <span class="sw-i">🌱</span>
+            <span class="sw-n">03</span>
             <span class="sw-t"><b>Free to run</b><em>Three sources need no API key</em></span>
           </button>
         </div>
@@ -798,7 +822,7 @@
               <div><span>YC Directory</span><b class="free">$0</b></div>
               <div><span>Launch YC</span><b class="free">$0</b></div>
               <div><span>Speedrun</span><b class="free">$0</b></div>
-              <div><span>X &amp; LinkedIn</span><b>optional key</b></div>
+              <div><span>X and LinkedIn</span><b>optional key</b></div>
             </div>
             <p>Three of the five sources are public feeds that cost nothing. Add a key later only if you want wider reach.</p>
           </div>
