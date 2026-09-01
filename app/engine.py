@@ -26,6 +26,7 @@ from .config import load_rules, settings
 from .db import (
     Alert,
     Entity,
+    Seen,
     SourceRun,
     already_seen,
     bump_sweep_counter,
@@ -135,6 +136,7 @@ class Engine:
         # Promote anything YC has now confirmed, then deliver.
         self._promote_confirmations()
         self._deliver(result)
+        self._forget_undelivered(result)
         self._report_degraded()
 
         result.finished_at = dt.datetime.now(dt.timezone.utc)
@@ -417,6 +419,25 @@ class Engine:
                     self.slack.post(blocks, text)
                 except Exception:  # noqa: BLE001
                     log.exception("failed to post digest")
+
+    def _forget_undelivered(self, result: SweepResult) -> None:
+        """An item is only "seen" once the workspace has actually been told.
+
+        Marking it at decision time is right for suppressing duplicates and
+        wrong for everything else: when delivery failed, the item was recorded
+        as reported and never reconsidered, so an outage did not delay alerts,
+        it deleted them. Whatever did not reach Slack is forgotten here and
+        offered again on the next sweep.
+        """
+        missed = [s for s in result.alerts if s not in result.delivered]
+        if not missed:
+            return
+        keys = [self._key(s) for s in missed]
+        with session() as s:
+            s.query(Seen).filter(Seen.fingerprint.in_(keys)).delete(
+                synchronize_session=False
+            )
+        log.warning("%d alert(s) went undelivered and will be retried", len(missed))
 
     def _record_alert(self, sig: Signal, *, channel: str | None, ts: str | None) -> None:
         with session() as s:

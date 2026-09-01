@@ -394,7 +394,7 @@ def cmd_hosted_repair(_args) -> int:
     from sqlalchemy import delete, func, select
 
     from . import installs
-    from .db import Alert, init_db, session
+    from .db import Alert, Entity, Seen, init_db, session
 
     init_db()
     with session() as s:
@@ -414,6 +414,32 @@ def cmd_hosted_repair(_args) -> int:
         if phantom:
             s.execute(delete(Alert).where(Alert.ts.is_(None)))
             print(f"\n  {phantom} alert(s) had no Slack message id and were never sent")
+
+        # A seen-set built while nothing could be delivered is not history.
+        # Those companies were marked reported and never sent, so the workspace
+        # would stay silent about all of them forever.
+        for row in rows:
+            delivered = s.execute(
+                select(func.count())
+                .select_from(Alert)
+                .where(Alert.ts.isnot(None), Alert.fingerprint.like(f"{row.namespace}%"))
+            ).scalar()
+            if delivered:
+                continue
+            seen = s.execute(
+                select(func.count())
+                .select_from(Seen)
+                .where(Seen.fingerprint.like(f"{row.namespace}%"))
+            ).scalar()
+            if seen:
+                s.execute(delete(Seen).where(Seen.fingerprint.like(f"{row.namespace}%")))
+                s.execute(
+                    delete(Entity).where(Entity.entity_key.like(f"{row.namespace}%"))
+                )
+                print(
+                    f"  {row.team_name:<12} forgot {seen} item(s) marked seen while "
+                    "nothing could be sent"
+                )
 
         # Recount from what Slack actually acknowledged.
         for row in rows:

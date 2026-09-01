@@ -367,3 +367,28 @@ def test_a_promotion_belongs_to_one_workspace_only(world):
 
     assert set(by_ns) == {"a", "b"}, f"expected both workspaces, got {set(by_ns)}"
     assert len(by_ns["a"]) == len(by_ns["b"]), "each keeps its own copy"
+
+
+def test_an_undelivered_alert_is_offered_again_next_sweep(world, monkeypatch):
+    """An outage must delay alerts, not delete them.
+
+    Items were marked seen at decision time, so a sweep that failed to deliver
+    still recorded them as reported. The workspace was then permanently silent
+    about every company collected during the outage - which is exactly what
+    happened: 378 items marked seen, nothing ever sent.
+    """
+    from app.engine import Engine
+
+    class Broken:
+        usable = True
+
+        def post(self, *a, **k):
+            raise RuntimeError("not_in_channel")
+
+    broken = Engine(slack=Broken(), namespace="i:retry:")
+    failed = broken.sweep(prefetched={"yc_directory": world["signals"]["yc_directory"]})
+    assert failed.alerts and not failed.delivered
+
+    # Slack comes back. The same companies must still be waiting.
+    result, posted = _sweep(world, "i:retry:")
+    assert posted == len(failed.alerts), "what never arrived must be offered again"
