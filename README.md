@@ -153,6 +153,19 @@ Add `<your-domain>/slack/oauth/callback` to **OAuth &amp; Permissions &rarr; Red
 in your Slack app, then set `FOXY_BASE_URL` and `SWEEP_KEY` as repository secrets so
 [`hosted-sweep.yml`](.github/workflows/hosted-sweep.yml) can drive the schedule.
 
+> **The web app and the scheduler are two environments, and they must hold the same
+> `ENCRYPTION_KEY`.** The web app writes Slack tokens; the scheduler reads them. When
+> the two values differ, every token decrypts to nothing, the sweep finds no usable
+> client, and it takes the dry-run path — recording alerts, charging quota, and
+> sending nothing. Set it in both places from one generated value, and set
+> `SERPER_API_KEY` and `ANTHROPIC_API_KEY` as repository secrets too: a key that lives
+> only in your local `.env` is a key the scheduler does not have.
+>
+> Every stored token carries a fingerprint of the key that wrote it, so a mismatch is
+> reported rather than guessed at. `python -m app.cli hosted-doctor` checks the whole
+> chain against Slack itself, and `/healthz` names any workspace whose token this
+> deployment cannot read.
+
 **What is kept per workspace, and why**
 
 | | |
@@ -166,7 +179,15 @@ value and an authentication tag. That is not a substitute for keeping the databa
 private, but a leaked dump is not immediately a set of live Slack credentials.
 
 Re-installing a workspace updates it in place rather than creating a duplicate that
-would double every alert.
+would double every alert. Note that Slack will not add a newly requested scope to a
+token it has already issued, so a workspace installed before a scope change has to
+reinstall to pick it up.
+
+**An item counts as seen only once Slack has acknowledged it.** Marking it when the
+alert is *decided* rather than *delivered* means an outage does not delay alerts, it
+deletes them: the company is recorded as reported and never reconsidered. Anything
+Slack does not acknowledge is forgotten at the end of the sweep and offered again on
+the next one.
 
 ---
 
@@ -294,6 +315,18 @@ Keywords, vetoes, batch codes and thresholds live in
 | `python -m app.cli check-post <url>` | Runs one X post through the full pipeline |
 | `python -m app.cli status` | Per-source health |
 | `python -m app.cli reset --yes` | Clears memory |
+
+Hosted deployments have three more:
+
+| Command | What it does |
+|---|---|
+| `python -m app.cli hosted-sweep` | One shared fetch, delivered to every workspace |
+| `python -m app.cli hosted-doctor` | Checks each workspace against Slack: token decrypts, token is live, channel exists, bot is a member. `--post` sends a probe and reads it back out of `conversations.history` |
+| `python -m app.cli hosted-repair` | Parks workspaces whose token this environment cannot read, drops alert rows carrying no Slack message id, and recounts quota from what Slack acknowledged |
+
+The doctor exists because every hosted delivery failure so far was invisible from our
+own side: the sweep reported alerts, the database agreed, and the channel was empty.
+It asks Slack instead.
 
 In Slack: `/foxy status` and `/foxy scan`.
 
