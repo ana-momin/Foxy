@@ -37,7 +37,7 @@ them, it says so, and that's the window where an outreach email still lands firs
 ## What an alert looks like
 
 ```
-🔥 EARLY YC SIGNAL, founder announced before YC
+🔥 EARLY YC SIGNAL · founder announced before YC
 
   Company     Adalat AI            Source      X
   Status      Not in YC directory  Confidence  100%

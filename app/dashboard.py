@@ -38,6 +38,28 @@ font-size:15px;font-weight:500;cursor:pointer;font-family:inherit}
 .opt{border-top:1px solid var(--border);margin-top:30px;padding-top:26px}
 .opt h2{font-size:15px;font-weight:600;margin:0 0 6px}
 details summary{cursor:pointer;font-size:14px;color:var(--ink2);margin-bottom:14px}
+
+.next{background:var(--surface);border:1px solid var(--border);border-radius:13px;
+padding:22px 24px;box-shadow:var(--sh);margin-bottom:26px}
+.next h2{font-size:14px;font-weight:600;margin:0 0 12px;color:var(--muted);
+letter-spacing:.06em;text-transform:uppercase;font-family:"JetBrains Mono",monospace}
+.next ul{margin:0;padding:0;list-style:none}
+.next li{position:relative;padding-left:22px;margin-bottom:9px;font-size:14.5px;
+color:var(--ink2);line-height:1.55}
+.next li:last-child{margin-bottom:0}
+.next li:before{content:"";position:absolute;left:0;top:8px;width:6px;height:6px;
+border-radius:50%;background:var(--accent)}
+.next b{color:var(--ink);font-weight:600}
+
+.links{display:grid;grid-template-columns:1fr;gap:10px}
+@media(min-width:560px){.links{grid-template-columns:1fr 1fr}}
+.lk{display:block;background:var(--surface);border:1px solid var(--border);
+border-radius:12px;padding:16px 18px;text-decoration:none;color:inherit;
+transition:border-color .18s ease,transform .18s ease,box-shadow .2s ease}
+.lk:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:var(--sh)}
+.lk b{display:block;font-size:15px;font-weight:600;margin-bottom:3px;color:var(--ink)}
+.lk:hover b{color:var(--accent)}
+.lk span{font-size:13px;color:var(--muted);line-height:1.45}
 """
 
 
@@ -71,9 +93,10 @@ def dashboard(install_id: str, saved: str = "") -> HTMLResponse:
         )[:60]:
             sym = "\U0001f512 " if ch.get("is_private") else "#"
             sel = " selected" if ch["id"] == channel else ""
+            here = "   (Foxy is already in this one)" if ch.get("is_member") else ""
             options += (
                 f'<option value="{html.escape(ch["id"])}"{sel}>'
-                f'{sym}{html.escape(ch.get("name", ""))}</option>'
+                f'{sym}{html.escape(ch.get("name", ""))}{here}</option>'
             )
     except Exception:  # noqa: BLE001
         options = ""
@@ -180,6 +203,14 @@ async def save(install_id: str, request: Request) -> HTMLResponse | RedirectResp
             except ValueError:
                 pass
         token = row.token
+        team = row.team_name
+
+    # Join the channel so the first alert is not silently dropped. Public
+    # channels join cleanly; a private one needs an invite, and the success
+    # page says so.
+    joined = True
+    if channel:
+        joined = SlackClient(token=token, target=channel).join_channel(channel)
 
     if action == "test" and channel:
         try:
@@ -199,14 +230,18 @@ async def save(install_id: str, request: Request) -> HTMLResponse | RedirectResp
                 ],
                 "Foxy is connected.",
             )
-            return RedirectResponse(f"/app/{install_id}?saved=test", 303)
+            return RedirectResponse(
+                f"/app/{install_id}/done?tested=1" + ("" if joined else "&joined=0"), 303
+            )
         except Exception as exc:  # noqa: BLE001
             return _err(
                 "Saved, but the test message could not be delivered.",
                 f"{exc}. If it is a private channel, invite Foxy with /invite @Foxy.",
             )
 
-    return RedirectResponse(f"/app/{install_id}?saved=1", 303)
+    return RedirectResponse(
+        f"/app/{install_id}/done" + ("" if joined else "?joined=0"), 303
+    )
 
 
 @router.get("/app/{install_id}/stop", response_model=None)
@@ -220,3 +255,78 @@ def stop(install_id: str) -> HTMLResponse:
         <p><a href="/">Back to Foxy</a></p>""",
         "Stopped",
     )
+
+
+@router.get("/app/{install_id}/done", response_model=None)
+def done(install_id: str, tested: str = "", joined: str = "") -> HTMLResponse:
+    """Where saving lands. Confirms what will happen and gets out of the way."""
+    with session() as s:
+        row = installs.get(s, install_id)
+        if row is None or not row.active:
+            return _err("That settings link is not valid.")
+        team = row.team_name
+        token = row.token
+        channel_id = row.channel_id
+
+    name = channel_id
+    try:
+        for ch in SlackClient(token=token, target="").list_channels():
+            if ch["id"] == channel_id:
+                name = ("#" if not ch.get("is_private") else "\U0001f512 ") + ch.get(
+                    "name", channel_id
+                )
+                break
+    except Exception:  # noqa: BLE001 - a nicer label is not worth failing over
+        pass
+
+    tested_line = (
+        '<li><b>A test message is already there.</b> Go and look.</li>'
+        if tested
+        else ""
+    )
+    invite_line = (
+        '<li><b>Invite Foxy to that channel.</b> It is private, so run '
+        "<code>/invite @Foxy</code> there or alerts will not arrive.</li>"
+        if joined == "0"
+        else ""
+    )
+
+    body = f"""
+<div class="ok">&#10003; Foxy is watching</div>
+<h1>All set</h1>
+<p class="lede">Alerts for <b>{html.escape(team)}</b> will arrive in
+<b>{html.escape(name)}</b>.</p>
+
+<div class="next">
+  <h2>What happens now</h2>
+  <ul>
+    {tested_line}
+    {invite_line}
+    <li>Foxy checks all five sources every <b>eight hours</b>.</li>
+    <li>New YC and Speedrun companies arrive as they appear.</li>
+    <li>Founders who announce before YC publishes them are flagged
+        <b>early</b>, which is the useful half.</li>
+    <li>Nothing is ever reported twice.</li>
+  </ul>
+</div>
+
+<div class="links">
+  <a class="lk" href="/#/how">
+    <b>How it works</b><span>The pipeline, the verdicts, the accuracy</span>
+  </a>
+  <a class="lk" href="/app/{html.escape(install_id)}">
+    <b>Change settings</b><span>Channel, API keys, alert threshold</span>
+  </a>
+  <a class="lk" href="https://github.com/ana-momin/Foxy">
+    <b>Source code</b><span>MIT licensed, self-host it if you prefer</span>
+  </a>
+  <a class="lk" href="/">
+    <b>Back to Foxy</b><span>The overview</span>
+  </a>
+</div>
+
+<p class="muted" style="margin-top:32px">Bookmark
+<a href="/app/{html.escape(install_id)}">this settings link</a>. It is the only way
+back in, and it is how you stop alerts later.</p>
+"""
+    return _shell(body, "All set")
