@@ -137,6 +137,24 @@ def engine():
         kwargs: dict[str, Any] = {"future": True}
         if url.startswith("sqlite"):
             kwargs["connect_args"] = {"check_same_thread": False}
+        else:
+            # Serverless functions freeze between invocations, and the database
+            # closes the idle connection while they are asleep. The pool then
+            # hands out a dead socket and the next query fails with "SSL
+            # connection has been closed unexpectedly" - which cost a real
+            # install, because the OAuth callback treated it as a reason to fall
+            # back to the manual flow.
+            #
+            # pre_ping checks a connection before handing it over and
+            # transparently replaces a dead one; recycle retires connections
+            # well before any idle timeout can reach them.
+            kwargs.update(
+                pool_pre_ping=True,
+                pool_recycle=280,
+                pool_size=3,
+                max_overflow=5,
+                connect_args={"connect_timeout": 15},
+            )
         _engine = create_engine(url, **kwargs)
     return _engine
 

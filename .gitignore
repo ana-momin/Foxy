@@ -11,3 +11,4 @@ venv/
 .vercel
 .pytest_cache/
 .enckey
+.sweepkey

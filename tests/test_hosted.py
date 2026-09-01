@@ -236,3 +236,27 @@ def test_missing_columns_are_added_on_init():
     assert "ADD COLUMN" in src
     # Postgres rejects DEFAULT 0 on a BOOLEAN column.
     assert "TRUE" in src and "FALSE" in src
+
+
+def test_postgres_engine_guards_against_stale_connections():
+    """Serverless functions freeze between invocations and the database closes
+    the idle connection meanwhile. Without pre-ping the pool hands out a dead
+    socket, and the next query fails with "SSL connection has been closed
+    unexpectedly". That cost a real install: the OAuth callback treated the
+    error as a reason to fall back to the manual self-hosted flow."""
+    import inspect
+
+    from app import db
+
+    src = inspect.getsource(db.engine)
+    assert "pool_pre_ping=True" in src
+    assert "pool_recycle" in src
+
+
+def test_install_retries_before_falling_back():
+    import inspect
+
+    from app import oauth
+
+    src = inspect.getsource(oauth.callback)
+    assert "for attempt in" in src, "a transient error must not downgrade the flow"

@@ -398,15 +398,23 @@ def callback(request: Request) -> HTMLResponse:
     # Hosted mode: keep the install and let them finish in the browser. There is
     # nothing for them to run, so there is no command to show.
     if installs.hosted_enabled() and team_id:
-        try:
-            with session() as s:
-                row = installs.upsert(
-                    s, team_id=team_id, team_name=team, token=token
-                )
-                install_id = row.id
-            return RedirectResponse(f"/app/{install_id}", 302)
-        except Exception:  # noqa: BLE001 - fall back to the self-hosted flow
-            log.exception("could not record the install; showing the manual flow")
+        # Retry once. The first attempt after an idle period can still meet a
+        # connection the database closed while this function was frozen, and
+        # dropping someone into the self-hosted flow because of a transient
+        # socket is a bad way to greet a new install.
+        for attempt in (1, 2):
+            try:
+                with session() as s:
+                    row = installs.upsert(
+                        s, team_id=team_id, team_name=team, token=token
+                    )
+                    install_id = row.id
+                return RedirectResponse(f"/app/{install_id}", 302)
+            except Exception:  # noqa: BLE001
+                log.warning("install attempt %d failed", attempt, exc_info=True)
+                if attempt == 1:
+                    time.sleep(0.4)
+        log.error("could not record the install; showing the manual flow")
 
     options = ""
     try:
