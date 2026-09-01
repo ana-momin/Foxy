@@ -10,3 +10,4 @@ venv/
 .vercel
 .vercel
 .pytest_cache/
+.enckey

@@ -721,7 +721,7 @@ async def internal_sweep(
     the shared key.
     """
     from . import installs
-    from .hosted import run_sweep
+    from .hosted import FAST_SOURCES, replay, run_sweep
 
     if not settings.sweep_key:
         return perr(
@@ -738,7 +738,21 @@ async def internal_sweep(
             503,
         )
 
-    return await asyncio.to_thread(run_sweep)
+    # Optional body: {"fast": true} to read only the quick feeds, and
+    # {"replay": N} to let the most recent N detections report again. Both
+    # exist so delivery can be demonstrated and tested without waiting for the
+    # eight-hour schedule; the endpoint is behind the sweep key.
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001 - an empty body is the normal case
+        body = {}
+
+    if isinstance(body, dict) and int(body.get("replay") or 0) > 0:
+        freed = await asyncio.to_thread(replay, min(int(body["replay"]), 25))
+        log.info("replaying %d detections", freed)
+
+    only = FAST_SOURCES if (isinstance(body, dict) and body.get("fast")) else None
+    return await asyncio.to_thread(run_sweep, only)
 
 
 @router.api_route("/healthz", methods=["GET", "HEAD"])

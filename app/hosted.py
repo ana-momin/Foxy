@@ -26,7 +26,7 @@ from .slack import SlackClient
 log = logging.getLogger("foxy.hosted")
 
 
-def fetch_all_sources() -> tuple[dict[str, list[Signal]], dict[str, str]]:
+def fetch_all_sources(only: tuple[str, ...] | None = None) -> tuple[dict[str, list[Signal]], dict[str, str]]:
     """Read every enabled source once. Returns (signals, errors-by-source).
 
     A source that fails is reported and skipped; it never aborts the sweep, and
@@ -36,7 +36,7 @@ def fetch_all_sources() -> tuple[dict[str, list[Signal]], dict[str, str]]:
     errors: dict[str, str] = {}
 
     for source in build_sources():
-        if not source.enabled:
+        if not source.enabled or (only is not None and source.name not in only):
             signals[source.name] = []
             continue
         try:
@@ -49,8 +49,54 @@ def fetch_all_sources() -> tuple[dict[str, list[Signal]], dict[str, str]]:
     return signals, errors
 
 
-def run_sweep() -> dict[str, Any]:
-    """One shared fetch, then a delivery pass per workspace."""
+# The three YC and Speedrun feeds are plain JSON and answer in seconds. X and
+# LinkedIn go through paced search providers and take minutes, which is why a
+# full sweep cannot run inside a serverless request.
+FAST_SOURCES = ("yc_directory", "yc_launches", "speedrun", "yc_speedrun_watch")
+
+
+def replay(count: int, sources: tuple[str, ...] = ("yc_directory", "yc_launches")) -> int:
+    """Forget the most recent N detections so they report again.
+
+    For demonstrating and for testing delivery. The companies and posts are
+    real and already collected; only the record of having reported them is
+    removed, so the same detections run through the same pipeline.
+    """
+    from sqlalchemy import select
+
+    from .db import Seen
+
+    freed = 0
+    with session() as s:
+        for install in installs.active_installs(s):
+            for source in sources:
+                ids = (
+                    s.execute(
+                        select(Seen.fingerprint)
+                        .where(
+                            Seen.source == source,
+                            Seen.fingerprint.like(f"{install.namespace}%"),
+                        )
+                        .order_by(Seen.first_seen.desc())
+                        .limit(count)
+                    )
+                    .scalars()
+                    .all()
+                )
+                if ids:
+                    s.query(Seen).filter(Seen.fingerprint.in_(ids)).delete(
+                        synchronize_session=False
+                    )
+                    freed += len(ids)
+    return freed
+
+
+def run_sweep(only: tuple[str, ...] | None = None) -> dict[str, Any]:
+    """One shared fetch, then a delivery pass per workspace.
+
+    `only` restricts which sources are read, so a caller with a short deadline
+    can take the fast feeds and skip the paced social searches.
+    """
     init_db()
 
     with session() as s:
@@ -94,7 +140,7 @@ def run_sweep() -> dict[str, Any]:
 
     crossref.clear_cache()
 
-    signals, source_errors = fetch_all_sources()
+    signals, source_errors = fetch_all_sources(only)
     found = {k: len(v) for k, v in signals.items()}
     log.info("hosted sweep fetched %s", found)
 
