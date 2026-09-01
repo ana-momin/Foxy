@@ -50,7 +50,37 @@ def _norm(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", name)
 
 
+# One sweep asks the same question once per workspace. The answer cannot
+# differ between them, so cache it: at 100 workspaces this turns 800 identical
+# directory lookups into 8.
+_lookup_cache: dict[tuple[str, str], Match] = {}
+
+
+def clear_cache() -> None:
+    """Called at the start of each sweep, so a company listed since the last
+    run is not answered from a stale entry."""
+    _lookup_cache.clear()
+    global _speedrun_cache
+    _speedrun_cache = None
+
+
 def lookup(
+    company_name: str | None,
+    company_url: str | None = None,
+    *,
+    text: str = "",
+) -> Match:
+    key = ((company_name or "").lower().strip(), (company_url or "").lower().strip())
+    if key != ("", "") and key in _lookup_cache:
+        return _lookup_cache[key]
+    result = _lookup_uncached(company_name, company_url, text=text)
+    # Never cache "I could not reach the directory"; that is transient.
+    if key != ("", "") and not result.unknown:
+        _lookup_cache[key] = result
+    return result
+
+
+def _lookup_uncached(
     company_name: str | None,
     company_url: str | None = None,
     *,

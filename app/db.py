@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
 from contextlib import contextmanager
 from typing import Any, Iterator
 
@@ -32,6 +33,9 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from .config import settings
+
+
+log = logging.getLogger("foxy.db")
 
 
 def _utcnow() -> dt.datetime:
@@ -140,9 +144,58 @@ def engine():
 _schema_ready = False
 
 
+def _add_missing_columns() -> None:
+    """Add columns that exist on the models but not yet in the database.
+
+    create_all() creates missing tables but never alters existing ones, so
+    adding a field to a model would otherwise fail at runtime against a
+    database created before it. This handles the only shape of change this
+    project makes: new, nullable-or-defaulted columns. Anything more involved
+    wants a real migration tool.
+    """
+    from sqlalchemy import inspect, text
+
+    eng = engine()
+    inspector = inspect(eng)
+    existing_tables = set(inspector.get_table_names())
+
+    for table in Base.metadata.sorted_tables:
+        if table.name not in existing_tables:
+            continue
+        have = {c["name"] for c in inspector.get_columns(table.name)}
+        for column in table.columns:
+            if column.name in have:
+                continue
+            ddl = f"{column.name} {column.type.compile(eng.dialect)}"
+            default = column.default.arg if column.default is not None else None
+            if default is not None and not callable(default):
+                # Booleans first: Postgres rejects DEFAULT 0 on a BOOLEAN
+                # column, and bool is a subclass of int so the order matters.
+                if isinstance(default, bool):
+                    literal = "TRUE" if default else "FALSE"
+                elif isinstance(default, str):
+                    literal = "'" + default.replace("'", "''") + "'"
+                elif isinstance(default, (int, float)):
+                    literal = str(default)
+                else:
+                    literal = None
+                if literal is not None:
+                    ddl += f" DEFAULT {literal}"
+            try:
+                with eng.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE {table.name} ADD COLUMN {ddl}"))
+                log.info("added column %s.%s", table.name, column.name)
+            except Exception:  # noqa: BLE001 - one column must not block the rest
+                log.exception("could not add %s.%s", table.name, column.name)
+
+
 def init_db() -> None:
     global _schema_ready
     Base.metadata.create_all(engine())
+    try:
+        _add_missing_columns()
+    except Exception:  # noqa: BLE001 - never let a migration attempt block boot
+        log.exception("could not reconcile the schema")
     _schema_ready = True
 
 

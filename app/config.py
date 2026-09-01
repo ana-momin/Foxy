@@ -95,6 +95,8 @@ class Settings:
     backfill_days: int = _i("BACKFILL_DAYS", 7)
     # Hard ceiling on alerts posted in one sweep, per workspace.
     max_alerts_per_sweep: int = _i("MAX_ALERTS_PER_SWEEP", 25)
+    # Alerts included on the free plan, per workspace, lifetime.
+    free_alert_quota: int = _i("FREE_ALERT_QUOTA", 50)
     dry_run: bool = _b("DRY_RUN")
 
     agent_version: str = "2026.08.29"

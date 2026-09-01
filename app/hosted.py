@@ -67,6 +67,10 @@ def run_sweep() -> dict[str, Any]:
                 "confidence": i.confidence,
                 "serper": i.serper_key,
                 "anthropic": i.anthropic_key,
+                "plan": i.plan,
+                "remaining": i.remaining,
+                "quota": i.quota,
+                "quota_notified": i.quota_notified,
             }
             for i in targets
         ]
@@ -85,21 +89,42 @@ def run_sweep() -> dict[str, Any]:
         if settings.serper_api_key and settings.anthropic_api_key:
             break
 
+    # Fresh sweep, fresh answers.
+    from . import crossref
+
+    crossref.clear_cache()
+
     signals, source_errors = fetch_all_sources()
     found = {k: len(v) for k, v in signals.items()}
     log.info("hosted sweep fetched %s", found)
 
     results = []
     for p in plan:
-        entry: dict[str, Any] = {"team": p["team"], "alerts": 0}
+        entry: dict[str, Any] = {"team": p["team"], "alerts": 0, "plan": p["plan"]}
+
+        # Out of quota: say so once, then stay silent rather than nagging.
+        if p["remaining"] <= 0:
+            entry["skipped"] = "quota exhausted"
+            if not p["quota_notified"]:
+                _notify_quota(p)
+                entry["notified"] = True
+            results.append(entry)
+            continue
+
         try:
             engine = Engine(
                 slack=SlackClient(token=p["token"], target=p["channel"]),
                 namespace=p["namespace"],
                 min_confidence=p["confidence"],
             )
+            # Never deliver more than the plan allows, or more than one sweep
+            # should ever post. The overflow is still recorded and shows up in
+            # the digest, so nothing is lost, it is just not shouted.
+            engine.max_alerts = min(engine.max_alerts, p["remaining"])
+
             outcome = engine.sweep(prefetched=signals)
             entry["alerts"] = len(outcome.alerts)
+            entry["remaining"] = max(0, p["remaining"] - len(outcome.alerts))
             entry["digest"] = len(outcome.digest)
             entry["new"] = {k: v.get("new", 0) for k, v in outcome.per_source.items()}
 
@@ -109,6 +134,7 @@ def run_sweep() -> dict[str, Any]:
                     row.last_error = None
                     if outcome.alerts:
                         row.last_alert_at = dt.datetime.now(dt.timezone.utc)
+                        row.alerts_used = (row.alerts_used or 0) + len(outcome.alerts)
         except Exception as exc:  # noqa: BLE001 - one workspace must not break the rest
             log.exception("delivery failed for %s", p["team"])
             entry["error"] = f"{type(exc).__name__}: {exc}"[:200]
@@ -124,3 +150,32 @@ def run_sweep() -> dict[str, Any]:
         "source_errors": source_errors,
         "results": results,
     }
+
+
+def _notify_quota(p: dict[str, Any]) -> None:
+    """Tell a workspace once that its free allowance is spent."""
+    try:
+        SlackClient(token=p["token"], target=p["channel"]).post(
+            [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": (
+                            f":hourglass: *Foxy has used its {p['quota']} "
+                            "free alerts.*\n"
+                            "Monitoring has paused. Nothing was lost, and it picks up "
+                            "again the moment the plan is upgraded."
+                        ),
+                    },
+                }
+            ],
+            "Foxy: free allowance used",
+        )
+    except Exception:  # noqa: BLE001 - a workspace we cannot reach is not fatal
+        log.warning("could not deliver the quota notice to %s", p["team"])
+
+    with session() as s:
+        row = installs.get(s, p["id"])
+        if row:
+            row.quota_notified = True

@@ -60,6 +60,15 @@ transition:border-color .18s ease,transform .18s ease,box-shadow .2s ease}
 .lk b{display:block;font-size:15px;font-weight:600;margin-bottom:3px;color:var(--ink)}
 .lk:hover b{color:var(--accent)}
 .lk span{font-size:13px;color:var(--muted);line-height:1.45}
+
+.usage{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+padding:16px 18px;margin-bottom:28px}
+.usage-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+flex-wrap:wrap;margin-bottom:10px}
+.usage-top b{font-size:14.5px;font-weight:600}
+.usage-top span{font-size:13px;color:var(--muted);font-family:"JetBrains Mono",monospace}
+.bar{height:5px;border-radius:3px;background:var(--border);overflow:hidden}
+.bar span{display:block;height:100%;background:var(--accent);border-radius:3px}
 """
 
 
@@ -84,6 +93,7 @@ def dashboard(install_id: str, saved: str = "") -> HTMLResponse:
         has_serper = bool(row.serper_key_enc)
         has_anthropic = bool(row.anthropic_key_enc)
         conf = row.min_confidence or ""
+        plan, used, quota = row.plan, row.alerts_used or 0, row.quota
 
     options = ""
     try:
@@ -123,6 +133,14 @@ def dashboard(install_id: str, saved: str = "") -> HTMLResponse:
 <h1>Foxy settings</h1>
 <p class="lede">Workspace: <b>{html.escape(team)}</b>. Nothing to install and nothing
 to run. Choose a channel and Foxy starts watching.</p>
+
+<div class="usage">
+  <div class="usage-top">
+    <b>{"Free plan" if plan == "free" else plan.title() + " plan"}</b>
+    <span>{f"{used} of {quota} alerts used" if quota else f"{used} alerts sent"}</span>
+  </div>
+  {f'<div class="bar"><span style="width:{min(100, round(used * 100 / quota)) if quota else 0}%"></span></div>' if quota else ""}
+</div>
 
 <form method="post" action="/app/{html.escape(install_id)}/save">
   <div class="field">

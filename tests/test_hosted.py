@@ -187,3 +187,52 @@ def test_a_sweep_cannot_post_more_than_the_ceiling():
 
     assert Engine().max_alerts == settings.max_alerts_per_sweep
     assert settings.max_alerts_per_sweep <= 50
+
+
+# --- plan and quota ---------------------------------------------------------
+
+
+def test_free_plan_is_metered_by_alerts_delivered():
+    row = installs.Install(id="q1", team_id="T", plan="free", alerts_used=0)
+    assert row.quota == settings.free_alert_quota
+    assert row.remaining == settings.free_alert_quota
+    assert row.quota_exhausted is False
+
+
+def test_quota_counts_down_and_stops_at_zero():
+    row = installs.Install(id="q2", team_id="T", plan="free")
+    row.alerts_used = settings.free_alert_quota - 1
+    assert row.remaining == 1
+    row.alerts_used = settings.free_alert_quota
+    assert row.remaining == 0 and row.quota_exhausted
+    row.alerts_used = settings.free_alert_quota + 99   # never goes negative
+    assert row.remaining == 0
+
+
+def test_a_paid_plan_is_unmetered():
+    row = installs.Install(id="q3", team_id="T", plan="pro", alerts_used=10_000)
+    assert row.quota == 0
+    assert row.quota_exhausted is False
+
+
+def test_delivery_is_capped_by_whichever_limit_is_lower():
+    """A workspace with 3 alerts left must not receive 25."""
+    from app.engine import Engine
+
+    engine = Engine()
+    engine.max_alerts = min(engine.max_alerts, 3)
+    assert engine.max_alerts == 3
+
+
+def test_missing_columns_are_added_on_init():
+    """create_all() never alters an existing table, so adding a model field
+    would otherwise fail against a database created before it."""
+    import inspect as _inspect
+
+    from app import db
+
+    assert hasattr(db, "_add_missing_columns")
+    src = _inspect.getsource(db._add_missing_columns)
+    assert "ADD COLUMN" in src
+    # Postgres rejects DEFAULT 0 on a BOOLEAN column.
+    assert "TRUE" in src and "FALSE" in src

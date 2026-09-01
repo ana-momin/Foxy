@@ -28,7 +28,7 @@ import logging
 import secrets
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, String, Text, select
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, select
 
 from .config import settings
 from .db import Base, Session, session
@@ -122,6 +122,13 @@ class Install(Base):
     min_confidence: Mapped[str] = mapped_column(String(8), default="")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # --- plan and quota ----------------------------------------------------
+    # The free plan is metered by alerts delivered, because that is the thing
+    # of value: a workspace that gets nothing has consumed nothing.
+    plan: Mapped[str] = mapped_column(String(16), default="free")
+    alerts_used: Mapped[int] = mapped_column(Integer, default=0)
+    quota_notified: Mapped[bool] = mapped_column(Boolean, default=False)
+
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow)
     last_alert_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -146,6 +153,22 @@ class Install(Base):
             return float(self.min_confidence)
         except (TypeError, ValueError):
             return settings.min_confidence
+
+    @property
+    def quota(self) -> int:
+        """Alerts included in this plan. 0 means unlimited."""
+        return 0 if self.plan != "free" else settings.free_alert_quota
+
+    @property
+    def remaining(self) -> int:
+        """Alerts left. A very large number when the plan is unmetered."""
+        if self.quota == 0:
+            return 10**9
+        return max(0, self.quota - (self.alerts_used or 0))
+
+    @property
+    def quota_exhausted(self) -> bool:
+        return self.remaining <= 0
 
     @property
     def namespace(self) -> str:
