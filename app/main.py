@@ -237,7 +237,7 @@ def manifest() -> dict[str, Any]:
         "protocol_version": PROTOCOL_VERSION,
         "agent_version": settings.agent_version,
         "metadata": {
-            "name": "Foxy — YC Launch Monitor",
+            "name": "Foxy",
             "short_description": (
                 "Detects new Y Combinator and Speedrun companies, and catches "
                 "founders who announce before YC does."
@@ -245,8 +245,8 @@ def manifest() -> dict[str, Any]:
             "description": (
                 "<p>Foxy continuously monitors the YC startup directory, "
                 "Launch YC, the a16z Speedrun directory, X and LinkedIn. It "
-                "alerts on new YC and Speedrun companies, and — the point of "
-                "the tool — on founders announcing an acceptance that YC has "
+                "alerts on new YC and Speedrun companies, and · the point of "
+                "the tool · on founders announcing an acceptance that YC has "
                 "not yet published, cross-referenced against the official "
                 "directory so you know it is genuinely early.</p>"
             ),
@@ -484,9 +484,9 @@ async def _run_scan(task_id: str, params: dict) -> None:
         lines = ["## Scan complete", ""]
         for name, info in result.per_source.items():
             if info.get("error"):
-                lines.append(f"- **{name}** — failed: {info['error'][:120]}")
+                lines.append(f"- **{name}** · failed: {info['error'][:120]}")
             else:
-                lines.append(f"- **{name}** — {info['found']} seen, {info['new']} new")
+                lines.append(f"- **{name}** · {info['found']} seen, {info['new']} new")
 
         early = [s for s in result.alerts if s.is_early]
         lines += ["", f"**{len(result.alerts)} new detections**, {len(early)} of them early.", ""]
@@ -494,7 +494,7 @@ async def _run_scan(task_id: str, params: dict) -> None:
             tag = "EARLY" if s.is_early else "listed"
             lines.append(
                 f"- `{tag}` **{s.company_name or s.title}** "
-                f"({s.batch or 'batch unknown'}) — {s.source_label} — [link]({s.url})"
+                f"({s.batch or 'batch unknown'}) · {s.source_label} · [link]({s.url})"
             )
 
         _tasks[task_id].update(
@@ -526,7 +526,7 @@ def _do_lookup(name: str, website: str | None) -> dict[str, Any]:
         md = (
             f"**{name}** is not in the YC directory.\n\n"
             f"_{match.reason}_\n\n"
-            "If a founder has announced an acceptance, this is an early signal — "
+            "If a founder has announced an acceptance, this is an early signal · "
             "YC has not published them yet."
         )
     return {"markdown": md, "count": 1}
@@ -559,8 +559,8 @@ def _do_early(limit: int, min_conf: float) -> dict[str, Any]:
     for payload, conf, created, source in items:
         lines.append(
             f"- **{payload.get('company') or payload.get('title')}** "
-            f"({payload.get('batch') or 'batch unknown'}) — {source} — "
-            f"{conf:.0%} confidence — [post]({payload.get('url')})"
+            f"({payload.get('batch') or 'batch unknown'}) · {source} · "
+            f"{conf:.0%} confidence · [post]({payload.get('url')})"
         )
         if payload.get("match_reason"):
             lines.append(f"  - _{payload['match_reason']}_")
@@ -584,7 +584,7 @@ def _do_recent(limit: int, only_early: bool) -> dict[str, Any]:
         tag = "EARLY" if kind == "early" else kind
         lines.append(
             f"- `{tag}` **{payload.get('company') or payload.get('title')}** "
-            f"({payload.get('batch') or 'batch unknown'}) — {source} — "
+            f"({payload.get('batch') or 'batch unknown'}) · {source} · "
             f"[link]({payload.get('url')})"
         )
     return {"markdown": "\n".join(lines), "count": len(items)}
@@ -608,13 +608,13 @@ def _do_health() -> dict[str, Any]:
     for name, mode in modes.items():
         info = snap["sources"].get(name)
         if not info:
-            lines.append(f"- **{name}** (`{mode}`) — not run yet")
+            lines.append(f"- **{name}** (`{mode}`) · not run yet")
         elif info["ok"]:
             lines.append(
-                f"- **{name}** (`{mode}`) — OK, {info['found']} seen, {info['new']} new"
+                f"- **{name}** (`{mode}`) · OK, {info['found']} seen, {info['new']} new"
             )
         else:
-            lines.append(f"- **{name}** (`{mode}`) — FAILING: {(info['error'] or '')[:120]}")
+            lines.append(f"- **{name}** (`{mode}`) · FAILING: {(info['error'] or '')[:120]}")
     return {"markdown": "\n".join(lines), "count": len(modes)}
 
 
