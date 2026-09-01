@@ -67,6 +67,11 @@ def world(monkeypatch):
     posted: list[str] = []
 
     class RecordingSlack:
+        """Stands in for a configured client. `usable` matters: delivery is
+        gated on it, and a stub without it silently records nothing."""
+
+        usable = True
+
         def __init__(self, *a, **k):
             pass
 
@@ -203,3 +208,60 @@ def test_one_sweep_can_never_exceed_the_ceiling(world, monkeypatch):
     assert len(result.alerts) <= 4
     assert len(world["posted"]) - before <= 5
     assert len(result.digest) > 0, "the overflow must still be recorded"
+
+
+# --- delivery actually happening --------------------------------------------
+
+
+def test_alerts_are_delivered_not_merely_recorded(world):
+    """687 alerts were recorded and none were ever sent.
+
+    Delivery was gated on the global SLACK_BOT_TOKEN. In hosted mode there is
+    no global token, since every workspace carries its own, so every sweep took
+    the dry-run path: it logged, wrote a row, and posted nothing. The sweep
+    result still said "15 alerts", because that counts decisions rather than
+    deliveries.
+    """
+    from app.db import Alert, session
+    from sqlalchemy import select
+
+    result, posted = _sweep(world, "i:deliver:")
+    assert posted == len(result.alerts), "every alert must reach Slack"
+
+    with session() as s:
+        stamps = [r.ts for r in s.execute(select(Alert)).scalars().all()]
+    sent = [t for t in stamps if t]
+    assert len(sent) == len(result.alerts), "a recorded alert must carry its message id"
+
+
+def test_an_unusable_client_is_not_treated_as_delivery(world, monkeypatch):
+    """The inverse: with nowhere to post, nothing may be recorded as sent."""
+    from app.db import Alert, session
+    from app.engine import Engine
+    from sqlalchemy import select
+
+    class NoTarget:
+        usable = False
+
+        def post(self, *a, **k):
+            raise AssertionError("must not attempt to post")
+
+    engine = Engine(slack=NoTarget(), namespace="i:notarget:")
+    engine.sweep(prefetched={"yc_directory": world["signals"]["yc_directory"]})
+
+    with session() as s:
+        # Read the values inside the session; a detached row cannot be lazily
+        # refreshed once it closes.
+        stamps = [r.ts for r in s.execute(select(Alert)).scalars().all()]
+    assert all(t is None for t in stamps), "nothing may claim to have been sent"
+
+
+def test_delivery_is_decided_by_the_client_not_global_settings(world, monkeypatch):
+    """Hosted mode has no global token. Reading one was the whole bug."""
+    import inspect
+
+    from app import engine as engine_mod
+
+    src = inspect.getsource(engine_mod.Engine._deliver)
+    assert "slack_configured" not in src, "delivery must not consult global settings"
+    assert "self.slack.usable" in src

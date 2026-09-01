@@ -337,7 +337,7 @@ class Engine:
                 url = ent.company_url or "https://www.ycombinator.com/companies"
                 blocks, text = build_promotion(ent.name, ent.lead_time_days, url)
                 try:
-                    if not settings.dry_run and settings.slack_configured():
+                    if not settings.dry_run and self.slack.usable:
                         self.slack.post(
                             blocks, text, thread_ts=original.ts, channel=original.channel
                         )
@@ -365,7 +365,7 @@ class Engine:
 
         for sig in result.alerts:
             blocks, text = build_alert(sig)
-            if settings.dry_run or not settings.slack_configured():
+            if settings.dry_run or not self.slack.usable:
                 log.info("[dry-run] %s", text)
                 self._record_alert(sig, channel=None, ts=None)
                 continue
@@ -377,7 +377,7 @@ class Engine:
 
         if result.digest:
             blocks, text = build_digest(result.digest)
-            if settings.dry_run or not settings.slack_configured():
+            if settings.dry_run or not self.slack.usable:
                 log.info("[dry-run] %s", text)
             else:
                 try:
@@ -425,7 +425,7 @@ class Engine:
         if not failures:
             return
         blocks, text = build_health(failures)
-        if settings.dry_run or not settings.slack_configured():
+        if settings.dry_run or not self.slack.usable:
             log.warning("[dry-run] %s: %s", text, failures)
             return
         try:

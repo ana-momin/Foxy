@@ -66,6 +66,17 @@ class SlackClient:
             raise RuntimeError(f"Slack {method} failed: {data.get('error')}")
         return data
 
+    @property
+    def usable(self) -> bool:
+        """Can this client actually deliver?
+
+        Asked of the client rather than of global settings, because in hosted
+        mode there is no global token: every workspace carries its own. Reading
+        the global one meant every hosted sweep silently took the dry-run path,
+        recording hundreds of alerts and sending none of them.
+        """
+        return bool(self.token and self.target)
+
     def auth_test(self) -> dict[str, Any]:
         """Verify the token and report which workspace/bot it belongs to."""
         return self._call("auth.test", {})
