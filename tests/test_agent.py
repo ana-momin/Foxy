@@ -119,3 +119,29 @@ def test_landing_page_is_served():
     r = client.get("/")
     assert r.status_code == 200
     assert "text/html" in r.headers["content-type"]
+
+
+def test_double_slash_paths_still_resolve():
+    """Pond appends fixed paths to the Server Base URL. A base URL entered with
+    a trailing slash produces '//manifest', which Starlette answers with a 308
+    redirect; Pond's validator does not follow it and reports the endpoint as
+    missing. The agent must answer either form directly.
+    """
+    for path in ("//manifest", "///manifest"):
+        r = client.get(path, follow_redirects=False)
+        assert r.status_code == 200, f"{path} returned {r.status_code}"
+        assert r.json()["protocol"] == "marketplace-agent"
+
+    assert client.get("//healthz", follow_redirects=False).status_code == 200
+
+
+def test_double_slash_runs_reaches_the_handler():
+    r = client.post("//runs", headers=AUTH, json={"run_id": "d", "action_id": "nope"})
+    assert r.status_code != 308
+    assert r.json()["error"]["code"] == "unsupported_operation"
+
+
+def test_double_slash_tasks_reaches_the_handler():
+    r = client.get("//tasks/probe", headers=AUTH)
+    assert r.status_code != 308
+    assert r.json()["error"]["code"] == "task_not_found"

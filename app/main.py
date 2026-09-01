@@ -802,6 +802,23 @@ def index() -> HTMLResponse:
     )
 
 
+# Pond appends fixed paths to the Server Base URL. If that URL was entered with
+# a trailing slash, every request arrives as "//manifest", which Starlette
+# answers with a 308 redirect - and a validator that does not follow redirects
+# reports the endpoint as missing. Collapse the duplicate slashes instead, so
+# the agent works whichever way the URL was typed.
+@app.middleware("http")
+async def _collapse_double_slashes(request: Request, call_next):
+    path = request.scope.get("path", "")
+    if path.startswith("//"):
+        collapsed = "/" + path.lstrip("/")
+        request.scope["path"] = collapsed
+        raw = request.scope.get("raw_path")
+        if raw:
+            request.scope["raw_path"] = collapsed.encode()
+    return await call_next(request)
+
+
 app.include_router(router)
 
 # One-click Slack install. Self-contained, and inert unless SLACK_CLIENT_ID and
