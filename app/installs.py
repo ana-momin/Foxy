@@ -285,6 +285,9 @@ def summary(s: Session) -> list[dict[str, Any]]:
                 "team": r.team_name,
                 "active": r.active,
                 "configured": bool(r.channel_id and r.token_enc),
+                # Whether this deployment can actually read the stored token.
+                # A workspace can look configured and still be undeliverable.
+                "token_problem": token_problem(r.token_enc or ""),
                 "last_alert_at": r.last_alert_at.isoformat() if r.last_alert_at else None,
                 "last_error": r.last_error,
             }

@@ -769,6 +769,12 @@ def healthz() -> dict[str, Any]:
                 rows = installs.summary(s2)
             hosted["workspaces"] = len(rows)
             hosted["configured"] = sum(1 for r in rows if r["configured"] and r["active"])
+            # Surface unreadable tokens here rather than leaving an empty
+            # channel as the only symptom.
+            unreadable = [r["team"] for r in rows if r.get("token_problem")]
+            if unreadable:
+                hosted["unreadable_tokens"] = unreadable
+                hosted["key"] = installs.key_fingerprint()
         except Exception:  # noqa: BLE001 - health must never fail on a detail
             hosted["error"] = "could not read installs"
 
