@@ -62,6 +62,15 @@ There are two ways to run Foxy. Pick whichever suits you.
 **[Add to Slack](https://tryfoxy.vercel.app)** &rarr; approve &rarr; pick a channel from a
 dropdown. That is the whole setup. Nothing to install, nothing to run, no terminal.
 
+**Your first alerts arrive on that page, not eight hours later.** Foxy reads the two
+YC feeds while the confirmation page is open — about half a minute — and tells you
+what landed: *"12 alerts just landed in your channel."* An empty channel is
+indistinguishable from a broken bot, and it is the first thing anyone sees.
+
+After that, each source introduces itself with a handful of its newest entries the
+first time it is read, then reports only what is genuinely new. A typical first day
+is around twenty messages; a quiet day afterwards is none.
+
 You land on a settings page where you can also paste an optional API key or change
 the alert threshold. Keep that link if you want to adjust things later or stop alerts.
 
