@@ -66,6 +66,26 @@ class SlackClient:
             raise RuntimeError(f"Slack {method} failed: {data.get('error')}")
         return data
 
+    def _get(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Slack's read methods take query parameters, not a JSON body.
+
+        Posting JSON to conversations.info answers `invalid_arguments`, which
+        reads like a bad channel id and is really a bad request.
+        """
+        if not self.token:
+            raise RuntimeError("SLACK_BOT_TOKEN is not set")
+        with client(headers={"Authorization": f"Bearer {self.token}"}) as c:
+            r = c.get(f"{API}/{method}", params=params)
+            r.raise_for_status()
+            data = r.json()
+        if not data.get("ok"):
+            raise RuntimeError(f"Slack {method} failed: {data.get('error')}")
+        return data
+
+    def channel_info(self, channel: str) -> dict[str, Any]:
+        """What Slack knows about a channel, including whether the bot is in it."""
+        return self._get("conversations.info", {"channel": channel}).get("channel") or {}
+
     @property
     def usable(self) -> bool:
         """Can this client actually deliver?

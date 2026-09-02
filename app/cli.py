@@ -338,8 +338,7 @@ def cmd_hosted_doctor(args) -> int:
             continue
 
         try:
-            info = client._call("conversations.info", {"channel": r["channel"]})
-            ch = info.get("channel") or {}
+            ch = client.channel_info(r["channel"])
             member = ch.get("is_member")
             print(f"    channel          #{ch.get('name')}  bot_is_member={member}")
             if not member:
@@ -360,13 +359,22 @@ def cmd_hosted_doctor(args) -> int:
                 ts = resp.get("ts")
                 print(f"    test post        sent, ts={ts}")
                 # Read it back. A ts we cannot find is not a delivery.
-                hist = client._call(
-                    "conversations.history", {"channel": r["channel"], "limit": 5}
-                )
-                seen = any(m.get("ts") == ts for m in hist.get("messages") or [])
-                print(f"    read back        {'found in channel' if seen else 'NOT FOUND'}")
-                if not seen:
-                    problems += 1
+                # Reading the channel back needs channels:history, which Foxy
+                # does not ask for - it posts, it does not read conversations.
+                # The message id Slack returned is the acknowledgement.
+                try:
+                    hist = client._get(
+                        "conversations.history", {"channel": r["channel"], "limit": 5}
+                    )
+                    seen = any(m.get("ts") == ts for m in hist.get("messages") or [])
+                    print(
+                        f"    read back        "
+                        f"{'found in channel' if seen else 'NOT FOUND'}"
+                    )
+                    if not seen:
+                        problems += 1
+                except Exception as exc:  # noqa: BLE001
+                    print(f"    read back        skipped ({exc})")
             except Exception as exc:  # noqa: BLE001
                 print(f"    test post        FAILED  {exc}")
                 problems += 1

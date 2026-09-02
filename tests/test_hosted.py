@@ -408,3 +408,39 @@ def test_a_new_workspace_is_introduced_on_install_not_eight_hours_later(monkeypa
     again = hosted.welcome(install_id)
     assert again["alerts"] == 0
     assert len(posted) == out["alerts"]
+
+
+def test_slack_read_methods_use_query_parameters(monkeypatch):
+    """conversations.info answers invalid_arguments when sent a JSON body.
+
+    That reads like a bad channel id and is really a bad request, which is how
+    the doctor came to report three healthy workspaces as broken.
+    """
+    from app.slack import SlackClient
+
+    calls = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"ok": True, "channel": {"name": "yc-foxy", "is_member": True}}
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def get(self, url, params=None):
+            calls["url"], calls["params"] = url, params
+            return FakeResponse()
+
+    monkeypatch.setattr("app.slack.client", lambda **kw: FakeClient())
+
+    info = SlackClient(token="xoxb-test", target="C1").channel_info("C1")
+    assert info["is_member"] is True
+    assert calls["params"] == {"channel": "C1"}, "must go in the query string"
+    assert calls["url"].endswith("/conversations.info")
