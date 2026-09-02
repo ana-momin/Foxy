@@ -431,3 +431,57 @@ def test_a_sweep_does_not_query_the_database_once_per_signal(world):
         f"{len(selects)} SELECTs for {signals} signals - "
         f"the per-signal lookups are back\n{breakdown}"
     )
+
+
+def test_a_source_met_later_introduces_itself_rather_than_flooding(world, monkeypatch):
+    """What a new workspace actually experiences, in order.
+
+    The welcome sweep reads only the two YC feeds, so Speedrun, X and LinkedIn
+    are first read on the next scheduled sweep. Treating them as established
+    then meant the workspace got the alert ceiling plus a digest of hundreds -
+    Foxy Land went 6 alerts to 31 overnight.
+    """
+    import datetime as dt
+
+    from app.config import settings
+    from app.models import Signal
+
+    now = dt.datetime.now(dt.timezone.utc)
+    speedrun = [
+        Signal(
+            source="speedrun",
+            external_id=f"sr{i}",
+            title=f"Speed Co {i}",
+            url=f"https://speedrun.a16z.com/{i}",
+            description="Fast.",
+            company_name=f"Speed Co {i}",
+            program="Speedrun",
+            posted_at=now - dt.timedelta(days=i),
+            confirmed=True,
+        )
+        for i in range(1, 200)
+    ]
+
+    # 1. the welcome: the YC feed only
+    _, welcomed = _sweep(world, "i:later:")
+    assert 0 < welcomed <= settings.first_run_alerts
+
+    # 2. the first full sweep, where a new source appears
+    from app.engine import Engine
+
+    before = len(world["posted"])
+    engine = Engine(slack=world["Slack"](), namespace="i:later:")
+    result = engine.sweep(
+        prefetched={
+            "yc_directory": world["signals"]["yc_directory"],
+            "speedrun": speedrun,
+        }
+    )
+    posted = len(world["posted"]) - before
+
+    assert posted > 0, "a newly met source must introduce itself"
+    assert posted <= settings.first_run_alerts + 1, (
+        f"199 companies produced {posted} messages - that is a flood, not an "
+        "introduction"
+    )
+    assert not result.digest, "seed the rest quietly rather than summarising them"

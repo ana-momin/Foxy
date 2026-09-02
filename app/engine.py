@@ -114,8 +114,8 @@ class Engine:
         rules = load_rules()
 
         with session() as s:
-            first_run = is_first_run(s, self.namespace) and not force_alerts
             sweep_no = bump_sweep_counter(s, self.namespace)
+        self._force_alerts = force_alerts
 
         cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=settings.backfill_days)
 
@@ -132,7 +132,7 @@ class Engine:
             self._run_source(
                 source,
                 result,
-                first_run=first_run,
+                first_run=False,  # decided per source, inside
                 cutoff=cutoff,
                 prefetched=prefetched,
             )
@@ -188,17 +188,29 @@ class Engine:
         """Dedupe, evaluate and record one source's signals for this tenant."""
         new_count = 0
 
+        # Is this the first time this workspace has looked at this source? The
+        # welcome sweep reads only the two YC feeds, so Speedrun, X and
+        # LinkedIn are each met later, and each deserves an introduction rather
+        # than being treated as long-established and dumped in full.
+        with session() as s:
+            first_run = (
+                is_first_run(s, self.namespace, source.name)
+                and not self._force_alerts
+            )
+        # Each source gets its own introduction, capped overall by max_alerts.
+        budget = settings.first_run_alerts if first_run else 0
+
         # On a first sweep, let the newest few through and seed the rest
         # quietly. Suppressing everything meant a new workspace saw nothing at
         # all until the next company happened to appear, which could be a day.
         introduce: set[int] = set()
-        if first_run and self._first_run_budget > 0:
+        if first_run and budget > 0:
             dated = sorted(
                 (x for x in signals if x.posted_at is not None),
                 key=lambda x: x.posted_at,
                 reverse=True,
             )
-            for sig in dated[: self._first_run_budget]:
+            for sig in dated[:budget]:
                 introduce.add(id(sig))
 
         with session() as s:
@@ -236,7 +248,7 @@ class Engine:
                     self._upsert_entity(s, sig, alerted=False)
                     continue
                 if first_run and id(sig) in introduce:
-                    self._first_run_budget -= 1
+                    budget -= 1
 
                 self._evaluate(s, sig, result)
 

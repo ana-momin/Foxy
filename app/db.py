@@ -262,8 +262,14 @@ def meta_set(s: Session, key: str, value: str) -> None:
         s.add(Meta(key=key, value=value))
 
 
-def is_first_run(s: Session, namespace: str = "") -> bool:
-    """Has this tenant ever seen anything?
+def is_first_run(s: Session, namespace: str = "", source: str = "") -> bool:
+    """Has this tenant ever seen anything from this source?
+
+    Asked per source, because a workspace meets its sources at different
+    times: the welcome sweep reads only the two YC feeds, so without this
+    Speedrun, X and LinkedIn would each be treated as long-established the
+    first time they are read, and arrive as a wall of alerts plus a digest of
+    everything else rather than as an introduction.
 
     Derived from the seen-set rather than a counter. A counter was global, so
     once any sweep had run the guard was off for everyone: a workspace joining
@@ -271,10 +277,10 @@ def is_first_run(s: Session, namespace: str = "") -> bool:
     A counter also cannot recover from a sweep that died part-way, which is
     exactly how that happened.
     """
-    row = s.execute(
-        select(Seen.fingerprint).where(Seen.fingerprint.like(f"{namespace}%")).limit(1)
-    ).first()
-    return row is None
+    q = select(Seen.fingerprint).where(Seen.fingerprint.like(f"{namespace}%"))
+    if source:
+        q = q.where(Seen.source == source)
+    return s.execute(q.limit(1)).first() is None
 
 
 def bump_sweep_counter(s: Session, namespace: str = "") -> int:

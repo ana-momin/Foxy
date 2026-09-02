@@ -273,16 +273,28 @@ def test_a_first_sweep_introduces_the_newest_few():
     assert 1 <= settings.first_run_alerts <= 15
 
 
-def test_the_first_run_budget_is_shared_across_sources():
-    """Spent in source order, so the YC directory gets it before the noisier
-    social feeds, and the total stays small."""
+def test_each_source_gets_its_own_introduction():
+    """A workspace meets its sources at different times.
+
+    The welcome sweep reads only the two YC feeds. Speedrun, X and LinkedIn are
+    first read hours later, and a workspace-wide first-run flag called them
+    long-established the moment the welcome had run - so instead of an
+    introduction they arrived as a wall of alerts plus a digest of everything
+    else. Foxy Land went from 6 alerts to 31 that way.
+    """
     import inspect
 
+    from app.db import is_first_run
     from app.engine import Engine
 
     src = inspect.getsource(Engine._absorb)
-    assert "_first_run_budget" in src
+    assert "is_first_run(s, self.namespace, source.name)" in src, (
+        "the first-run question must be asked per source, not per workspace"
+    )
     assert "reverse=True" in src, "the newest signals are the ones worth showing"
+
+    # And the signature must actually accept a source to filter on.
+    assert "source" in inspect.signature(is_first_run).parameters
 
 
 # --- the key mismatch that stopped every hosted alert ------------------------
