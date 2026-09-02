@@ -210,7 +210,20 @@ class Engine:
                 key=lambda x: x.posted_at,
                 reverse=True,
             )
-            for sig in dated[:budget]:
+            # Not every source dates its entries: the Speedrun directory and
+            # LinkedIn company pages carry none at all. Picking only from dated
+            # signals meant those two could never introduce themselves, so a
+            # new workspace saw nothing from them however many were waiting.
+            # Fall back to the source's own order, which leads with the newest.
+            chosen = dated[:budget]
+            if len(chosen) < budget:
+                have = {id(x) for x in chosen}
+                for sig in signals:
+                    if sig.posted_at is None and id(sig) not in have:
+                        chosen.append(sig)
+                        if len(chosen) >= budget:
+                            break
+            for sig in chosen:
                 introduce.add(id(sig))
 
         with session() as s:

@@ -485,3 +485,39 @@ def test_a_source_met_later_introduces_itself_rather_than_flooding(world, monkey
         "introduction"
     )
     assert not result.digest, "seed the rest quietly rather than summarising them"
+
+
+def test_a_source_without_dates_can_still_introduce_itself(world):
+    """Speedrun and LinkedIn company pages carry no timestamps at all.
+
+    The introduction picked the newest few by posted_at, so a source with no
+    dates contributed nothing to it - a new workspace saw none of the 258
+    Speedrun companies waiting for it, and Speedrun is named in the brief as a
+    source to monitor.
+    """
+    from app.config import settings
+    from app.engine import Engine
+    from app.models import Signal
+
+    undated = [
+        Signal(
+            source="speedrun",
+            external_id=f"u{i}",
+            title=f"Undated Co {i}",
+            url=f"https://speedrun.a16z.com/{i}",
+            description="No timestamp anywhere.",
+            company_name=f"Undated Co {i}",
+            program="Speedrun",
+            posted_at=None,
+            confirmed=True,
+        )
+        for i in range(1, 60)
+    ]
+
+    before = len(world["posted"])
+    engine = Engine(slack=world["Slack"](), namespace="i:undated:")
+    engine.sweep(prefetched={"speedrun": undated})
+    posted = len(world["posted"]) - before
+
+    assert posted > 0, "a dateless source must still introduce itself"
+    assert posted <= settings.first_run_alerts, "but only a handful of them"
