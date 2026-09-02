@@ -392,3 +392,42 @@ def test_an_undelivered_alert_is_offered_again_next_sweep(world, monkeypatch):
     # Slack comes back. The same companies must still be waiting.
     result, posted = _sweep(world, "i:retry:")
     assert posted == len(failed.alerts), "what never arrived must be offered again"
+
+
+def test_a_sweep_does_not_query_the_database_once_per_signal(world):
+    """The welcome sweep took 164 seconds and the first attempt was killed at
+    the five-minute serverless limit.
+
+    Fetching was never the problem - all sources together answer in about
+    nineteen seconds. The engine asked the database about each signal three
+    times over: had it been seen, did its entity exist, and again inside
+    mark_seen. Against a hosted Postgres each round trip costs tens of
+    milliseconds, and a sweep looks at several hundred signals.
+    """
+    from sqlalchemy import event
+
+    from app.db import engine as get_engine
+
+    queries: list[str] = []
+
+    eng = get_engine()
+
+    def count(conn, cursor, statement, *a):
+        queries.append(statement)
+
+    event.listen(eng, "before_cursor_execute", count)
+    try:
+        _sweep(world, "i:count:")
+    finally:
+        event.remove(eng, "before_cursor_execute", count)
+
+    signals = len(world["signals"]["yc_directory"])
+    selects = [q for q in queries if q.lstrip().upper().startswith("SELECT")]
+    import collections
+
+    tally = collections.Counter(" ".join(q.split())[:70] for q in selects)
+    breakdown = "\n".join(f"  {n:>3}x {q}" for q, n in tally.most_common(6))
+    assert len(selects) < signals, (
+        f"{len(selects)} SELECTs for {signals} signals - "
+        f"the per-signal lookups are back\n{breakdown}"
+    )

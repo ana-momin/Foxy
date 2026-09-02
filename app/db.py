@@ -288,6 +288,18 @@ def already_seen(s: Session, fingerprint: str) -> bool:
     return s.get(Seen, fingerprint) is not None
 
 
+def entities_for(s: Session, keys: list[str]) -> dict[str, "Entity"]:
+    """Load many entities at once, keyed by entity_key.
+
+    Same reasoning as `seen_fingerprints`: one query rather than one per
+    signal.
+    """
+    if not keys:
+        return {}
+    rows = s.execute(select(Entity).where(Entity.entity_key.in_(keys))).scalars().all()
+    return {r.entity_key: r for r in rows}
+
+
 def seen_fingerprints(s: Session, namespace: str, source: str) -> set[str]:
     """Every fingerprint this workspace has already seen from one source.
 
@@ -304,8 +316,22 @@ def seen_fingerprints(s: Session, namespace: str, source: str) -> set[str]:
     return set(rows)
 
 
-def mark_seen(s: Session, *, fingerprint: str, source: str, external_id: str, entity_key: str) -> None:
-    if s.get(Seen, fingerprint) is None:
+def mark_seen(
+    s: Session,
+    *,
+    fingerprint: str,
+    source: str,
+    external_id: str,
+    entity_key: str,
+    known_new: bool = False,
+) -> None:
+    """Remember one item.
+
+    `known_new` skips the existence check for a caller that has already
+    consulted the batched seen-set. That check is a database round trip, and a
+    sweep makes several hundred of them.
+    """
+    if known_new or s.get(Seen, fingerprint) is None:
         s.add(
             Seen(
                 fingerprint=fingerprint,

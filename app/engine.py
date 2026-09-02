@@ -33,6 +33,7 @@ from .db import (
     init_db,
     is_first_run,
     mark_seen,
+    entities_for,
     meta_set,
     seen_fingerprints,
     session,
@@ -92,6 +93,9 @@ class Engine:
         # Budget for a first sweep. Spent across sources in the order they run,
         # so the YC directory gets it before the noisier social feeds.
         self._first_run_budget = settings.first_run_alerts
+        # Entities for the source being processed, loaded in one query.
+        self._entities: dict[str, Entity] = {}
+        self._entities_known: set[str] = set()
 
     def _key(self, sig: Signal) -> str:
         return f"{self.namespace}{sig.fingerprint}"
@@ -202,9 +206,16 @@ class Engine:
             # signal. Several hundred round trips to a hosted database is what
             # made the first sweep too slow to finish inside a web request.
             seen = seen_fingerprints(s, self.namespace, source.name)
-            for sig in signals:
-                if self._key(sig) in seen:
-                    continue
+            fresh = [x for x in signals if self._key(x) not in seen]
+            # Same again for entities: one query for all of them, rather than a
+            # lookup per signal.
+            keys = [self._entity_key(x) for x in fresh]
+            self._entities = entities_for(s, keys)
+            # A key we asked about and did not get back does not exist. Without
+            # remembering that, every new company still costs its own lookup -
+            # which on a first sweep is every single one of them.
+            self._entities_known = set(keys)
+            for sig in fresh:
                 seen.add(self._key(sig))
 
                 # Remember it immediately. Even if we decide not to alert, we
@@ -214,7 +225,8 @@ class Engine:
                     fingerprint=self._key(sig),
                     source=sig.source,
                     external_id=sig.external_id,
-                    entity_key=f"{self.namespace}{sig.entity_key}",
+                    entity_key=self._entity_key(sig),
+                    known_new=True,  # the batched seen-set already said so
                 )
                 new_count += 1
 
@@ -295,27 +307,32 @@ class Engine:
         return f"{self.namespace}{sig.entity_key}"
 
     def _upsert_entity(self, s, sig: Signal, *, alerted: bool) -> None:
-        ent = s.get(Entity, self._entity_key(sig))
+        key = self._entity_key(sig)
+        ent = self._entities.get(key)
+        if ent is None and key not in self._entities_known:
+            ent = s.get(Entity, key)
         now = dt.datetime.now(dt.timezone.utc)
         if ent is None:
-            s.add(
-                Entity(
-                    entity_key=self._entity_key(sig),
-                    name=sig.company_name or sig.title,
-                    program=sig.program,
-                    batch=sig.batch,
-                    company_url=sig.company_url,
-                    first_signal_source=sig.source,
-                    first_signal_at=sig.posted_at or now,
-                    was_early=sig.is_early,
-                    confirmed=sig.confirmed,
-                    confirmed_at=now if sig.confirmed else None,
-                    # An entity first seen via an official source was never
-                    # "early", so there is nothing to promote later.
-                    confirm_notified=sig.is_official,
-                    meta={"alerted": alerted},
-                )
+            row = Entity(
+                entity_key=key,
+                name=sig.company_name or sig.title,
+                program=sig.program,
+                batch=sig.batch,
+                company_url=sig.company_url,
+                first_signal_source=sig.source,
+                first_signal_at=sig.posted_at or now,
+                was_early=sig.is_early,
+                confirmed=sig.confirmed,
+                confirmed_at=now if sig.confirmed else None,
+                # An entity first seen via an official source was never
+                # "early", so there is nothing to promote later.
+                confirm_notified=sig.is_official,
+                meta={"alerted": alerted},
             )
+            s.add(row)
+            # Two signals in one sweep can be the same company.
+            self._entities[key] = row
+            self._entities_known.add(key)
             return
 
         # Existing entity. The interesting transition is early -> confirmed.
