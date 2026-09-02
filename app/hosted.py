@@ -140,6 +140,24 @@ def welcome(install_id: str) -> dict[str, Any]:
     if sent:
         return {"ok": True, "alerts": 0, "reason": "already introduced"}
 
+    # Nothing has ever been delivered here, so anything already marked seen was
+    # marked by an attempt that did not finish - the first try at this ran into
+    # the serverless timeout after seeding the seen-set and before sending a
+    # word. Left alone, those companies are treated as reported forever and the
+    # workspace stays silent. A workspace that has heard nothing has no history
+    # worth keeping, so start it clean.
+    with session() as s:
+        from sqlalchemy import delete
+
+        from .db import Entity, Seen
+
+        stale = s.execute(
+            delete(Seen).where(Seen.fingerprint.like(f"{p['namespace']}%"))
+        ).rowcount
+        s.execute(delete(Entity).where(Entity.entity_key.like(f"{p['namespace']}%")))
+    if stale:
+        log.info("cleared %d item(s) seeded by an unfinished welcome", stale)
+
     # The two YC feeds only. They answer in about ten seconds together, and
     # they are what a new user is here for; Speedrun and the paced social
     # searches can wait for the first scheduled sweep.
