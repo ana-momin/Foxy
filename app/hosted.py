@@ -91,6 +91,84 @@ def replay(count: int, sources: tuple[str, ...] = ("yc_directory", "yc_launches"
     return freed
 
 
+def welcome(install_id: str) -> dict[str, Any]:
+    """Deliver a new workspace's first alerts straight away.
+
+    Otherwise the channel sits empty until the next scheduled sweep - up to
+    eight hours of a bot that looks broken, which is the worst possible first
+    impression and the one thing a new user cannot distinguish from failure.
+
+    Only the fast feeds are read. YC, Launch YC and Speedrun are plain JSON and
+    answer in seconds; the paced social searches take minutes and would not fit
+    in a web request. The engine's own first-run budget decides how many of them
+    to introduce, so this is the scheduled sweep arriving early, not a special
+    case with its own rules.
+    """
+    init_db()
+
+    with session() as s:
+        row = installs.get(s, install_id)
+        if row is None or not row.active or not row.channel_id:
+            return {"ok": False, "reason": "not configured"}
+        p = {
+            "id": row.id,
+            "team": row.team_name,
+            "token": row.token,
+            "channel": row.channel_id,
+            "namespace": row.namespace,
+            "confidence": row.confidence,
+            "remaining": row.remaining,
+        }
+
+    if not p["token"]:
+        return {"ok": False, "reason": "stored token could not be decrypted"}
+
+    # Already introduced. Saying so beats sending the same six twice.
+    with session() as s:
+        from sqlalchemy import func, select
+
+        from .db import Alert
+
+        sent = s.execute(
+            select(func.count())
+            .select_from(Alert)
+            .where(Alert.ts.isnot(None), Alert.fingerprint.like(f"{p['namespace']}%"))
+        ).scalar()
+    if sent:
+        return {"ok": True, "alerts": 0, "reason": "already introduced"}
+
+    signals, errors = fetch_all_sources(FAST_SOURCES)
+
+    engine = Engine(
+        slack=SlackClient(token=p["token"], target=p["channel"]),
+        namespace=p["namespace"],
+        min_confidence=p["confidence"],
+    )
+    engine.max_alerts = min(engine.max_alerts, p["remaining"])
+    outcome = engine.sweep(prefetched=signals)
+    delivered = len(outcome.delivered)
+
+    with session() as s:
+        row = installs.get(s, install_id)
+        if row:
+            row.last_error = (
+                "; ".join(outcome.delivery_errors)[:300]
+                if outcome.delivery_errors
+                else None
+            )
+            if delivered:
+                row.last_alert_at = dt.datetime.now(dt.timezone.utc)
+                row.alerts_used = (row.alerts_used or 0) + delivered
+
+    log.info("welcome sweep for %s delivered %d", p["team"], delivered)
+    return {
+        "ok": not outcome.delivery_errors,
+        "alerts": delivered,
+        "errors": outcome.delivery_errors,
+        "source_errors": errors,
+    }
+
+
 def run_sweep(only: tuple[str, ...] | None = None) -> dict[str, Any]:
     """One shared fetch, then a delivery pass per workspace.
 

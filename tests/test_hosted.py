@@ -321,3 +321,73 @@ def test_the_key_fingerprint_does_not_leak_the_key():
     fp = installs.key_fingerprint()
     assert len(fp) == 8
     assert settings.encryption_key not in fp
+
+
+# --- the first-impression problem -------------------------------------------
+
+
+def test_a_new_workspace_is_introduced_on_install_not_eight_hours_later(monkeypatch):
+    """A workspace added at 09:00 waited until the 16:00 cron to see anything.
+
+    Forty minutes of an empty channel is indistinguishable from a broken bot,
+    and it is the first thing a new user sees.
+    """
+    import datetime as dt
+
+    from app import hosted, installs
+    from app.db import session
+    from app.models import Signal
+
+    now = dt.datetime.now(dt.timezone.utc)
+    catalogue = [
+        Signal(
+            source="yc_directory",
+            external_id=f"w{i}",
+            title=f"Welcome Co {i}",
+            url=f"https://www.ycombinator.com/companies/w{i}",
+            description="Does a thing.",
+            company_name=f"Welcome Co {i}",
+            batch="Fall 2026",
+            posted_at=now - dt.timedelta(days=i),
+            confirmed=True,
+        )
+        for i in range(1, 12)
+    ]
+
+    posted: list[str] = []
+
+    class Recording:
+        usable = True
+
+        def __init__(self, *a, **k):
+            pass
+
+        def post(self, blocks, text, **kw):
+            posted.append(text)
+            return {"ok": True, "channel": "C1", "ts": f"{len(posted)}.0"}
+
+        def join_channel(self, *a, **k):
+            return True
+
+    monkeypatch.setattr(hosted, "SlackClient", Recording)
+    monkeypatch.setattr("app.engine.SlackClient", Recording)
+    monkeypatch.setattr(
+        hosted, "fetch_all_sources", lambda only=None: ({"yc_directory": catalogue}, {})
+    )
+
+    with session() as s:
+        row = installs.upsert(
+            s, team_id="T-WELCOME", team_name="Foxy Land", token="xoxb-welcome"
+        )
+        row.channel_id = "C1"
+        install_id = row.id
+
+    out = hosted.welcome(install_id)
+    assert out["ok"], out
+    assert out["alerts"] > 0, "a new workspace must hear something immediately"
+    assert len(posted) == out["alerts"], "and it must actually reach Slack"
+
+    # Running it twice must not repeat the introduction.
+    again = hosted.welcome(install_id)
+    assert again["alerts"] == 0
+    assert len(posted) == out["alerts"]

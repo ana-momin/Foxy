@@ -262,6 +262,24 @@ async def save(install_id: str, request: Request) -> HTMLResponse | RedirectResp
     )
 
 
+@router.post("/app/{install_id}/welcome")
+def welcome(install_id: str) -> dict:
+    """First alerts, now, rather than whenever the cron next fires.
+
+    Driven from the success page rather than as a background task, because a
+    serverless function is not guaranteed to survive past its response - and a
+    welcome that silently does not happen is the failure this is here to fix.
+    The install id is already the secret that guards the settings page.
+    """
+    from .hosted import welcome as run_welcome
+
+    try:
+        return run_welcome(install_id)
+    except Exception as exc:  # noqa: BLE001 - the page must still render
+        log.exception("welcome sweep failed for %s", install_id)
+        return {"ok": False, "reason": f"{type(exc).__name__}: {exc}"[:200]}
+
+
 @router.get("/app/{install_id}/stop", response_model=None)
 def stop(install_id: str) -> HTMLResponse:
     with session() as s:
@@ -320,6 +338,7 @@ def done(install_id: str, tested: str = "", joined: str = "") -> HTMLResponse:
   <ul>
     {tested_line}
     {invite_line}
+    <li id="first">Looking for your first signals now&hellip;</li>
     <li>Foxy checks all five sources every <b>eight hours</b>.</li>
     <li>New YC and Speedrun companies arrive as they appear.</li>
     <li>Founders who announce before YC publishes them are flagged
@@ -327,6 +346,32 @@ def done(install_id: str, tested: str = "", joined: str = "") -> HTMLResponse:
     <li>Nothing is ever reported twice.</li>
   </ul>
 </div>
+
+<script>
+(function () {{
+  var line = document.getElementById("first");
+  if (!line) return;
+  fetch("/app/{html.escape(install_id)}/welcome", {{ method: "POST" }})
+    .then(function (r) {{ return r.json(); }})
+    .then(function (d) {{
+      if (d.ok && d.alerts > 0) {{
+        line.innerHTML = "<b>" + d.alerts + " alert" +
+          (d.alerts === 1 ? "" : "s") +
+          " just landed in your channel.</b> Go and look.";
+      }} else if (d.ok) {{
+        line.innerHTML = "Nothing new to report yet — you are caught up. " +
+          "The next check runs within eight hours.";
+      }} else {{
+        line.innerHTML = "Could not send your first alerts: " +
+          (d.reason || "unknown") + ".";
+      }}
+    }})
+    .catch(function () {{
+      line.innerHTML = "Still working on your first signals. " +
+        "They will arrive shortly.";
+    }});
+}})();
+</script>
 
 <div class="links">
   <a class="lk" href="/#/how">
