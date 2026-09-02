@@ -288,6 +288,22 @@ def already_seen(s: Session, fingerprint: str) -> bool:
     return s.get(Seen, fingerprint) is not None
 
 
+def seen_fingerprints(s: Session, namespace: str, source: str) -> set[str]:
+    """Every fingerprint this workspace has already seen from one source.
+
+    One query instead of one per signal. A sweep looks at several hundred, and
+    against a hosted Postgres each round trip costs tens of milliseconds, which
+    is the difference between a welcome that lands inside a web request and one
+    that is killed by the serverless timeout.
+    """
+    rows = s.execute(
+        select(Seen.fingerprint).where(
+            Seen.source == source, Seen.fingerprint.like(f"{namespace}%")
+        )
+    ).scalars()
+    return set(rows)
+
+
 def mark_seen(s: Session, *, fingerprint: str, source: str, external_id: str, entity_key: str) -> None:
     if s.get(Seen, fingerprint) is None:
         s.add(

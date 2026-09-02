@@ -28,13 +28,13 @@ from .db import (
     Entity,
     Seen,
     SourceRun,
-    already_seen,
     bump_sweep_counter,
     consecutive_failures,
     init_db,
     is_first_run,
     mark_seen,
     meta_set,
+    seen_fingerprints,
     session,
 )
 from .models import Signal, SweepResult
@@ -198,9 +198,14 @@ class Engine:
                 introduce.add(id(sig))
 
         with session() as s:
+            # Ask once what this workspace has seen, rather than once per
+            # signal. Several hundred round trips to a hosted database is what
+            # made the first sweep too slow to finish inside a web request.
+            seen = seen_fingerprints(s, self.namespace, source.name)
             for sig in signals:
-                if already_seen(s, self._key(sig)):
+                if self._key(sig) in seen:
                     continue
+                seen.add(self._key(sig))
 
                 # Remember it immediately. Even if we decide not to alert, we
                 # must never reconsider the same item on the next sweep.

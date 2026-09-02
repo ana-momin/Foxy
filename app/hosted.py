@@ -54,6 +54,9 @@ def fetch_all_sources(only: tuple[str, ...] | None = None) -> tuple[dict[str, li
 # full sweep cannot run inside a serverless request.
 FAST_SOURCES = ("yc_directory", "yc_launches", "speedrun", "yc_speedrun_watch")
 
+# What a brand-new workspace is introduced with, inside a web request.
+WELCOME_SOURCES = ("yc_directory", "yc_launches")
+
 
 def replay(count: int, sources: tuple[str, ...] = ("yc_directory", "yc_launches")) -> int:
     """Forget the most recent N detections so they report again.
@@ -137,7 +140,10 @@ def welcome(install_id: str) -> dict[str, Any]:
     if sent:
         return {"ok": True, "alerts": 0, "reason": "already introduced"}
 
-    signals, errors = fetch_all_sources(FAST_SOURCES)
+    # The two YC feeds only. They answer in about ten seconds together, and
+    # they are what a new user is here for; Speedrun and the paced social
+    # searches can wait for the first scheduled sweep.
+    signals, errors = fetch_all_sources(WELCOME_SOURCES)
 
     engine = Engine(
         slack=SlackClient(token=p["token"], target=p["channel"]),
