@@ -326,17 +326,34 @@ def test_the_key_fingerprint_does_not_leak_the_key():
 # --- the first-impression problem -------------------------------------------
 
 
-def test_a_new_workspace_is_introduced_on_install_not_eight_hours_later(monkeypatch):
+def test_a_new_workspace_is_introduced_on_install_not_eight_hours_later(monkeypatch):  # noqa: E501
     """A workspace added at 09:00 waited until the 16:00 cron to see anything.
 
     Forty minutes of an empty channel is indistinguishable from a broken bot,
     and it is the first thing a new user sees.
     """
     import datetime as dt
+    import pathlib
+    import tempfile
 
     from app import hosted, installs
-    from app.db import session
     from app.models import Signal
+
+    # Its own database. The suite's default one persists between runs, so a
+    # workspace introduced by an earlier run is still introduced in this one,
+    # and the test would pass once and then report "already introduced".
+    import app.db as db
+
+    monkeypatch.setattr(
+        settings,
+        "database_url",
+        f"sqlite:///{pathlib.Path(tempfile.mkdtemp()) / 'welcome.db'}",
+    )
+    monkeypatch.setattr(db, "_engine", None)
+    monkeypatch.setattr(db, "_schema_ready", False)
+    db.init_db()
+
+    from app.db import session
 
     now = dt.datetime.now(dt.timezone.utc)
     catalogue = [
@@ -384,7 +401,7 @@ def test_a_new_workspace_is_introduced_on_install_not_eight_hours_later(monkeypa
 
     out = hosted.welcome(install_id)
     assert out["ok"], out
-    assert out["alerts"] > 0, "a new workspace must hear something immediately"
+    assert out["alerts"] > 0, f"a new workspace must hear something immediately: {out}"
     assert len(posted) == out["alerts"], "and it must actually reach Slack"
 
     # Running it twice must not repeat the introduction.
