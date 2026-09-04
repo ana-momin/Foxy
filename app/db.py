@@ -263,8 +263,21 @@ def _add_missing_columns() -> None:
                 log.exception("could not add %s.%s", table.name, column.name)
 
 
-def init_db() -> None:
+def init_db(force: bool = False) -> None:
+    """Reconcile the schema. Does nothing once it has succeeded in this process.
+
+    create_all and the column reconciliation both inspect the live database,
+    which against a hosted Postgres costs seconds, not milliseconds. Callers
+    treat this as a cheap "make sure the tables are there" and call it freely -
+    several times inside one request - so it has to be free after the first
+    time. Without the guard a Pond action spent twenty-five seconds re-checking
+    a schema that had not changed.
+
+    `force` is for the CLI, where the point is to do the work.
+    """
     global _schema_ready
+    if _schema_ready and not force:
+        return
     Base.metadata.create_all(engine())
     try:
         _add_missing_columns()

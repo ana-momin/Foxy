@@ -315,3 +315,37 @@ def test_the_retry_bound_is_declared():
     from app.pond_tasks import MAX_ATTEMPTS
 
     assert 1 <= MAX_ATTEMPTS <= 5
+
+
+def test_making_sure_the_schema_exists_is_free_after_the_first_time():
+    """Twenty-five seconds per action came from this.
+
+    create_all and the column reconciliation both inspect the live database,
+    which against a hosted Postgres costs seconds. Callers treat init_db as a
+    cheap "are the tables there?" and call it several times per request, so it
+    has to do nothing once it has succeeded.
+    """
+    import app.db as db
+
+    calls = []
+    real_create_all = db.Base.metadata.create_all
+
+    def counting(*a, **kw):
+        calls.append(1)
+        return real_create_all(*a, **kw)
+
+    db._schema_ready = False
+    db.Base.metadata.create_all = counting
+    try:
+        db.init_db()
+        first = len(calls)
+        db.init_db()
+        db.init_db()
+        db.init_db()
+        assert len(calls) == first, "the schema was re-checked on every call"
+
+        # ...unless the caller means it.
+        db.init_db(force=True)
+        assert len(calls) == first + 1
+    finally:
+        db.Base.metadata.create_all = real_create_all
