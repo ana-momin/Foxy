@@ -332,6 +332,7 @@ Hosted deployments have three more:
 | `python -m app.cli hosted-sweep` | One shared fetch, delivered to every workspace |
 | `python -m app.cli hosted-doctor` | Checks each workspace against Slack: token decrypts, token is live, channel exists, bot is a member. `--post` sends a probe and reads it back out of `conversations.history` |
 | `python -m app.cli hosted-repair` | Parks workspaces whose token this environment cannot read, drops alert rows carrying no Slack message id, and recounts quota from what Slack acknowledged |
+| `python -m app.cli audit-early [--fix]` | Re-checks stored early signals against the founder-announcement rule and demotes the ones that fail |
 
 The doctor exists because every hosted delivery failure so far was invisible from our
 own side: the sweep reported alerts, the database agreed, and the channel was empty.
@@ -382,6 +383,38 @@ Set `POND_ACCESS_KEY` and `PUBLIC_BASE_URL`, deploy, then register at
 
 Implemented per spec: idempotency via `Idempotency-Key`, cumulative `usage` on every
 terminal response, and the full error-code table.
+
+**How a long scan runs.** `scan_now` returns `202` with a task id, and the polls
+themselves do the work. Each poll takes a lease, scans one source inside a time
+budget that fits comfortably in a request, and writes what it finished to the
+database. The next poll resumes on whichever instance answers it.
+
+This matters on serverless, where the obvious approach does not survive contact:
+a background task stops when the instance is frozen after responding, and an
+in-memory task store is invisible to the next instance. A source is attempted at
+most three times before it is written off, so a scan always terminates.
+
+**Scope and validation.** `sources` is honoured exactly. With no scope given, only
+the fast feeds are read, because a default scan should answer promptly rather than
+spend minutes in paced search engines. Parameters are validated against the
+schemas the manifest advertises, so an unknown field, a value outside an enum or a
+wrong type comes back as `422` naming the field.
+
+**Before submitting**, drive the deployment the way Pond does:
+
+```bash
+python tools/pond_conformance.py --base https://your-domain --key "$POND_ACCESS_KEY"
+```
+
+Fifteen checks - manifest against the published schema, every action, the async
+scan through its polls, idempotency replay, bad input, and whether the early
+signals are actually founder announcements. It exits non-zero, so it can gate a
+release.
+
+**Latency note.** Pin the deployment region to the one your database is in
+(`regions` in `vercel.json`). Compute in Virginia and Postgres in Singapore put a
+Pacific crossing on every round trip, which was most of a three-second health
+check.
 
 ---
 
