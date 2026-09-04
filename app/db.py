@@ -446,32 +446,36 @@ def recent_alerts(s: Session, limit: int = 20) -> list[Alert]:
 
 
 def health_snapshot(s: Session) -> dict[str, Any]:
-    """Used by /healthz, the Pond manifest and `/foxy status`."""
+    """Used by /healthz, the Pond manifest and `/foxy status`.
+
+    One query for the runs rather than a `SELECT ... LIMIT 1` per source. There
+    are only a handful of sources, but each of those was a separate round trip
+    to a hosted database, and this is on the path of every health check.
+    """
     out: dict[str, Any] = {
         "sweeps_completed": int(meta_get(s, "sweeps_completed", "0") or 0),
         "last_sweep_at": meta_get(s, "last_sweep_at", "") or None,
         "sources": {},
     }
-    seen_sources = s.execute(select(SourceRun.source).distinct()).scalars().all()
-    for src in seen_sources:
-        last = (
-            s.execute(
-                select(SourceRun)
-                .where(SourceRun.source == src)
-                .order_by(SourceRun.ran_at.desc())
-                .limit(1)
-            )
-            .scalars()
-            .first()
-        )
-        if last:
-            out["sources"][src] = {
-                "ok": last.ok,
-                "found": last.found,
-                "new": last.new,
-                "error": last.error,
-                "ran_at": last.ran_at.isoformat(),
-            }
+
+    # Newest first, so the first row seen for a source is its latest run. The
+    # window is generous enough to cover every source even after a run of
+    # failures on one of them.
+    recent = (
+        s.execute(select(SourceRun).order_by(SourceRun.ran_at.desc()).limit(300))
+        .scalars()
+        .all()
+    )
+    for run in recent:
+        if run.source in out["sources"]:
+            continue
+        out["sources"][run.source] = {
+            "ok": run.ok,
+            "found": run.found,
+            "new": run.new,
+            "error": run.error,
+            "ran_at": run.ran_at.isoformat(),
+        }
     return out
 
 
