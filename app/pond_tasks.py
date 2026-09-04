@@ -26,7 +26,6 @@ import time
 import uuid
 from typing import Any
 
-from .config import settings
 from .db import PondTask, init_db, session
 
 log = logging.getLogger("foxy.pond.tasks")
@@ -178,14 +177,12 @@ def _do_one_source(task_id: str, state: dict[str, Any]) -> None:
     _record(task_id, name, progress, findings, attempts, keep_pending=True)
 
     try:
+        # Carried into the engine rather than set on global settings. Two tasks
+        # can be advanced concurrently by two polls, and flipping a global
+        # between them meant one task could restore the flag while another was
+        # mid-delivery - a run told not to post, posting.
         post = state["params"].get("post_to_slack")
-        previous = settings.dry_run
-        if post is False:
-            settings.dry_run = True
-        try:
-            result = Engine().sweep(only=(name,))
-        finally:
-            settings.dry_run = previous
+        result = Engine(dry_run=True if post is False else None).sweep(only=(name,))
 
         info = result.per_source.get(name, {})
         progress[name] = {

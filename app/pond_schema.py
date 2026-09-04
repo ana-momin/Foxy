@@ -66,6 +66,11 @@ def _check_one(name: str, value: Any, spec: dict[str, Any]) -> Any:
         item = spec.get("items") or {}
         return [_check_one(f"{name}[{i}]", v, item) for i, v in enumerate(value)]
 
+    if kind == "string":
+        limit = spec.get("maxLength")
+        if limit is not None and len(value) > limit:
+            raise Invalid(name, f"'{name}' must be at most {limit} characters.")
+
     if "enum" in spec and value not in spec["enum"]:
         allowed = ", ".join(str(x) for x in spec["enum"])
         raise Invalid(name, f"'{value}' is not one of: {allowed}.")

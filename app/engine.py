@@ -102,6 +102,7 @@ class Engine:
         *,
         namespace: str = "",
         min_confidence: float | None = None,
+        dry_run: bool | None = None,
     ):
         init_db()
         self.slack = slack or SlackClient()
@@ -115,6 +116,12 @@ class Engine:
         )
         # Nobody wants 200 messages at once. Anything past this lands in the
         # digest instead, so a bad sweep is noisy in one message, not hundreds.
+        # Whether to actually post. Carried on the engine rather than read from
+        # global settings at each decision: a caller that asked not to post is
+        # making a statement about its own run, and two runs sharing a process
+        # would otherwise flip the global under one another - one of them
+        # posting to Slack after being told not to.
+        self._dry_run = dry_run
         self.max_alerts = settings.max_alerts_per_sweep
         # Budget for a first sweep. Spent across sources in the order they run,
         # so the YC directory gets it before the noisier social feeds.
@@ -122,6 +129,11 @@ class Engine:
         # Entities for the source being processed, loaded in one query.
         self._entities: dict[str, Entity] = {}
         self._entities_known: set[str] = set()
+
+    @property
+    def dry_run(self) -> bool:
+        """Settings supply the default; an explicit argument overrides it."""
+        return settings.dry_run if self._dry_run is None else self._dry_run
 
     def _key(self, sig: Signal) -> str:
         return f"{self.namespace}{sig.fingerprint}"
@@ -451,7 +463,7 @@ class Engine:
                 url = ent.company_url or "https://www.ycombinator.com/companies"
                 blocks, text = build_promotion(ent.name, ent.lead_time_days, url)
                 try:
-                    if not settings.dry_run and self.slack.usable:
+                    if not self.dry_run and self.slack.usable:
                         self.slack.post(
                             blocks, text, thread_ts=original.ts, channel=original.channel
                         )
@@ -477,7 +489,7 @@ class Engine:
         # Highest-value first: early signals lead, then official listings.
         result.alerts.sort(key=lambda s: (not s.is_early, -s.confidence))
 
-        if result.alerts and not (settings.dry_run or self.slack.usable):
+        if result.alerts and not (self.dry_run or self.slack.usable):
             # Nowhere to post. Say so loudly: a sweep that decides on alerts it
             # cannot deliver is a failure, not a quiet success.
             # getattr, because the only thing the engine requires of a client
@@ -490,7 +502,7 @@ class Engine:
 
         for sig in result.alerts:
             blocks, text = build_alert(sig)
-            if settings.dry_run or not self.slack.usable:
+            if self.dry_run or not self.slack.usable:
                 log.info("[dry-run] %s", text)
                 self._record_alert(sig, channel=None, ts=None)
                 continue
@@ -510,7 +522,7 @@ class Engine:
 
         if result.digest:
             blocks, text = build_digest(result.digest)
-            if settings.dry_run or not self.slack.usable:
+            if self.dry_run or not self.slack.usable:
                 log.info("[dry-run] %s", text)
             else:
                 try:
@@ -584,7 +596,7 @@ class Engine:
         if not failures:
             return
         blocks, text = build_health(failures)
-        if settings.dry_run or not self.slack.usable:
+        if self.dry_run or not self.slack.usable:
             log.warning("[dry-run] %s: %s", text, failures)
             return
         try:

@@ -21,6 +21,7 @@ import asyncio
 import contextlib
 import datetime as dt
 import hmac
+import json
 import logging
 import os
 import pathlib
@@ -41,6 +42,9 @@ from .slack import build_status
 log = logging.getLogger("foxy.api")
 
 PROTOCOL_VERSION = "1.0"
+
+# Published in the manifest's limits and enforced on every run.
+MAX_REQUEST_BYTES = 262144
 
 app = FastAPI(title="Foxy", docs_url=None, redoc_url=None)
 router = APIRouter()
@@ -180,11 +184,13 @@ _ACTIONS = [
             "properties": {
                 "company_name": {
                     "type": "string",
+                    "maxLength": 120,
                     "description": "The company name to check.",
                     "minLength": 1,
                 },
                 "website": {
                     "type": "string",
+                    "maxLength": 500,
                     "description": "The company's website, which matches more reliably than a name.",
                 },
             },
@@ -381,7 +387,7 @@ def manifest() -> dict[str, Any]:
         "input_modes": ["text/plain"],
         "output_modes": ["text/markdown"],
         "limits": {
-            "max_request_bytes": 262144,
+            "max_request_bytes": MAX_REQUEST_BYTES,
             "max_attachment_bytes": 10485760,
             "max_run_seconds": 600,
         },
@@ -419,8 +425,19 @@ async def runs(
     if (err := _check_auth(authorization)) is not None:
         return err
 
+    # The manifest advertises max_request_bytes. Advertising a limit and not
+    # enforcing it is the same fault as advertising a schema and not checking
+    # it: the caller is told a contract that is not kept.
+    raw = await request.body()
+    if len(raw) > MAX_REQUEST_BYTES:
+        return perr(
+            "invalid_request",
+            f"The request body is larger than the {MAX_REQUEST_BYTES} byte limit.",
+            413,
+        )
+
     try:
-        body = await request.json()
+        body = json.loads(raw)
     except Exception:  # noqa: BLE001
         return perr("invalid_request", "The request body must be valid JSON.", 400)
 
@@ -432,7 +449,11 @@ async def runs(
     # database so a retry reaching another instance still gets the first answer.
     key = idempotency_key or run_id
     if (stored := _recall_run(key)) is not None:
-        return stored
+        # Replay the original answer, status code included: a repeated scan
+        # must hand back the same 202 and the same task, not start a second one.
+        return JSONResponse(
+            status_code=stored.get("status_code", 200), content=stored["payload"]
+        )
 
     known = {a["id"] for a in _ACTIONS}
     if action_id in known:
@@ -464,15 +485,16 @@ async def runs(
                 params,
                 pond_tasks.resolve_sources(params.get("sources")),
             )
-            return JSONResponse(
-                status_code=202,
-                content={
-                    "run_id": run_id,
-                    "task_id": task_id,
-                    "status": "queued",
-                    "poll_after_ms": 5000,
-                },
-            )
+            accepted = {
+                "run_id": run_id,
+                "task_id": task_id,
+                "status": "queued",
+                "poll_after_ms": 5000,
+            }
+            # Store it too. Without this a retried Idempotency-Key started a
+            # second scan of the same thing and returned a different task id.
+            _remember_run(key, run_id, accepted, status_code=202)
+            return JSONResponse(status_code=202, content=accepted)
 
         if action_id == "lookup_company":
             name = (params.get("company_name") or "").strip()
@@ -565,27 +587,45 @@ def get_task(
 
 
 def _recall_run(key: str) -> dict[str, Any] | None:
-    """A previous answer for this idempotency key, if there is one."""
+    """A previous answer for this idempotency key, if there is one.
+
+    Returns {"status_code": int, "payload": dict}, because replaying a scan
+    means replaying its 202 as well as its body.
+    """
     from .db import PondRun, init_db, session
 
     try:
         init_db()
         with session() as s:
             row = s.get(PondRun, key)
-            return dict(row.response) if row is not None else None
+            if row is None:
+                return None
+            stored = dict(row.response)
+            # Records written before the status code was stored are all 200s.
+            if "payload" not in stored:
+                return {"status_code": 200, "payload": stored}
+            return stored
     except Exception:  # noqa: BLE001 - never fail a run over the replay cache
         log.warning("could not read the idempotency record", exc_info=True)
         return None
 
 
-def _remember_run(key: str, run_id: str, response: dict[str, Any]) -> None:
+def _remember_run(
+    key: str, run_id: str, response: dict[str, Any], status_code: int = 200
+) -> None:
     from .db import PondRun, init_db, session
 
     try:
         init_db()
         with session() as s:
             if s.get(PondRun, key) is None:
-                s.add(PondRun(key=key, run_id=run_id, response=response))
+                s.add(
+                    PondRun(
+                        key=key,
+                        run_id=run_id,
+                        response={"status_code": status_code, "payload": response},
+                    )
+                )
     except Exception:  # noqa: BLE001
         log.warning("could not store the idempotency record", exc_info=True)
 

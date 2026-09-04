@@ -349,3 +349,84 @@ def test_making_sure_the_schema_exists_is_free_after_the_first_time():
         assert len(calls) == first + 1
     finally:
         db.Base.metadata.create_all = real_create_all
+
+
+# --- found by attacking the surface, not by reading it -----------------------
+
+
+def test_a_repeated_scan_returns_the_same_task(client, monkeypatch):
+    """A retried Idempotency-Key started a second scan of the same thing.
+
+    The sync path stored its answer and replayed it; scan_now returned its 202
+    without storing anything, so the guarantee held for four actions out of
+    five - and the fifth is the expensive one.
+    """
+    import app.pond_tasks as pt
+
+    monkeypatch.setattr(pt, "_do_one_source", _stub_source)
+
+    headers = dict(HEADERS, **{"Idempotency-Key": "scan-once"})
+    body = {
+        "action_id": "scan_now",
+        "parameters": {"sources": ["yc_directory"]},
+        "run_id": "scan-once",
+    }
+    first = client.post("/runs", json=body, headers=headers)
+    second = client.post("/runs", json=body, headers=headers)
+
+    assert first.status_code == 202
+    assert second.status_code == 202, "the replay must keep the original status"
+    assert first.json()["task_id"] == second.json()["task_id"]
+
+
+def test_a_body_over_the_advertised_limit_is_refused(client):
+    """The manifest publishes max_request_bytes and nothing enforced it."""
+    from app.main import MAX_REQUEST_BYTES
+
+    body = {
+        "action_id": "lookup_company",
+        "parameters": {"company_name": "A" * (MAX_REQUEST_BYTES + 1000)},
+    }
+    r = client.post("/runs", json=body, headers=HEADERS)
+    assert r.status_code == 413, r.status_code
+    assert r.json()["error"]["code"] == "invalid_request"
+
+
+def test_a_string_parameter_has_an_upper_bound(client):
+    """A five-thousand character company name was a valid lookup."""
+    r = _run(client, "lookup_company", {"company_name": "A" * 5000})
+    assert r.status_code == 422, r.status_code
+    assert "company_name" in r.json()["error"]["message"]
+
+
+def test_the_advertised_limit_is_the_enforced_one():
+    """Declared in one place, so the manifest cannot drift from the check."""
+    from app.main import MAX_REQUEST_BYTES, manifest
+
+    assert manifest()["limits"]["max_request_bytes"] == MAX_REQUEST_BYTES
+
+
+def test_not_posting_is_a_property_of_the_run_not_of_the_process(monkeypatch):
+    """Two tasks advanced concurrently flipped a global under one another.
+
+    post_to_slack=false set settings.dry_run and restored it in a finally, so a
+    second run sharing the process could have the flag restored mid-delivery -
+    a run told not to post, posting.
+    """
+    from app.config import settings
+    from app.engine import Engine
+
+    monkeypatch.setattr(settings, "dry_run", False)
+
+    told_not_to = Engine(dry_run=True)
+    ordinary = Engine()
+
+    assert told_not_to.dry_run is True
+    assert ordinary.dry_run is False, "the default still comes from settings"
+
+    # The one that was told not to post keeps that answer regardless of what
+    # any other run does to the global.
+    monkeypatch.setattr(settings, "dry_run", True)
+    assert told_not_to.dry_run is True
+    monkeypatch.setattr(settings, "dry_run", False)
+    assert told_not_to.dry_run is True
