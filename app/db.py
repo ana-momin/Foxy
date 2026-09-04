@@ -113,6 +113,9 @@ class PondTask(Base):
     pending: Mapped[list] = mapped_column(JSON, default=list)
     progress: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     findings: Mapped[list] = mapped_column(JSON, default=list)
+    # How many times each source has been started, so one that cannot finish
+    # inside a request is written off rather than retried forever.
+    attempts: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
     count: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)

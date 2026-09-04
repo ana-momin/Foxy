@@ -39,6 +39,9 @@ SLICE_SECONDS = 45.0
 # stranded, but not by so much that a poll waits pointlessly.
 LEASE_SECONDS = 90
 
+# How often one source may be attempted before the scan writes it off.
+MAX_ATTEMPTS = 3
+
 # Sources that answer in seconds. The paced social searches take minutes, and
 # are only read when the caller asks for them by name.
 FAST = ("yc_directory", "yc_launches", "speedrun", "yc_speedrun_watch")
@@ -85,6 +88,7 @@ def get(task_id: str) -> dict[str, Any] | None:
             "pending": list(row.pending or []),
             "progress": dict(row.progress or {}),
             "findings": list(row.findings or []),
+            "attempts": dict(row.attempts or {}),
             "count": row.count or 0,
             "error": row.error,
             "leased": bool(row.leased_until and row.leased_until > _now().replace(tzinfo=None)),
@@ -157,6 +161,22 @@ def _do_one_source(task_id: str, state: dict[str, Any]) -> None:
     progress = dict(state["progress"])
     findings = list(state["findings"])
 
+    # A source that outlives the request it is running in would be retried
+    # forever: the lease expires, the next poll picks the same source, and the
+    # task never terminates. Give up on it after a few tries and move on, so a
+    # scan always finishes even when one source cannot.
+    attempts = dict(state.get("attempts") or {})
+    attempts[name] = attempts.get(name, 0) + 1
+    if attempts[name] > MAX_ATTEMPTS:
+        progress[name] = {
+            "found": 0,
+            "new": 0,
+            "error": f"gave up after {MAX_ATTEMPTS} attempts",
+        }
+        _record(task_id, name, progress, findings, attempts)
+        return
+    _record(task_id, name, progress, findings, attempts, keep_pending=True)
+
     try:
         post = state["params"].get("post_to_slack")
         previous = settings.dry_run
@@ -188,16 +208,30 @@ def _do_one_source(task_id: str, state: dict[str, Any]) -> None:
         log.warning("source %s failed inside task %s: %s", name, task_id, exc)
         progress[name] = {"found": 0, "new": 0, "error": f"{type(exc).__name__}: {exc}"[:200]}
 
+    _record(task_id, name, progress, findings, attempts)
+
+
+def _record(
+    task_id: str,
+    name: str,
+    progress: dict[str, Any],
+    findings: list,
+    attempts: dict[str, int],
+    *,
+    keep_pending: bool = False,
+) -> None:
+    """Write progress, and renew the lease so the slice keeps its claim."""
     with session() as s:
         row = s.get(PondTask, task_id)
         if row is None:
             return
-        row.pending = [x for x in (row.pending or []) if x != name]
+        if not keep_pending:
+            row.pending = [x for x in (row.pending or []) if x != name]
         row.progress = progress
         row.findings = findings
+        row.attempts = attempts
         row.count = len(findings)
         row.updated_at = _now().replace(tzinfo=None)
-        # Hold the lease open across the slice.
         row.leased_until = _now().replace(tzinfo=None) + dt.timedelta(seconds=LEASE_SECONDS)
 
 

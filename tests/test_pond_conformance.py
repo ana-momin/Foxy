@@ -269,3 +269,49 @@ def _stub_source(task_id, state):
             }
         ]
         row.count = len(row.findings)
+
+
+def test_a_source_that_never_finishes_does_not_hang_the_scan(client, monkeypatch):
+    """A source outliving its request would otherwise be retried forever.
+
+    The lease expires, the next poll picks the same source, and the task never
+    terminates. After a few attempts it is written off so the scan finishes.
+    """
+    import app.pond_tasks as pt
+
+    monkeypatch.setattr(pt, "MAX_ATTEMPTS", 2)
+
+    def stalling(task_id, state):
+        """A worker killed mid-source: the attempt counts, the source stays."""
+        name = state["pending"][0]
+        attempts = dict(state.get("attempts") or {})
+        attempts[name] = attempts.get(name, 0) + 1
+        if attempts[name] > pt.MAX_ATTEMPTS:
+            pt._record(
+                task_id, name,
+                dict(state["progress"], **{name: {"found": 0, "new": 0, "error": "gave up"}}),
+                list(state["findings"]), attempts,
+            )
+            return
+        pt._record(task_id, name, dict(state["progress"]), list(state["findings"]),
+                   attempts, keep_pending=True)
+
+    monkeypatch.setattr(pt, "_do_one_source", stalling)
+
+    r = _run(client, "scan_now", {"sources": ["linkedin"]})
+    task_id = r.json()["task_id"]
+
+    for _ in range(20):
+        got = client.get(f"/tasks/{task_id}", headers=HEADERS).json()
+        if got["status"] not in {"queued", "running"}:
+            break
+
+    assert got["status"] == "completed", got
+    assert "gave up" in got["output"][0]["text"]
+
+
+def test_the_retry_bound_is_declared():
+    """Stated once, so the loop cannot become unbounded again."""
+    from app.pond_tasks import MAX_ATTEMPTS
+
+    assert 1 <= MAX_ATTEMPTS <= 5
