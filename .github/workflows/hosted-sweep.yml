@@ -23,7 +23,7 @@ on:
         description: "sweep, or doctor to check every workspace against Slack"
         type: choice
         default: sweep
-        options: [sweep, doctor, doctor-post, repair]
+        options: [sweep, doctor, doctor-post, repair, audit-early, audit-early-fix]
 
 concurrency:
   group: hosted-sweep
@@ -59,5 +59,7 @@ jobs:
             doctor)      python -m app.cli hosted-doctor ;;
             doctor-post) python -m app.cli hosted-doctor --post ;;
             repair)      python -m app.cli hosted-repair ;;
+            audit-early) python -m app.cli audit-early ;;
+            audit-early-fix) python -m app.cli audit-early --fix ;;
             *)           python -m app.cli hosted-sweep ;;
           esac

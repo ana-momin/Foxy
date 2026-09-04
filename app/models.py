@@ -65,6 +65,15 @@ class Signal:
     posted_at: dt.datetime | None = None
     raw: dict[str, Any] = field(default_factory=dict)
 
+    # Is this someone announcing their own acceptance?
+    #
+    # Set by the source, from the classifier's verdict. It is not the same
+    # question as "is this company missing from the directory", and conflating
+    # the two is what put LinkedIn company pages - UzCombinator, Grubwithus
+    # (YC W2011) - into the early-signal results as founder announcements.
+    # Only an announcement can be early; everything else is at most a lead.
+    is_announcement: bool = False
+
     # Filled in by the engine, not by sources.
     confidence: float = 1.0
     is_early: bool = False           # founder announced, YC has not confirmed

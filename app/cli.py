@@ -465,6 +465,63 @@ def cmd_hosted_repair(_args) -> int:
     return 0
 
 
+def cmd_audit_early(args) -> int:
+    """Re-check every stored early signal against the founder-announcement rule.
+
+    Precision was the substance of Pond's rejection: at least three of five
+    early results were not founder announcements. The live path is fixed, but
+    the rows recorded under the old rule are still there and are exactly the
+    ones a reviewer would be shown - UzCombinator, a page whose name contains
+    "Combinator"; Grubwithus, YC W2011; company pages that announce nothing.
+
+    An early row must be a person announcing a recent acceptance. Anything else
+    is demoted to a lead, which keeps it discoverable without claiming it is
+    something it is not. Read-only unless --fix is given.
+    """
+    from sqlalchemy import select
+
+    from .db import Alert, init_db, session
+    from .engine import _batch_is_current
+
+    init_db()
+    demote: list[tuple[int, str, str]] = []
+
+    with session() as s:
+        rows = s.execute(select(Alert).where(Alert.kind == "early")).scalars().all()
+        for row in rows:
+            payload = row.payload or {}
+            url = (payload.get("url") or "").lower()
+            batch = payload.get("batch") or ""
+            name = payload.get("company") or payload.get("title") or "?"
+
+            why = ""
+            if "linkedin.com/company/" in url:
+                why = "company page, not an announcement"
+            elif payload.get("is_announcement") is False:
+                why = "source says it announces nothing"
+            elif batch and not _batch_is_current(batch):
+                why = f"batch {batch} is not a current cohort"
+
+            if why:
+                demote.append((row.id, name, why))
+
+        print(f"\n  {len(rows)} early signal(s) on record, {len(demote)} do not qualify\n")
+        for _, name, why in demote:
+            print(f"    {name:<28} {why}")
+
+        if demote and getattr(args, "fix", False):
+            ids = {i for i, _, _ in demote}
+            for row in rows:
+                if row.id in ids:
+                    row.kind = "lead"
+            print(f"\n  demoted {len(ids)} to leads")
+        elif demote:
+            print(f"\n  run with --fix to demote them")
+
+    print("")
+    return 0
+
+
 def cmd_status(_args) -> int:
     from .db import health_snapshot, init_db, session
     from .engine import source_modes
@@ -540,6 +597,11 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "hosted-repair", help="park unreadable installs and drop unsent alerts"
     ).set_defaults(fn=cmd_hosted_repair)
+    p = sub.add_parser(
+        "audit-early", help="re-check stored early signals against the rule"
+    )
+    p.add_argument("--fix", action="store_true", help="demote the ones that fail")
+    p.set_defaults(fn=cmd_audit_early)
     sub.add_parser("status", help="per-source health").set_defaults(fn=cmd_status)
 
     p = sub.add_parser("reset", help="wipe local state")

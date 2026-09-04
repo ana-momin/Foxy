@@ -93,6 +93,8 @@ class XSource(Source):
                     author_url=post.author_url,
                     posted_at=post.created_at,
                     confidence=round(confidence, 3),
+                    # Reached here, so the classifier judged it a self-announcement.
+                    is_announcement=True,
                     raw={
                         "likes": post.likes,
                         "verified": post.verified,

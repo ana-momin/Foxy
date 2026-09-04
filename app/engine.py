@@ -19,6 +19,7 @@ Design rules that matter:
 from __future__ import annotations
 
 import datetime as dt
+import re
 import logging
 
 from . import crossref
@@ -67,6 +68,31 @@ def source_modes() -> dict[str, str]:
     for s in build_sources():
         out[s.name] = s.mode if s.enabled else "disabled"
     return out
+
+
+def _batch_is_current(batch: str) -> bool:
+    """Is this cohort one YC is announcing around now?
+
+    An old batch means the company was accepted years ago, so its absence from
+    the directory says something about the directory, not about YC being slow
+    to publish. Grubwithus announced YC W2011 and was reported as an early
+    signal on exactly that confusion.
+
+    Batches are written both ways - "Winter 2011" and "YC W11" - so both are
+    read. An unrecognisable string is treated as current, because guessing
+    wrongly here silences real signals.
+    """
+    text = (batch or "").upper()
+    now = dt.date.today().year
+
+    if (full := re.search(r"(20\d{2})", text)) is not None:
+        return abs(int(full.group(1)) - now) <= 1
+
+    # "YC W11", "S26", "F26", "X26" - a season letter and two digits.
+    if (short := re.search(r"\b[WSFX](\d{2})\b", text)) is not None:
+        return abs((2000 + int(short.group(1))) - now) <= 1
+
+    return True
 
 
 class Engine:
@@ -305,8 +331,24 @@ class Engine:
             sig.program, sig.company_name, sig.company_url, text=sig.description
         )
         sig.confirmed = match.found
-        sig.is_early = match.is_early
         sig.match_reason = match.reason
+
+        # "Early" is a claim about a founder announcing before YC published,
+        # so it needs both halves. Reading only the directory made anything YC
+        # had not listed an early founder signal - including LinkedIn company
+        # pages, which announce nothing, and which is why three of five early
+        # results did not match founder-announcement semantics.
+        sig.is_early = match.is_early and sig.is_announcement
+        if match.is_early and not sig.is_announcement:
+            sig.add_note("not a founder announcement - reported as a lead")
+
+        # An announcement about a batch that closed years ago is not news.
+        # Grubwithus announced YC W2011; the directory simply no longer lists
+        # it, which is not the same as YC not having got there yet.
+        if sig.is_early and sig.batch and not _batch_is_current(sig.batch):
+            sig.is_early = False
+            sig.confidence *= 0.5
+            sig.add_note(f"batch {sig.batch} is not a current cohort")
 
         if match.found and match.company:
             # Useful enrichment: the founder's post rarely names the batch, the
@@ -515,6 +557,10 @@ class Engine:
                         "batch": sig.batch,
                         "url": sig.url,
                         "match_reason": sig.match_reason,
+                        # Recorded so the stored history can be audited on the
+                        # same rule the live path uses.
+                        "is_announcement": bool(sig.is_announcement),
+                        "author": sig.author_name or sig.author_handle or "",
                     },
                 )
             )

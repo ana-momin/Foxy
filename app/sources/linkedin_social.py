@@ -128,6 +128,9 @@ class LinkedInSource(Source):
                     author_url=post.author_url,
                     posted_at=post.posted_at,
                     confidence=round(confidence, 3),
+                    # It reached here, so the classifier judged it a person
+                    # announcing their own acceptance.
+                    is_announcement=True,
                     raw={
                         "hydrated": post.hydrated,
                         "query": query,
@@ -197,6 +200,12 @@ class LinkedInSource(Source):
                     batch=verdict.batch,
                     program=verdict.program,
                     confidence=COMPANY_PAGE_CONFIDENCE,
+                    # A page describing a company is not a founder announcing
+                    # an acceptance. It is a lead worth surfacing, and it must
+                    # never be reported as an early founder signal - that is
+                    # how UzCombinator and Grubwithus (YC W2011) ended up in
+                    # the early results.
+                    is_announcement=False,
                     raw={"kind": "company_page", "query": query},
                 )
                 sig.add_note("LinkedIn company page referencing YC/Speedrun")
