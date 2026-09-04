@@ -25,6 +25,7 @@ import json
 import logging
 import os
 import pathlib
+import re
 import uuid
 from typing import Any
 
@@ -659,6 +660,37 @@ def _do_lookup(name: str, website: str | None) -> dict[str, Any]:
     return {"markdown": md, "count": 1}
 
 
+_DECIMALS = re.compile(r"(\d+)\.\d+%")
+
+
+def _tidy(text: str) -> str:
+    """Round any percentage that reached a stored string un-rounded.
+
+    Match reasons are recorded when the alert is written, so rows from before
+    the formatting fix still carry "closest was 42.85714285714286%". Doing this
+    at render time cleans the history as well as anything a new source invents.
+    """
+    return _DECIMALS.sub(r"\1%", text or "")
+
+
+def _distinct(items: list, key) -> list:
+    """One row per company.
+
+    Every workspace gets its own alert row for the same detection, so reading
+    the alert table straight back listed EVO HQ three times. Pond is asking
+    what was detected, not how many channels heard about it.
+    """
+    seen: set = set()
+    out = []
+    for item in items:
+        k = key(item)
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(item)
+    return out
+
+
 def _do_early(limit: int, min_conf: float) -> dict[str, Any]:
     from .db import Alert
 
@@ -667,10 +699,11 @@ def _do_early(limit: int, min_conf: float) -> dict[str, Any]:
             s.query(Alert)
             .filter(Alert.kind == "early", Alert.confidence >= min_conf)
             .order_by(Alert.created_at.desc())
-            .limit(limit)
+            .limit(limit * 6)
             .all()
         )
         items = [(r.payload or {}, r.confidence, r.created_at, r.source) for r in rows]
+    items = _distinct(items, lambda i: (i[0].get("company") or i[0].get("title"), i[0].get("url")))[:limit]
 
     if not items:
         return {
@@ -690,14 +723,17 @@ def _do_early(limit: int, min_conf: float) -> dict[str, Any]:
             f"{conf:.0%} confidence · [post]({payload.get('url')})"
         )
         if payload.get("match_reason"):
-            lines.append(f"  - _{payload['match_reason']}_")
+            lines.append(f"  - _{_tidy(payload['match_reason'])}_")
     return {"markdown": "\n".join(lines), "count": len(items)}
 
 
 def _do_recent(limit: int, only_early: bool) -> dict[str, Any]:
     with session() as s:
-        rows = recent_alerts(s, limit=limit, kind="early" if only_early else "")
+        # Over-fetch, then collapse to distinct companies and take the limit,
+        # so asking for four gets four different ones.
+        rows = recent_alerts(s, limit=limit * 6, kind="early" if only_early else "")
         items = [(r.kind, r.payload or {}, r.source, r.confidence) for r in rows]
+    items = _distinct(items, lambda i: (i[1].get("company") or i[1].get("title"), i[1].get("url")))[:limit]
 
     if not items:
         # Say which question came back empty. "No detections recorded yet"

@@ -489,3 +489,48 @@ def test_a_similarity_score_is_not_shown_raw(client):
     src = inspect.getsource(crossref)
     assert "{best_score}%" not in src, "the raw float reaches the output"
     assert "{best_score:.0f}%" in src
+
+
+def test_one_row_per_company_not_one_per_workspace(client):
+    """EVO HQ was listed three times: every workspace records its own alert row
+    for the same detection. Pond is asking what was detected, not how many
+    channels heard about it."""
+    import datetime as dt
+
+    from app.db import Alert, session
+
+    now = dt.datetime.now(dt.timezone.utc)
+    with session() as s:
+        for i, ns in enumerate(["i:a:", "i:b:", "i:c:"]):
+            s.add(
+                Alert(
+                    fingerprint=f"{ns}dup",
+                    entity_key=f"{ns}evo",
+                    source="linkedin",
+                    kind="early",
+                    confidence=0.95,
+                    ts=f"{i}.0",
+                    created_at=now - dt.timedelta(minutes=i),
+                    payload={
+                        "company": "EVO HQ",
+                        "batch": "Fall 2026",
+                        "url": "https://www.linkedin.com/posts/evo",
+                    },
+                )
+            )
+
+    for action in ("search_early_signals", "recent_detections"):
+        r = _run(client, action, {"limit": 10})
+        text = "".join(o["text"] for o in r.json()["output"])
+        assert text.count("EVO HQ") == 1, f"{action} listed it {text.count('EVO HQ')} times"
+
+
+def test_a_stored_percentage_is_rounded_when_shown(client):
+    """Rows written before the formatting fix still carry the raw float, so the
+    tidying has to happen where it is rendered."""
+    from app.main import _tidy
+
+    assert _tidy("closest was 42.85714285714286%") == "closest was 42%"
+    assert _tidy("fuzzy name match 85.5%: Foo") == "fuzzy name match 85%: Foo"
+    assert _tidy("no similar names") == "no similar names"
+    assert _tidy("") == ""
