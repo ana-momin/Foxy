@@ -696,15 +696,20 @@ def _do_early(limit: int, min_conf: float) -> dict[str, Any]:
 
 def _do_recent(limit: int, only_early: bool) -> dict[str, Any]:
     with session() as s:
-        rows = recent_alerts(s, limit=limit)
-        items = [
-            (r.kind, r.payload or {}, r.source, r.confidence)
-            for r in rows
-            if not only_early or r.kind == "early"
-        ]
+        rows = recent_alerts(s, limit=limit, kind="early" if only_early else "")
+        items = [(r.kind, r.payload or {}, r.source, r.confidence) for r in rows]
 
     if not items:
-        return {"markdown": "No detections recorded yet.", "count": 0}
+        # Say which question came back empty. "No detections recorded yet"
+        # alongside search_early_signals listing three reads as a broken agent.
+        return {
+            "markdown": (
+                "No early detections recorded yet."
+                if only_early
+                else "No detections recorded yet."
+            ),
+            "count": 0,
+        }
 
     lines = ["## Recent detections", ""]
     for kind, payload, source, conf in items:

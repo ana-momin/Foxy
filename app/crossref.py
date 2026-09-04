@@ -136,7 +136,7 @@ def _lookup_uncached(
     if best_hit and best_score >= NAME_THRESHOLD:
         return Match(
             True,
-            f"fuzzy name match {best_score}%: {best_hit.get('name')}",
+            f"fuzzy name match {best_score:.0f}%: {best_hit.get('name')}",
             best_hit,
         )
 
@@ -152,7 +152,7 @@ def _lookup_uncached(
         except Exception:  # noqa: BLE001
             break
 
-    detail = f"closest was {best_score}%" if best_hit else "no similar names"
+    detail = f"closest was {best_score:.0f}%" if best_hit else "no similar names"
     return Match(False, f"not in YC directory ({detail})")
 
 
@@ -223,9 +223,9 @@ def lookup_speedrun(company_name: str | None) -> Match:
 
     if best_score >= NAME_THRESHOLD:
         hit = index[best_key]
-        return Match(True, f"fuzzy match {best_score}% in Speedrun: {hit['name']}", hit)
+        return Match(True, f"fuzzy match {best_score:.0f}% in Speedrun: {hit['name']}", hit)
 
-    return Match(False, f"not in the Speedrun directory (closest was {best_score}%)")
+    return Match(False, f"not in the Speedrun directory (closest was {best_score:.0f}%)")
 
 
 def lookup_for_program(

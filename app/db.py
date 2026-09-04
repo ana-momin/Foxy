@@ -437,12 +437,18 @@ def consecutive_failures(s: Session, source: str, limit: int = 2) -> int:
     return count
 
 
-def recent_alerts(s: Session, limit: int = 20) -> list[Alert]:
-    return (
-        s.execute(select(Alert).order_by(Alert.created_at.desc()).limit(limit))
-        .scalars()
-        .all()
-    )
+def recent_alerts(s: Session, limit: int = 20, kind: str = "") -> list[Alert]:
+    """The most recent alerts, optionally of one kind.
+
+    The kind has to be part of the query. Taking the newest N and filtering
+    afterwards answers "the early ones among the four most recent detections",
+    which is not what anyone asks for - and returned nothing whenever the
+    newest few happened to be confirmations.
+    """
+    q = select(Alert).order_by(Alert.created_at.desc())
+    if kind:
+        q = q.where(Alert.kind == kind)
+    return s.execute(q.limit(limit)).scalars().all()
 
 
 def health_snapshot(s: Session) -> dict[str, Any]:

@@ -430,3 +430,62 @@ def test_not_posting_is_a_property_of_the_run_not_of_the_process(monkeypatch):
     assert told_not_to.dry_run is True
     monkeypatch.setattr(settings, "dry_run", False)
     assert told_not_to.dry_run is True
+
+
+def test_asking_for_recent_early_detections_finds_the_early_ones(client):
+    """It answered "No detections recorded yet" while search_early_signals was
+    listing three, which reads as a broken agent.
+
+    The kind was filtered after the limit, so the query really asked "the early
+    ones among the four most recent detections" - empty whenever the newest few
+    happened to be confirmations.
+    """
+    import datetime as dt
+
+    from app.db import Alert, session
+
+    now = dt.datetime.now(dt.timezone.utc)
+    with session() as s:
+        # One early signal, then several newer confirmations on top of it.
+        s.add(
+            Alert(
+                fingerprint="f-early",
+                entity_key="e-early",
+                source="x",
+                kind="early",
+                confidence=0.9,
+                ts="1.0",
+                created_at=now - dt.timedelta(hours=5),
+                payload={"company": "Early Co", "batch": "Fall 2026", "url": "https://x.com/a"},
+            )
+        )
+        for i in range(4):
+            s.add(
+                Alert(
+                    fingerprint=f"f-conf-{i}",
+                    entity_key=f"e-conf-{i}",
+                    source="yc_directory",
+                    kind="confirmed",
+                    confidence=1.0,
+                    ts=f"{i + 2}.0",
+                    created_at=now - dt.timedelta(minutes=i),
+                    payload={"company": f"Listed {i}", "batch": "Fall 2026", "url": "https://y.co"},
+                )
+            )
+
+    r = _run(client, "recent_detections", {"limit": 4, "only_early": True})
+    assert r.status_code == 200, r.text
+    text = "".join(o["text"] for o in r.json()["output"])
+    assert "Early Co" in text, text
+    assert "Listed" not in text, "only_early must exclude confirmations"
+
+
+def test_a_similarity_score_is_not_shown_raw(client):
+    """Reviewers were shown 'closest was 42.85714285714286%'."""
+    import inspect
+
+    from app import crossref
+
+    src = inspect.getsource(crossref)
+    assert "{best_score}%" not in src, "the raw float reaches the output"
+    assert "{best_score:.0f}%" in src
