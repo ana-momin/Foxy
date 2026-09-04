@@ -87,6 +87,59 @@ class Entity(Base):
         return max(0, (self.confirmed_at - self.first_signal_at).days)
 
 
+class PondTask(Base):
+    """One asynchronous Pond run, and everything needed to resume it.
+
+    This lived in a module-level dict. On a serverless host that is barely
+    storage at all: each request may land on a different instance, so a poll
+    could reach a worker that had never heard of the task, and an instance that
+    freezes after responding takes its unfinished work with it. Pond saw the
+    consequence as a scan that was accepted, polled, and then died with a
+    database error after 166 seconds.
+
+    Keeping the whole state here means any instance can answer any poll, and
+    any instance can pick the work up where the last one left off.
+    """
+
+    __tablename__ = "pond_tasks"
+
+    task_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(128), index=True)
+    action_id: Mapped[str] = mapped_column(String(64), default="")
+    status: Mapped[str] = mapped_column(String(16), default="queued")
+
+    params: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # Sources still to do, and what the finished ones produced.
+    pending: Mapped[list] = mapped_column(JSON, default=list)
+    progress: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    findings: Mapped[list] = mapped_column(JSON, default=list)
+
+    count: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Whoever holds the lease is doing a slice of work right now. Without it two
+    # polls arriving together would both start on the same source.
+    leased_until: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow)
+
+
+class PondRun(Base):
+    """A completed synchronous run, kept so a repeat returns the same answer.
+
+    Idempotency was a dict too, with the same problem: a retry that landed on
+    another instance ran the whole action again.
+    """
+
+    __tablename__ = "pond_runs"
+
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(128), index=True)
+    response: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow)
+
+
 class Alert(Base):
     """A message we posted. `ts` lets us thread the confirmation reply."""
 

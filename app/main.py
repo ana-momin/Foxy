@@ -32,6 +32,7 @@ from fastapi import APIRouter, FastAPI, Header, Request
 from fastapi import Response
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from . import pond_schema, pond_tasks
 from .config import active_batch_codes, settings
 from .db import health_snapshot, init_db, recent_alerts, session
 from .engine import Engine, source_modes
@@ -44,13 +45,9 @@ PROTOCOL_VERSION = "1.0"
 app = FastAPI(title="Foxy", docs_url=None, redoc_url=None)
 router = APIRouter()
 
-# In-memory task store for HTTP 202 responses. Long sweeps exceed a sensible
-# request timeout, so `scan_now` is accepted as a task and polled.
-_tasks: dict[str, dict[str, Any]] = {}
-
-# Idempotency: Pond sends Idempotency-Key == run_id and does not retry, but a
-# duplicate must return the original result rather than running twice.
-_runs: dict[str, dict[str, Any]] = {}
+# Tasks and idempotency records live in the database, not in this process.
+# See app/pond_tasks.py for why: on a serverless host a module-level dict is
+# not shared between instances and does not survive one being frozen.
 
 _scheduler: AsyncIOScheduler | None = None
 
@@ -431,12 +428,24 @@ async def runs(
     action_id = body.get("action_id")
     params = body.get("parameters") or {}
 
-    # Idempotency: return the stored result for a repeated run_id.
+    # Idempotency: return the stored result for a repeated run_id. Held in the
+    # database so a retry reaching another instance still gets the first answer.
     key = idempotency_key or run_id
-    if key in _runs:
-        return _runs[key]
+    if (stored := _recall_run(key)) is not None:
+        return stored
 
     known = {a["id"] for a in _ACTIONS}
+    if action_id in known:
+        # The manifest advertises a schema for every action. Enforce it, so a
+        # misspelled field is an error the caller can see rather than a value
+        # silently ignored.
+        spec = next(a for a in _ACTIONS if a["id"] == action_id)
+        try:
+            params = pond_schema.validate(params, spec.get("input_schema") or {})
+        except pond_schema.Invalid as bad:
+            return perr(
+                "invalid_input", bad.message, 422, run_id=run_id, field=bad.field
+            )
     if action_id not in known:
         return perr(
             "unsupported_operation",
@@ -447,15 +456,14 @@ async def runs(
 
     try:
         if action_id == "scan_now":
-            # A full sweep can take minutes, so accept it as a task.
-            task_id = f"task_{uuid.uuid4().hex[:16]}"
-            _tasks[task_id] = {
-                "run_id": run_id,
-                "task_id": task_id,
-                "status": "queued",
-                "created_at": dt.datetime.now(dt.timezone.utc),
-            }
-            asyncio.create_task(_run_scan(task_id, params))
+            # Accepted as a task and driven by the polls themselves, so no work
+            # depends on this instance still being alive a minute from now.
+            task_id = pond_tasks.create(
+                run_id,
+                action_id,
+                params,
+                pond_tasks.resolve_sources(params.get("sources")),
+            )
             return JSONResponse(
                 status_code=202,
                 content={
@@ -490,7 +498,7 @@ async def runs(
             result = _do_health()
 
         response = _ok(run_id, result["markdown"], result["count"])
-        _runs[key] = response
+        _remember_run(key, run_id, response)
         return response
 
     except Exception as exc:  # noqa: BLE001 - never leak internals
@@ -517,16 +525,22 @@ def get_task(
     if (err := _check_auth(authorization)) is not None:
         return err
 
-    task = _tasks.get(task_id)
+    task = pond_tasks.get(task_id)
     if not task:
         return perr("task_not_found", "That task does not exist.", 404)
+
+    # The poll is the worker. It does a bounded slice and returns whatever is
+    # true afterwards, so progress never depends on an instance staying warm.
+    if task["status"] in {"queued", "running"}:
+        pond_tasks.advance(task_id)
+        task = pond_tasks.get(task_id) or task
 
     if task["status"] in {"queued", "running"}:
         return {
             "run_id": task["run_id"],
             "task_id": task_id,
             "status": task["status"],
-            "poll_after_ms": 5000,
+            "poll_after_ms": 3000,
         }
 
     if task["status"] == "failed":
@@ -536,7 +550,7 @@ def get_task(
             "status": "failed",
             "error": {
                 "code": "internal_error",
-                "message": task.get("error", "The scan did not complete."),
+                "message": task.get("error") or "The scan did not complete.",
             },
             "usage": _usage(0),
         }
@@ -545,53 +559,40 @@ def get_task(
         "run_id": task["run_id"],
         "task_id": task_id,
         "status": "completed",
-        "output": [{"type": "text", "text": task["markdown"]}],
+        "output": [{"type": "text", "text": pond_tasks.render(task)}],
         "usage": _usage(task.get("count", 0)),
     }
+
+
+def _recall_run(key: str) -> dict[str, Any] | None:
+    """A previous answer for this idempotency key, if there is one."""
+    from .db import PondRun, init_db, session
+
+    try:
+        init_db()
+        with session() as s:
+            row = s.get(PondRun, key)
+            return dict(row.response) if row is not None else None
+    except Exception:  # noqa: BLE001 - never fail a run over the replay cache
+        log.warning("could not read the idempotency record", exc_info=True)
+        return None
+
+
+def _remember_run(key: str, run_id: str, response: dict[str, Any]) -> None:
+    from .db import PondRun, init_db, session
+
+    try:
+        init_db()
+        with session() as s:
+            if s.get(PondRun, key) is None:
+                s.add(PondRun(key=key, run_id=run_id, response=response))
+    except Exception:  # noqa: BLE001
+        log.warning("could not store the idempotency record", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
 # Action implementations
 # ---------------------------------------------------------------------------
-
-
-async def _run_scan(task_id: str, params: dict) -> None:
-    _tasks[task_id]["status"] = "running"
-    try:
-        post = params.get("post_to_slack")
-        previous = settings.dry_run
-        if post is False:
-            settings.dry_run = True
-        try:
-            result = await asyncio.to_thread(Engine().sweep)
-        finally:
-            settings.dry_run = previous
-
-        lines = ["## Scan complete", ""]
-        for name, info in result.per_source.items():
-            if info.get("error"):
-                lines.append(f"- **{name}** · failed: {info['error'][:120]}")
-            else:
-                lines.append(f"- **{name}** · {info['found']} seen, {info['new']} new")
-
-        early = [s for s in result.alerts if s.is_early]
-        lines += ["", f"**{len(result.alerts)} new detections**, {len(early)} of them early.", ""]
-        for s in result.alerts[:25]:
-            tag = "EARLY" if s.is_early else "listed"
-            lines.append(
-                f"- `{tag}` **{s.company_name or s.title}** "
-                f"({s.batch or 'batch unknown'}) · {s.source_label} · [link]({s.url})"
-            )
-
-        _tasks[task_id].update(
-            status="completed", markdown="\n".join(lines), count=len(result.alerts)
-        )
-    except Exception as exc:  # noqa: BLE001
-        log.exception("scan task failed")
-        _tasks[task_id].update(
-            status="failed",
-            error=f"The scan did not complete ({type(exc).__name__}).",
-        )
 
 
 def _do_lookup(name: str, website: str | None) -> dict[str, Any]:

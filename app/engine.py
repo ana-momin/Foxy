@@ -107,9 +107,16 @@ class Engine:
         *,
         force_alerts: bool = False,
         prefetched: dict[str, list[Signal]] | None = None,
+        only: tuple[str, ...] | None = None,
     ) -> SweepResult:
-        """Run one full pass. `force_alerts` ignores the first-run backfill
-        guard, used by the `test-alert` command."""
+        """Run one pass.
+
+        `force_alerts` ignores the first-run backfill guard, used by the
+        `test-alert` command. `only` restricts the pass to the named sources -
+        a caller that asked for the YC directory should get the YC directory
+        and nothing else, and a caller working to a deadline needs to be able
+        to leave out the paced social searches.
+        """
         result = SweepResult(started_at=dt.datetime.now(dt.timezone.utc))
         rules = load_rules()
 
@@ -120,6 +127,8 @@ class Engine:
         cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=settings.backfill_days)
 
         for source in self.sources:
+            if only is not None and source.name not in only:
+                continue
             if not rules.source_enabled(source.name) and source.name != "yc_speedrun_watch":
                 result.record(source.name, found=0, new=0, error=None)
                 continue
