@@ -721,6 +721,19 @@ def _tidy(text: str) -> str:
     return _DECIMALS.sub(r"\1%", text or "")
 
 
+def _company_key(payload: dict) -> str:
+    """What counts as the same company across rows.
+
+    The name alone, folded. Pairing it with the URL was not enough: the same
+    announcement reached us through two different searches with URLs that
+    differed by a tracking suffix, so Arcline was listed twice. The question
+    these actions answer is which companies were detected, and a company is
+    one answer however many posts carried it.
+    """
+    name = (payload.get("company") or payload.get("title") or "").strip().lower()
+    return " ".join(name.split())
+
+
 def _distinct(items: list, key) -> list:
     """One row per company.
 
@@ -751,7 +764,7 @@ def _do_early(limit: int, min_conf: float) -> dict[str, Any]:
             .all()
         )
         items = [(r.payload or {}, r.confidence, r.created_at, r.source) for r in rows]
-    items = _distinct(items, lambda i: (i[0].get("company") or i[0].get("title"), i[0].get("url")))[:limit]
+    items = _distinct(items, lambda i: _company_key(i[0]))[:limit]
 
     if not items:
         return {
@@ -781,7 +794,7 @@ def _do_recent(limit: int, only_early: bool) -> dict[str, Any]:
         # so asking for four gets four different ones.
         rows = recent_alerts(s, limit=limit * 6, kind="early" if only_early else "")
         items = [(r.kind, r.payload or {}, r.source, r.confidence) for r in rows]
-    items = _distinct(items, lambda i: (i[1].get("company") or i[1].get("title"), i[1].get("url")))[:limit]
+    items = _distinct(items, lambda i: _company_key(i[1]))[:limit]
 
     if not items:
         # Say which question came back empty. "No detections recorded yet"

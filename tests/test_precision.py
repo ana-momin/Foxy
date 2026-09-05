@@ -184,3 +184,31 @@ class _NoSession:
 
     def add(self, *a, **k):
         return None
+
+
+def test_the_same_company_is_listed_once(monkeypatch):
+    """Arcline came back twice.
+
+    The same announcement reached us through two searches whose URLs differed
+    by a tracking suffix, and the dedupe key paired the name with the URL - so
+    two rows, one company. These actions answer which companies were detected,
+    and a company is one answer however many posts carried it.
+    """
+    from app.main import _company_key, _distinct
+
+    rows = [
+        {"company": "Arcline", "url": "https://linkedin.com/posts/a_activity-1"},
+        {"company": "Arcline", "url": "https://linkedin.com/posts/a_activity-1-XyZ"},
+        {"company": "arcline ", "url": "https://x.com/arcline/status/2"},
+        {"company": "EVO HQ", "url": "https://linkedin.com/posts/b"},
+    ]
+    out = _distinct(rows, _company_key)
+    assert [r["company"] for r in out] == ["Arcline", "EVO HQ"]
+
+
+def test_the_company_key_ignores_case_and_spacing():
+    from app.main import _company_key
+
+    assert _company_key({"company": "  EVO   HQ "}) == _company_key({"company": "evo hq"})
+    assert _company_key({"title": "Fallback Co"}) == "fallback co"
+    assert _company_key({}) == ""
