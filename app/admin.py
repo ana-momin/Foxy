@@ -109,6 +109,8 @@ def console(key: str = "") -> HTMLResponse:
     rows.sort(key=lambda r: (r["asked"] is None, not r["active"], r["team"].lower()))
     k = html.escape(key)
 
+    # Kept in the model, not shown: nothing can currently put a request here,
+    # because a Slack workspace has no verifiable way to say it has paid.
     waiting = [r for r in rows if r["asked"]]
     asks = ""
     if waiting:
@@ -211,22 +213,3 @@ def set_plan(
             log.info("admin gave %s %d month(s) of Pro", row.team_name, months)
 
     return RedirectResponse(f"/admin?key={key}", 303)
-
-
-@router.post("/app/{install_id}/subscribed", response_model=None)
-def subscribed(install_id: str) -> RedirectResponse:
-    """The workspace says it has paid.
-
-    It does not grant anything - it cannot, since nothing here can see a Pond
-    subscription. It puts the request in front of whoever can check, which
-    beats asking a customer to email a code and hope.
-    """
-    with session() as s:
-        row = installs.get(s, install_id)
-        if row is not None and row.active:
-            row.upgrade_requested_at = dt.datetime.now(dt.timezone.utc).replace(
-                tzinfo=None
-            )
-            log.info("%s says it has subscribed", row.team_name)
-
-    return RedirectResponse(f"/app/{install_id}/upgrade?asked=1", 303)

@@ -186,7 +186,7 @@ def dashboard(install_id: str, saved: str = "") -> HTMLResponse:
   <h2>Your free alerts are used up</h2>
   <p>Foxy has sent all {quota} of them to <b>{html.escape(team)}</b>, and has paused.
   Nothing was lost &mdash; it picks up again the moment you upgrade.</p>
-  <a class="btn" href="/app/{html.escape(install_id)}/upgrade">See Foxy Pro</a>
+  <a class="btn" href="/app/{html.escape(install_id)}/upgrade">Ask for more</a>
 </div>"""
     elif quota:
         pct = min(100, round(used * 100 / quota))
@@ -198,7 +198,7 @@ def dashboard(install_id: str, saved: str = "") -> HTMLResponse:
   </div>
   <div class="bar"><span style="width:{pct}%"></span></div>
   <div class="actions" style="margin-top:16px">
-    <a class="ghost" href="/app/{html.escape(install_id)}/upgrade">Upgrade to Pro</a>
+    <a class="ghost" href="/app/{html.escape(install_id)}/upgrade">Need more?</a>
   </div>
 </div>"""
     else:
@@ -330,11 +330,15 @@ def welcome(install_id: str) -> dict:
 
 @router.get("/app/{install_id}/upgrade", response_model=None)
 def upgrade(install_id: str, asked: str = "") -> HTMLResponse:
-    """Foxy Pro: what it costs and what it gets you.
+    """What the free plan covers, and how to ask for more.
 
-    Foxy takes no payment. Pond sells and collects, and the plans are declared
-    in the manifest, so the price shown here and the price a customer is
-    charged come from one place and cannot disagree.
+    There is deliberately no price and no checkout here. Pond sells
+    subscriptions to Pond users and enforces their allowance before the agent
+    is ever called, which works. A Slack workspace is not a Pond user, and the
+    protocol carries no way to tell whether one has paid - so a Buy button on
+    this page would take money on a promise nobody could verify, which is worse
+    than not selling at all. Until Pond offers something to check against, more
+    alerts are something to ask for.
     """
     with session() as s:
         row = installs.get(s, install_id)
@@ -342,84 +346,58 @@ def upgrade(install_id: str, asked: str = "") -> HTMLResponse:
             return _err("That settings link is not valid.")
         team, active, label = row.team_name, row.plan_active, row.plan_label
         used, quota = row.alerts_used or 0, row.quota
-        code = row.claim_code
 
     back = f'<a class="ghost" href="/app/{html.escape(install_id)}">Back to settings</a>'
 
     if active:
         body = f"""
 <div class="ok">&#10003; {html.escape(label)}</div>
-<h1>You are on Foxy Pro</h1>
+<h1>No limit on this workspace</h1>
 <p class="lede">Everything is switched on for <b>{html.escape(team)}</b>, and
 {used} alerts have gone out so far. Nothing else to do.</p>
 <div class="actions">{back}</div>"""
-        return _shell(body, "Foxy Pro")
+        return _shell(body, "Foxy")
 
-    # Pond cannot tell Foxy which workspace subscribed, so the last step is a
-    # person joining the two records. This at least puts the request in front
-    # of them, rather than asking a customer to email a code and hope.
-    if asked:
-        after = """
-<div class="claim">
-  <h2>Thanks &mdash; nearly there</h2>
-  <p>Pro is switched on by hand, usually within a day. Nothing else for you
-  to do, and this page will say Pro once it is.</p>
-</div>"""
-    else:
-        after = f"""
-<div class="claim">
-  <h2>Already subscribed?</h2>
-  <p>Pond does not tell Foxy which workspace paid, so press this and Pro is
-  switched on for <b>{html.escape(team)}</b>, usually within a day.</p>
-  <form method="post" action="/app/{html.escape(install_id)}/subscribed">
-    <button class="ghost" type="submit">I have subscribed</button>
-  </form>
-</div>"""
-
-    price = f"{settings.price_monthly_minor / 100:.0f}"
-    included = f"{settings.pro_included_results:,}"
     spent = (
-        f"You have used all {quota} free alerts."
+        f"<b>{html.escape(team)}</b> has used all {quota} of its free alerts."
         if quota and used >= quota
-        else f"You have used {used} of your {quota} free alerts."
+        else f"<b>{html.escape(team)}</b> has used {used} of its {quota} free alerts."
     )
 
     body = f"""
-<h1>Foxy Pro</h1>
-<p class="lede">{spent} Pro lifts the cap. Everything else stays as it is.</p>
+<h1>Need more alerts?</h1>
+<p class="lede">{spent} Email me and I will lift the cap &mdash; there is no
+charge for this while Foxy is finding its feet.</p>
 
 <div class="plans">
   <div class="plan">
-    <div class="tier">Free</div>
-    <div class="price">$0</div>
-    <div class="cap">{settings.free_included_results} alerts, once</div>
+    <div class="tier">What you have</div>
+    <div class="price">{quota}</div>
+    <div class="cap">alerts, then it pauses</div>
     <ul class="perks">
       <li>All five sources</li>
       <li>Early founder signals</li>
-      <li>Pauses at the cap</li>
+      <li>Checked every eight hours</li>
     </ul>
   </div>
 
   <div class="plan pro">
-    <div class="tier">Pro</div>
-    <div class="price">${html.escape(price)} <em>per month</em></div>
-    <div class="cap">{included} alerts a month</div>
+    <div class="tier">Ask for more</div>
+    <div class="price">Free</div>
+    <div class="cap">while Foxy is in the open</div>
     <ul class="perks">
-      <li>Founders who announce <b>before YC publishes</b></li>
-      <li>All five sources, checked every eight hours</li>
-      <li>Follow-up in thread when YC confirms</li>
-      <li>Cancel any time, billed by Pond</li>
+      <li>Say which workspace you are</li>
+      <li>The cap is lifted by hand</li>
+      <li>Usually the same day</li>
     </ul>
   </div>
 </div>
 
 <div class="actions">
-  <a class="btn" href="{html.escape(settings.pond_listing_url)}">Subscribe on Pond</a>
+  <a class="btn" href="mailto:{html.escape(settings.support_email)}?subject=More%20Foxy%20alerts%20for%20{html.escape(team)}">Email me</a>
   {back}
-</div>
-
-{after}"""
-    return _shell(body, "Foxy Pro")
+</div>"""
+    return _shell(body, "Foxy")
 
 
 @router.get("/app/{install_id}/stop", response_model=None)

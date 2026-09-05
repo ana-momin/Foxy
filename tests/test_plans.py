@@ -193,48 +193,8 @@ def client(db, monkeypatch):
     return TestClient(app)
 
 
-def test_the_upgrade_page_quotes_the_price_from_the_manifest(db, client, monkeypatch):
-    """The page and the plan Pond charges for must come from one place."""
-    from app.config import settings
-
-    monkeypatch.setattr(settings, "price_monthly_minor", 300)
-    monkeypatch.setattr(settings, "pro_included_results", 2000)
-
-    r = client.get(f"/app/{_install(db, team_id='T-UP')}/upgrade")
-    assert r.status_code == 200
-    assert "$3" in r.text
-    assert "2,000" in r.text
-    assert settings.pond_listing_url in r.text, "there must be a way to subscribe"
 
 
-def test_a_workspace_on_pro_is_not_asked_to_upgrade(db, client):
-    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
-    install_id = _install(
-        db, team_id="T-PRO", plan="pro", plan_until=now + dt.timedelta(days=30)
-    )
-    r = client.get(f"/app/{install_id}/upgrade")
-    assert r.status_code == 200
-    assert "You are on Foxy Pro" in r.text
-    assert "Subscribe on Pond" not in r.text, "no upsell to someone already paying"
-
-
-def test_foxy_does_not_take_payment_itself(db, client):
-    """Pond sells and collects. Foxy declares the plans and meters usage."""
-    from app.config import settings
-
-    r = client.get(f"/app/{_install(db, team_id='T-NOPAY')}/upgrade")
-    assert r.status_code == 200
-    assert "billed by Pond" in r.text
-    assert settings.pond_listing_url in r.text
-
-
-def test_an_expired_plan_sees_the_upgrade_page_again(db, client):
-    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
-    install_id = _install(
-        db, team_id="T-EXP", plan="pro", plan_until=now - dt.timedelta(days=1)
-    )
-    r = client.get(f"/app/{install_id}/upgrade")
-    assert "Subscribe on Pond" in r.text, "an expired plan is the free plan"
 
 
 # --- the plans Pond imports and bills ----------------------------------------
@@ -347,22 +307,6 @@ def test_no_underlined_text_link_is_used_as_a_button(db, client):
                     )
 
 
-def test_the_upgrade_page_says_what_you_get_not_just_what_it_costs(db, client):
-    r = client.get(f"/app/{_install(db, team_id='T-PERKS')}/upgrade")
-    text = r.text
-    assert "Foxy Pro" in text
-    assert "Remove the limit" not in text, "that heading described a cap, not a product"
-    # The reason the tool exists should be the first thing on the list.
-    assert "before YC publishes" in text
-    assert text.count("<li>") >= 4, "a price with no perks is not a plan"
-
-    # ...and stated briefly. A paragraph beside a price is an essay, not a plan.
-    import re
-
-    perks = re.findall(r"<li>(.*?)</li>", text, re.S)
-    longest = max(len(re.sub(r"<[^>]+>", "", x).strip()) for x in perks)
-    assert longest <= 70, f"the longest perk runs to {longest} characters"
-
 
 def _disabled_buttons(page: str) -> int:
     """How many <button> tags actually carry the attribute.
@@ -436,29 +380,6 @@ def test_an_unknown_code_activates_nothing(db):
     ) == 1
     assert _read(db, install_id)["plan_active"] is False
 
-
-def test_a_customer_can_say_they_paid_without_leaving_the_page(db, client):
-    """Subscribing and then having nothing happen is the worst version of this.
-
-    Nobody should have to email a code, and nobody should have to run a
-    command. One button, and it lands in front of whoever can check.
-    """
-    from app import installs
-
-    install_id = _install(db, team_id="T-AFTER")
-    page = client.get(f"/app/{install_id}/upgrade").text
-    assert "Already subscribed?" in page
-    assert f"/app/{install_id}/subscribed" in page, "there must be something to press"
-
-    r = client.post(f"/app/{install_id}/subscribed", follow_redirects=False)
-    assert r.status_code == 303
-
-    with db.session() as s:
-        assert installs.get(s, install_id).upgrade_requested_at is not None
-
-    # And the page now says it is being dealt with rather than asking again.
-    after = client.get(f"/app/{install_id}/upgrade?asked=1").text
-    assert "nearly there" in after.lower()
 
 
 # --- the operator console ----------------------------------------------------
@@ -539,24 +460,6 @@ def test_downgrading_is_one_press_too(db, admin):
     assert _read(db, install_id)["plan_active"] is False
 
 
-def test_a_request_to_upgrade_surfaces_at_the_top(db, admin):
-    """A customer who says they paid must be impossible to miss."""
-    install_id = _install(db, team_id="T-ASKED")
-    admin.post(f"/app/{install_id}/subscribed", follow_redirects=False)
-
-    page = admin.get(f"/admin?key={ADMIN}").text
-    assert "Waiting to be switched on" in page
-
-
-def test_switching_a_plan_on_clears_the_request(db, admin):
-    install_id = _install(db, team_id="T-CLEARS")
-    admin.post(f"/app/{install_id}/subscribed", follow_redirects=False)
-    admin.post(
-        "/admin/plan",
-        data={"key": ADMIN, "install_id": install_id, "months": 1},
-        follow_redirects=False,
-    )
-    assert "Waiting to be switched on" not in admin.get(f"/admin?key={ADMIN}").text
 
 
 def test_changing_a_plan_needs_a_post(db, admin):
@@ -565,3 +468,60 @@ def test_changing_a_plan_needs_a_post(db, admin):
     r = admin.get(f"/admin/plan?key={ADMIN}&install_id={install_id}&months=12")
     assert r.status_code == 405
     assert _read(db, install_id)["plan_active"] is False
+
+
+# --- what the page may and may not promise -----------------------------------
+
+
+def test_the_page_does_not_sell_what_cannot_be_verified(db, client):
+    """A Slack workspace has no way to prove it paid.
+
+    Pond bills Pond users and enforces their allowance before the agent is
+    called, which works and needs nothing from us. A Slack install is not a
+    Pond user, and the protocol carries no subscriber identity - so a price and
+    a Buy button here would take money on a promise nobody could check. That is
+    worse than not selling at all, and it is what this asserts stays absent.
+    """
+    page = client.get(f"/app/{_install(db, team_id='T-HONEST')}/upgrade").text
+
+    assert "$3" not in page and "per month" not in page
+    assert "Subscribe" not in page
+    assert "I have subscribed" not in page
+    assert "/subscribed" not in page, "a button that grants nothing it can verify"
+
+
+def test_the_page_offers_a_way_to_ask_for_more(db, client):
+    """Hitting the cap with no remedy is its own kind of broken."""
+    from app.config import settings
+
+    page = client.get(f"/app/{_install(db, team_id='T-ASK')}/upgrade").text
+    assert "Need more alerts?" in page
+    assert settings.support_email in page
+
+
+def test_a_workspace_without_a_cap_is_not_asked_for_anything(db, client):
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    install_id = _install(
+        db, team_id="T-UNCAPPED", plan="pro", plan_until=now + dt.timedelta(days=30)
+    )
+    page = client.get(f"/app/{install_id}/upgrade").text
+    assert "No limit on this workspace" in page
+    assert "Need more alerts?" not in page
+
+
+def test_an_expired_plan_is_asked_again(db, client):
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    install_id = _install(
+        db, team_id="T-LAPSED", plan="pro", plan_until=now - dt.timedelta(days=1)
+    )
+    assert "Need more alerts?" in client.get(f"/app/{install_id}/upgrade").text
+
+
+def test_pond_still_carries_the_real_plans():
+    """The half that works stays. Pond sells to Pond users and enforces the
+    allowance itself; removing that would give away the only billing there is.
+    """
+    from app.main import manifest
+
+    models = {p["pricing_model"] for p in manifest()["metadata"]["pricing_plans"]}
+    assert "subscription" in models
