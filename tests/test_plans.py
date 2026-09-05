@@ -375,3 +375,76 @@ def _disabled_buttons(page: str) -> int:
     return sum(
         1 for tag in re.findall(r"<button[^>]*>", page) if "disabled" in tag
     )
+
+
+# --- proving a customer paid -------------------------------------------------
+
+
+def test_a_claim_code_is_stable_and_does_not_leak_the_install_id(db):
+    """Pond tells the agent nothing about who is calling, so a subscription
+    bought there cannot be matched to a Slack workspace on its own. The code is
+    what a customer quotes to join the two.
+
+    It must not be the install id: that id is the secret guarding the settings
+    page, and this gets emailed around.
+    """
+    from app import installs
+
+    install_id = _install(db, team_id="T-CLAIM")
+    with db.session() as s:
+        row = installs.get(s, install_id)
+        code, again = row.claim_code, row.claim_code
+
+    assert code == again, "quoting it twice must give the same answer"
+    assert install_id not in code
+    assert code.startswith("FOXY-")
+
+
+def test_two_workspaces_never_share_a_claim_code(db):
+    from app import installs
+
+    codes = set()
+    for n in range(6):
+        with db.session() as s:
+            codes.add(installs.get(s, _install(db, team_id=f"T-C{n}")).claim_code)
+    assert len(codes) == 6
+
+
+def test_a_plan_can_be_activated_from_the_quoted_code(db):
+    """The whole point: what the customer sends is what switches Pro on."""
+    import argparse
+
+    from app import installs
+    from app.cli import cmd_set_plan
+
+    install_id = _install(db, team_id="T-ACTIVATE")
+    with db.session() as s:
+        code = installs.get(s, install_id).claim_code
+
+    assert cmd_set_plan(argparse.Namespace(workspace=code, plan="pro", months=1)) == 0
+    assert _read(db, install_id)["plan_active"] is True
+
+
+def test_an_unknown_code_activates_nothing(db):
+    import argparse
+
+    from app.cli import cmd_set_plan
+
+    install_id = _install(db, team_id="T-SAFE")
+    assert cmd_set_plan(
+        argparse.Namespace(workspace="FOXY-DEAD-BEEF", plan="pro", months=1)
+    ) == 1
+    assert _read(db, install_id)["plan_active"] is False
+
+
+def test_the_upgrade_page_tells_you_what_to_do_after_paying(db, client):
+    """Subscribing and then having nothing happen is the worst version of this."""
+    from app import installs
+
+    install_id = _install(db, team_id="T-AFTER")
+    with db.session() as s:
+        code = installs.get(s, install_id).claim_code
+
+    text = client.get(f"/app/{install_id}/upgrade").text
+    assert code in text, "the customer has to be able to see their code"
+    assert "After you subscribe" in text

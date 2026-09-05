@@ -110,6 +110,10 @@ padding:20px 22px;margin-bottom:28px;box-shadow:var(--sh)}
 .limit h2{font-size:15.5px;font-weight:600;margin:0 0 6px}
 .limit p{font-size:14px;color:var(--ink2);margin:0 0 16px;line-height:1.55}
 .save:disabled{opacity:.45;cursor:not-allowed}
+.claim{border-top:1px solid var(--border);margin-top:32px;padding-top:26px}
+.claim h2{font-size:14px;font-weight:600;margin:0 0 6px}
+.claim p{font-size:13.5px;color:var(--muted);margin:0 0 12px;line-height:1.55}
+.claim input{max-width:260px;text-align:center;letter-spacing:.08em;font-weight:600}
 .save:disabled:hover{background:var(--accent)}
 """
 
@@ -338,6 +342,7 @@ def upgrade(install_id: str) -> HTMLResponse:
             return _err("That settings link is not valid.")
         team, active, label = row.team_name, row.plan_active, row.plan_label
         used, quota = row.alerts_used or 0, row.quota
+        code = row.claim_code
 
     back = f'<a class="ghost" href="/app/{html.escape(install_id)}">Back to settings</a>'
 
@@ -390,6 +395,14 @@ def upgrade(install_id: str) -> HTMLResponse:
 <div class="actions">
   <a class="btn" href="{html.escape(settings.pond_listing_url)}">Subscribe on Pond</a>
   {back}
+</div>
+
+<div class="claim">
+  <h2>After you subscribe</h2>
+  <p>Pond does not tell Foxy which Slack workspace you are, so send this code to
+  <a href="mailto:{html.escape(settings.support_email)}">{html.escape(settings.support_email)}</a>
+  and Pro is switched on for <b>{html.escape(team)}</b>.</p>
+  <input type="text" value="{html.escape(code)}" readonly onclick="this.select()">
 </div>"""
     return _shell(body, "Foxy Pro")
 

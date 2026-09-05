@@ -480,6 +480,20 @@ async def runs(
     action_id = body.get("action_id")
     params = body.get("parameters") or {}
 
+    # The protocol we have documents no caller identity, which is why a Pond
+    # subscription cannot yet be matched to a Slack workspace. Rather than
+    # assume, log anything Pond sends that we do not already read - a field or
+    # header naming the subscriber would close that gap, and this is how we
+    # would find out it exists.
+    extra = sorted(set(body) - {"run_id", "action_id", "parameters"})
+    hints = sorted(
+        k for k in request.headers
+        if k.lower().startswith(("x-pond", "x-agent", "x-user", "x-subscriber"))
+        and k.lower() != "x-agent-protocol-version"
+    )
+    if extra or hints:
+        log.info("pond sent unread fields=%s headers=%s", extra, hints)
+
     # Idempotency: return the stored result for a repeated run_id. Held in the
     # database so a retry reaching another instance still gets the first answer.
     key = idempotency_key or run_id

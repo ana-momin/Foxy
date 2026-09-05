@@ -540,21 +540,29 @@ def cmd_set_plan(args) -> int:
     init_db()
     with session() as s:
         rows = s.execute(select(installs.Install)).scalars().all()
-        match = [
-            r
-            for r in rows
-            if args.workspace.lower() in (r.team_name or "").lower()
-            or r.id == args.workspace
-        ]
+        # A claim code is what a customer quotes, so accept that first: it is
+        # exact, where a team name is a guess and an install id is the secret
+        # that guards their settings page.
+        wanted = args.workspace.strip()
+        exact = installs.by_claim_code(s, wanted)
+        match = (
+            [exact]
+            if exact is not None
+            else [
+                r
+                for r in rows
+                if wanted.lower() in (r.team_name or "").lower() or r.id == wanted
+            ]
+        )
         if not match:
             print(f"\n  no workspace matching {args.workspace!r}\n")
             for r in rows:
-                print(f"    {r.team_name:<16} {r.id}")
+                print(f"    {r.team_name:<16} {r.claim_code}")
             return 1
         if len(match) > 1:
             print(f"\n  {args.workspace!r} matches several workspaces:\n")
             for r in match:
-                print(f"    {r.team_name:<16} {r.id}")
+                print(f"    {r.team_name:<16} {r.claim_code}")
             return 1
 
         row = match[0]
@@ -692,7 +700,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--fix", action="store_true", help="demote the ones that fail")
     p.set_defaults(fn=cmd_audit_early)
     p = sub.add_parser("set-plan", help="put a workspace on a plan after payment")
-    p.add_argument("workspace", help="team name or install id")
+    p.add_argument("workspace", help="claim code, team name, or install id")
     p.add_argument("plan", choices=["pro", "free"])
     p.add_argument("--months", type=int, default=1, help="1 for monthly, 12 for yearly")
     p.set_defaults(fn=cmd_set_plan)

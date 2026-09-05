@@ -117,6 +117,9 @@ class Settings:
     # Where to send someone who wants the paid plan.
     # The agent's own listing once it is published; until then, the directory
     # every agent appears in.
+    support_email: str = os.getenv(
+        "SUPPORT_EMAIL", "pakshaheen5300@gmail.com"
+    ).strip()
     pond_listing_url: str = os.getenv(
         "POND_LISTING_URL", "https://joinpond.ai/agent/list"
     ).strip()

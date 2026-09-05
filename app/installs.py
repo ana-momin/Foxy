@@ -254,6 +254,20 @@ class Install(Base):
         return self.remaining <= 0
 
     @property
+    def claim_code(self) -> str:
+        """Short, stable, and safe to say out loud.
+
+        Pond does not tell the agent who is calling, so a subscription bought
+        there cannot be matched to a Slack workspace on its own. This is the
+        thing a customer quotes so the two can be joined by hand - derived from
+        the install id rather than stored, so it needs no column and cannot
+        drift, and hashed so it does not leak the id itself, which is the
+        secret that guards the settings page.
+        """
+        digest = hashlib.sha256(f"claim:{self.id}".encode()).hexdigest()
+        return f"FOXY-{digest[:4].upper()}-{digest[4:8].upper()}"
+
+    @property
     def namespace(self) -> str:
         """Prefix for this workspace's seen-set, so installs never consume each
         other's detections."""
@@ -291,6 +305,21 @@ def upsert(
 
 def get(s: Session, install_id: str) -> Install | None:
     return s.get(Install, install_id)
+
+
+def by_claim_code(s: Session, code: str) -> Install | None:
+    """Find the workspace that quoted this code.
+
+    A scan rather than a lookup: the code is derived, not stored, and at this
+    scale there are not enough installs for that to matter.
+    """
+    wanted = (code or "").strip().upper()
+    if not wanted:
+        return None
+    for row in s.execute(select(Install)).scalars().all():
+        if row.claim_code == wanted:
+            return row
+    return None
 
 
 def active_installs(s: Session) -> list[Install]:
