@@ -113,10 +113,12 @@ class Settings:
     # yearly plan to configure - the protocol does not have one.
     price_monthly_minor: int = _i("PRICE_MONTHLY_MINOR", 300)
     free_included_results: int = _i("FREE_INCLUDED_RESULTS", 50)
-    pro_included_results: int = _i("PRO_INCLUDED_RESULTS", 2000)
+    pro_included_results: int = _i("PRO_INCLUDED_RESULTS", 1000)
     # Where to send someone who wants the paid plan.
+    # The agent's own listing once it is published; until then, the directory
+    # every agent appears in.
     pond_listing_url: str = os.getenv(
-        "POND_LISTING_URL", "https://joinpond.ai"
+        "POND_LISTING_URL", "https://joinpond.ai/agent/list"
     ).strip()
     dry_run: bool = _b("DRY_RUN")
 
