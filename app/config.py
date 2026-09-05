@@ -120,10 +120,10 @@ class Settings:
     # Guards the operator console. Unset means the console stays shut.
     admin_key: str = os.getenv("ADMIN_KEY", "").strip()
     support_email: str = os.getenv(
-        "SUPPORT_EMAIL", "pakshaheen5300@gmail.com"
+        "SUPPORT_EMAIL", "ana.mominn@gmail.com"
     ).strip()
     # Without the @. Left empty, the page simply offers email instead.
-    contact_x: str = os.getenv("CONTACT_X", "").strip().lstrip("@")
+    contact_x: str = os.getenv("CONTACT_X", "ana_momin").strip().lstrip("@")
     pond_listing_url: str = os.getenv(
         "POND_LISTING_URL", "https://joinpond.ai/agent/list"
     ).strip()
