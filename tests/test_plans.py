@@ -473,29 +473,40 @@ def test_changing_a_plan_needs_a_post(db, admin):
 # --- what the page may and may not promise -----------------------------------
 
 
-def test_the_page_does_not_sell_what_cannot_be_verified(db, client):
-    """A Slack workspace has no way to prove it paid.
+def test_the_page_names_a_price_but_offers_no_checkout(db, client):
+    """A price is fine. A Buy button is not.
 
     Pond bills Pond users and enforces their allowance before the agent is
-    called, which works and needs nothing from us. A Slack install is not a
-    Pond user, and the protocol carries no subscriber identity - so a price and
-    a Buy button here would take money on a promise nobody could check. That is
-    worse than not selling at all, and it is what this asserts stays absent.
+    called. A Slack install is not a Pond user, and the protocol carries no
+    subscriber identity, so nothing here can tell a workspace that paid from
+    one that says so. Arranging it with a person is slower and honest: whoever
+    takes the payment is the same person who lifts the cap.
     """
     page = client.get(f"/app/{_install(db, team_id='T-HONEST')}/upgrade").text
 
-    assert "$3" not in page and "per month" not in page
-    assert "Subscribe" not in page
+    assert "$3" in page, "the price can be stated"
+    assert "/subscribed" not in page, "nothing may grant a plan it cannot verify"
     assert "I have subscribed" not in page
-    assert "/subscribed" not in page, "a button that grants nothing it can verify"
+    assert "takes no payment on this page" in page
 
 
-def test_the_page_offers_a_way_to_ask_for_more(db, client):
+def test_the_page_offers_a_way_to_reach_a_person(db, client, monkeypatch):
     """Hitting the cap with no remedy is its own kind of broken."""
     from app.config import settings
 
+    monkeypatch.setattr(settings, "contact_x", "foxyhq")
     page = client.get(f"/app/{_install(db, team_id='T-ASK')}/upgrade").text
-    assert "Need more alerts?" in page
+    assert settings.support_email in page
+    assert "x.com/foxyhq" in page
+
+
+def test_the_page_works_without_an_x_handle(db, client, monkeypatch):
+    """Email alone must be enough; a missing handle is not a broken page."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "contact_x", "")
+    page = client.get(f"/app/{_install(db, team_id='T-NOX')}/upgrade").text
+    assert "DM on X" not in page
     assert settings.support_email in page
 
 
@@ -506,7 +517,7 @@ def test_a_workspace_without_a_cap_is_not_asked_for_anything(db, client):
     )
     page = client.get(f"/app/{install_id}/upgrade").text
     assert "No limit on this workspace" in page
-    assert "Need more alerts?" not in page
+    assert "More alerts" not in page
 
 
 def test_an_expired_plan_is_asked_again(db, client):
@@ -514,7 +525,7 @@ def test_an_expired_plan_is_asked_again(db, client):
     install_id = _install(
         db, team_id="T-LAPSED", plan="pro", plan_until=now - dt.timedelta(days=1)
     )
-    assert "Need more alerts?" in client.get(f"/app/{install_id}/upgrade").text
+    assert "$3" in client.get(f"/app/{install_id}/upgrade").text
 
 
 def test_pond_still_carries_the_real_plans():

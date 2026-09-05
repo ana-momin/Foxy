@@ -122,6 +122,8 @@ class Settings:
     support_email: str = os.getenv(
         "SUPPORT_EMAIL", "pakshaheen5300@gmail.com"
     ).strip()
+    # Without the @. Left empty, the page simply offers email instead.
+    contact_x: str = os.getenv("CONTACT_X", "").strip().lstrip("@")
     pond_listing_url: str = os.getenv(
         "POND_LISTING_URL", "https://joinpond.ai/agent/list"
     ).strip()
