@@ -72,14 +72,45 @@ flex-wrap:wrap;margin-bottom:10px}
 .usage-top span{font-size:13px;color:var(--muted);font-family:"JetBrains Mono",monospace}
 .bar{height:5px;border-radius:3px;background:var(--border);overflow:hidden}
 .bar span{display:block;height:100%;background:var(--accent);border-radius:3px}
-.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;
-margin:26px 0 30px}
-.plan{background:var(--surface);border:1px solid var(--border);border-radius:12px;
-padding:20px;display:flex;flex-direction:column;gap:4px}
-.plan.best{border-color:var(--accent)}
-.plan b{font-size:13px;font-weight:600;letter-spacing:.02em;color:var(--muted)}
-.plan .price{font-size:34px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
-.plan .per{font-size:13px;color:var(--muted)}
+.plans{display:grid;grid-template-columns:1fr;gap:16px;margin:30px 0}
+@media(min-width:620px){.plans{grid-template-columns:1fr 1.25fr;align-items:start}}
+
+.plan{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+padding:24px}
+.plan .tier{font-size:12px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+color:var(--muted);font-family:"JetBrains Mono",monospace;margin-bottom:14px}
+.plan .price{font-size:40px;font-weight:600;letter-spacing:-.03em;line-height:1;
+display:flex;align-items:baseline;gap:7px}
+.plan .price em{font-size:15px;font-weight:400;font-style:normal;color:var(--muted);
+letter-spacing:0}
+.plan .cap{font-size:13.5px;color:var(--muted);margin-top:9px}
+
+.plan.pro{border-color:var(--accent);position:relative;box-shadow:var(--sh)}
+.plan.pro .tier{color:var(--accent)}
+
+.perks{list-style:none;margin:20px 0 0;padding:0}
+.perks li{position:relative;padding-left:26px;margin-bottom:11px;font-size:14.5px;
+color:var(--ink2);line-height:1.5}
+.perks li:last-child{margin-bottom:0}
+.perks li:before{content:"";position:absolute;left:2px;top:6px;width:9px;height:5px;
+border-left:2px solid var(--accent);border-bottom:2px solid var(--accent);
+transform:rotate(-45deg)}
+.perks b{color:var(--ink);font-weight:600}
+
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:26px}
+.ghost{display:inline-block;background:transparent;color:var(--ink2);
+border:1px solid var(--border2);border-radius:10px;padding:12px 20px;font-size:14.5px;
+font-weight:500;text-decoration:none;cursor:pointer;font-family:inherit;
+transition:border-color .18s ease,color .18s ease}
+.ghost:hover{border-color:var(--accent);color:var(--accent)}
+.btn:hover{background:var(--accent2)}
+
+.limit{background:var(--surface);border:1px solid var(--accent);border-radius:13px;
+padding:20px 22px;margin-bottom:28px;box-shadow:var(--sh)}
+.limit h2{font-size:15.5px;font-weight:600;margin:0 0 6px}
+.limit p{font-size:14px;color:var(--ink2);margin:0 0 16px;line-height:1.55}
+.save:disabled{opacity:.45;cursor:not-allowed}
+.save:disabled:hover{background:var(--accent)}
 """
 
 
@@ -139,6 +170,42 @@ def dashboard(install_id: str, saved: str = "") -> HTMLResponse:
     elif saved == "test":
         banner = '<div class="ok">&#10003; Saved, and a test message is in your channel.</div>'
 
+    # Three states, and each looks like what it is. The exhausted one blocks
+    # the form: a Save button that looks live and quietly changes nothing is
+    # worse than one that is plainly unavailable.
+    exhausted = bool(quota) and used >= quota
+    disabled = " disabled" if exhausted else ""
+
+    if exhausted:
+        usage_card = f"""
+<div class="limit">
+  <h2>Your free alerts are used up</h2>
+  <p>Foxy has sent all {quota} of them to <b>{html.escape(team)}</b>, and has paused.
+  Nothing was lost &mdash; it picks up again the moment you upgrade.</p>
+  <a class="btn" href="/app/{html.escape(install_id)}/upgrade">See Foxy Pro</a>
+</div>"""
+    elif quota:
+        pct = min(100, round(used * 100 / quota))
+        usage_card = f"""
+<div class="usage">
+  <div class="usage-top">
+    <b>{html.escape(plan)}</b>
+    <span>{used} of {quota} alerts used</span>
+  </div>
+  <div class="bar"><span style="width:{pct}%"></span></div>
+  <div class="actions" style="margin-top:16px">
+    <a class="ghost" href="/app/{html.escape(install_id)}/upgrade">Upgrade to Pro</a>
+  </div>
+</div>"""
+    else:
+        usage_card = f"""
+<div class="usage">
+  <div class="usage-top">
+    <b>{html.escape(plan)}</b>
+    <span>{used} alerts sent</span>
+  </div>
+</div>"""
+
     ph = "•" * 12
     body = f"""
 {banner}
@@ -146,14 +213,7 @@ def dashboard(install_id: str, saved: str = "") -> HTMLResponse:
 <p class="lede">Workspace: <b>{html.escape(team)}</b>. Nothing to install and nothing
 to run. Choose a channel and Foxy starts watching.</p>
 
-<div class="usage">
-  <div class="usage-top">
-    <b>{html.escape(plan)}</b>
-    <span>{f"{used} of {quota} alerts used" if quota else f"{used} alerts sent"}</span>
-  </div>
-  {f'<div class="bar"><span style="width:{min(100, round(used * 100 / quota)) if quota else 0}%"></span></div>' if quota else ""}
-  {"" if plan_active else f'<p class="hint"><a href="/app/{html.escape(install_id)}/upgrade">Remove the limit &rarr;</a></p>'}
-</div>
+{usage_card}
 
 <form method="post" action="/app/{html.escape(install_id)}/save">
   <div class="field">
@@ -162,8 +222,8 @@ to run. Choose a channel and Foxy starts watching.</p>
   </div>
 
   <div class="row">
-    <button class="save" type="submit" name="action" value="save">Save</button>
-    <button class="save" type="submit" name="action" value="test"
+    <button class="save" type="submit" name="action" value="save"{disabled}>Save</button>
+    <button class="save" type="submit" name="action" value="test"{disabled}
             style="background:var(--surface);color:var(--ink);border:1px solid var(--border2)">
       Save and send a test
     </button>
@@ -295,12 +355,11 @@ def welcome(install_id: str) -> dict:
 
 @router.get("/app/{install_id}/upgrade", response_model=None)
 def upgrade(install_id: str) -> HTMLResponse:
-    """What the paid plan costs, and where to get it.
+    """Foxy Pro: what it costs and what it gets you.
 
-    Foxy does not take payment. Subscriptions are sold and collected by Pond,
-    which is also where the plans are declared - in the manifest, so the price
-    on this page and the price a customer is charged come from one place and
-    cannot disagree.
+    Foxy takes no payment. Pond sells and collects, and the plans are declared
+    in the manifest, so the price shown here and the price a customer is
+    charged come from one place and cannot disagree.
     """
     with session() as s:
         row = installs.get(s, install_id)
@@ -309,42 +368,65 @@ def upgrade(install_id: str) -> HTMLResponse:
         team, active, label = row.team_name, row.plan_active, row.plan_label
         used, quota = row.alerts_used or 0, row.quota
 
+    back = f'<a class="ghost" href="/app/{html.escape(install_id)}">Back to settings</a>'
+
     if active:
         body = f"""
 <div class="ok">&#10003; {html.escape(label)}</div>
-<h1>You are on Pro</h1>
-<p class="lede">Unlimited alerts for <b>{html.escape(team)}</b>. Nothing to do.</p>
-<p><a href="/app/{html.escape(install_id)}">Back to settings</a></p>"""
-        return _shell(body, "Pro")
+<h1>You are on Foxy Pro</h1>
+<p class="lede">Everything is switched on for <b>{html.escape(team)}</b>, and
+{used} alerts have gone out so far. Nothing else to do.</p>
+<div class="actions">{back}</div>"""
+        return _shell(body, "Foxy Pro")
 
-    monthly = f"{settings.price_monthly_minor / 100:.0f}"
+    price = f"{settings.price_monthly_minor / 100:.0f}"
     included = f"{settings.pro_included_results:,}"
+    spent = (
+        f"You have used all {quota} free alerts."
+        if quota and used >= quota
+        else f"You have used {used} of your {quota} free alerts."
+    )
 
     body = f"""
-<h1>Remove the limit</h1>
-<p class="lede">The free plan covers <b>{quota} alerts</b>; <b>{html.escape(team)}</b>
-has used {used}. Pro raises that to {included} a month and changes nothing else.</p>
+<h1>Foxy Pro</h1>
+<p class="lede">{spent} Pro lifts the cap and keeps everything else exactly as it
+is &mdash; same channel, same sources, same eight-hour rhythm.</p>
 
 <div class="plans">
   <div class="plan">
-    <b>Free</b>
-    <span class="price">$0</span>
-    <span class="per">{settings.free_included_results} results</span>
+    <div class="tier">Free</div>
+    <div class="price">$0</div>
+    <div class="cap">{settings.free_included_results} alerts, once</div>
+    <ul class="perks">
+      <li>All five sources</li>
+      <li>Early founder signals</li>
+      <li>Alerts pause at the cap</li>
+    </ul>
   </div>
-  <div class="plan best">
-    <b>Pro</b>
-    <span class="price">${html.escape(monthly)}</span>
-    <span class="per">per month &middot; {included} results</span>
+
+  <div class="plan pro">
+    <div class="tier">Pro</div>
+    <div class="price">${html.escape(price)} <em>per month</em></div>
+    <div class="cap">{included} alerts a month</div>
+    <ul class="perks">
+      <li><b>Founders who announce before YC does</b> &mdash; the reason the tool
+          exists, cross-checked against the directory so you know it is genuinely
+          early</li>
+      <li><b>All five sources</b> &mdash; YC directory, Launch YC, a16z Speedrun,
+          X and LinkedIn</li>
+      <li><b>Checked every eight hours</b>, and never the same company twice</li>
+      <li><b>Threaded follow-up</b> when YC finally lists a company Foxy called
+          early, with the lead time</li>
+      <li><b>Cancel whenever</b> &mdash; billed by Pond, month to month</li>
+    </ul>
   </div>
 </div>
 
-<p><a class="btn" href="{html.escape(settings.pond_listing_url)}">Subscribe on Pond
-&rarr;</a></p>
-
-<p class="hint">Billing is handled by Pond, not by Foxy. Same sources, same
-eight-hour cadence, same channel &mdash; the only difference is the allowance.</p>
-<p><a href="/app/{html.escape(install_id)}">Back to settings</a></p>"""
-    return _shell(body, "Upgrade")
+<div class="actions">
+  <a class="btn" href="{html.escape(settings.pond_listing_url)}">Subscribe on Pond</a>
+  {back}
+</div>"""
+    return _shell(body, "Foxy Pro")
 
 
 @router.get("/app/{install_id}/stop", response_model=None)

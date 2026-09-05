@@ -214,15 +214,18 @@ def test_a_workspace_on_pro_is_not_asked_to_upgrade(db, client):
     )
     r = client.get(f"/app/{install_id}/upgrade")
     assert r.status_code == 200
-    assert "You are on Pro" in r.text
-    assert "Remove the limit" not in r.text
+    assert "You are on Foxy Pro" in r.text
+    assert "Subscribe on Pond" not in r.text, "no upsell to someone already paying"
 
 
 def test_foxy_does_not_take_payment_itself(db, client):
     """Pond sells and collects. Foxy declares the plans and meters usage."""
+    from app.config import settings
+
     r = client.get(f"/app/{_install(db, team_id='T-NOPAY')}/upgrade")
     assert r.status_code == 200
-    assert "Billing is handled by Pond" in r.text
+    assert "billed by Pond" in r.text
+    assert settings.pond_listing_url in r.text
 
 
 def test_an_expired_plan_sees_the_upgrade_page_again(db, client):
@@ -231,7 +234,7 @@ def test_an_expired_plan_sees_the_upgrade_page_again(db, client):
         db, team_id="T-EXP", plan="pro", plan_until=now - dt.timedelta(days=1)
     )
     r = client.get(f"/app/{install_id}/upgrade")
-    assert "Remove the limit" in r.text, "an expired plan is the free plan"
+    assert "Subscribe on Pond" in r.text, "an expired plan is the free plan"
 
 
 # --- the plans Pond imports and bills ----------------------------------------
@@ -300,3 +303,68 @@ def test_the_plans_validate_against_ponds_schema():
     )
     errors = list(jsonschema.Draft202012Validator(schema).iter_errors(manifest()))
     assert not errors, [e.message for e in errors[:3]]
+
+
+# --- what the settings page does when the allowance is gone -------------------
+
+
+def test_the_save_buttons_are_disabled_once_the_allowance_is_gone(db, client):
+    """A control that looks live and quietly changes nothing is worse than one
+    that is plainly unavailable."""
+    from app.config import settings
+
+    install_id = _install(db, team_id="T-FULL", alerts_used=settings.free_alert_quota)
+    r = client.get(f"/app/{install_id}")
+
+    assert r.status_code == 200
+    assert "used up" in r.text, "it has to say why"
+    assert _disabled_buttons(r.text) == 2, "both save controls must be switched off"
+
+
+def test_a_workspace_under_the_cap_can_still_save(db, client):
+    install_id = _install(db, team_id="T-ROOM", alerts_used=3)
+    r = client.get(f"/app/{install_id}")
+    assert _disabled_buttons(r.text) == 0
+    assert "used up" not in r.text
+
+
+def test_no_underlined_text_link_is_used_as_a_button(db, client):
+    """Bare links reading as calls to action look unfinished. Anything that
+    asks to be clicked is styled as a button."""
+    from app.config import settings
+
+    for used in (0, settings.free_alert_quota):
+        install_id = _install(db, team_id=f"T-LINKS-{used}", alerts_used=used)
+        for path in (f"/app/{install_id}", f"/app/{install_id}/upgrade"):
+            text = client.get(path).text
+            for phrase in ("Upgrade to Pro", "See Foxy Pro", "Back to settings",
+                           "Subscribe on Pond"):
+                if phrase in text:
+                    before = text[: text.index(phrase)]
+                    tag = before[before.rindex("<a ") : ]
+                    assert 'class="btn"' in tag or 'class="ghost"' in tag, (
+                        f"{phrase!r} on {path} is a bare link, not a button"
+                    )
+
+
+def test_the_upgrade_page_says_what_you_get_not_just_what_it_costs(db, client):
+    r = client.get(f"/app/{_install(db, team_id='T-PERKS')}/upgrade")
+    text = r.text
+    assert "Foxy Pro" in text
+    assert "Remove the limit" not in text, "that heading described a cap, not a product"
+    # The reason the tool exists should be the first thing on the list.
+    assert "announce before YC" in text
+    assert text.count("<li>") >= 5, "a price with no perks is not a plan"
+
+
+def _disabled_buttons(page: str) -> int:
+    """How many <button> tags actually carry the attribute.
+
+    Counting the word across the whole document also catches the stylesheet,
+    which is how the first version of this test passed for the wrong reason.
+    """
+    import re
+
+    return sum(
+        1 for tag in re.findall(r"<button[^>]*>", page) if "disabled" in tag
+    )
