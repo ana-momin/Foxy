@@ -243,6 +243,40 @@ def manifest() -> dict[str, Any]:
         "protocol_version": PROTOCOL_VERSION,
         "agent_version": settings.agent_version,
         "metadata": {
+            # Pond imports these and does the billing. Two constraints from its
+            # schema shape them: billing_interval is fixed to "month", so there
+            # is no yearly plan to offer, and included_units is required and
+            # must be positive, so "unlimited" cannot be expressed - every plan
+            # states a number. The unit is "result", matching what every
+            # terminal response reports in usage.
+            "pricing_plans": [
+                {
+                    "name": "Free",
+                    "pricing_model": "free",
+                    "amount_minor": 0,
+                    "usage_unit": "result",
+                    "included_units": settings.free_included_results,
+                    "validity_days": 0,
+                    "description": (
+                        "Enough to see whether Foxy is finding the companies "
+                        "you care about."
+                    ),
+                    "sort_order": 1,
+                },
+                {
+                    "name": "Pro",
+                    "pricing_model": "subscription",
+                    "amount_minor": settings.price_monthly_minor,
+                    "billing_interval": "month",
+                    "usage_unit": "result",
+                    "included_units": settings.pro_included_results,
+                    "description": (
+                        "Every source, every eight hours, including founders "
+                        "who announce before YC publishes them."
+                    ),
+                    "sort_order": 2,
+                },
+            ],
             "name": "Foxy",
             "short_description": (
                 "Detects new Y Combinator and Speedrun companies, and catches "

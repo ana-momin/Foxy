@@ -107,14 +107,17 @@ class Settings:
 
     # Pricing, kept here so the site, the upgrade page and the Slack notice
     # cannot quote three different numbers.
-    price_monthly_usd: str = os.getenv("PRICE_MONTHLY_USD", "3").strip()
-    price_yearly_usd: str = os.getenv("PRICE_YEARLY_USD", "10").strip()
-    # Where payment goes. USDC on Base: the fee is a fraction of a cent, which
-    # is what makes a three dollar plan possible at all - a card processor's
-    # flat 30c would take a tenth of it.
-    pay_wallet: str = os.getenv("PAY_WALLET", "").strip()
-    pay_chain: str = os.getenv("PAY_CHAIN", "Base").strip()
-    pay_asset: str = os.getenv("PAY_ASSET", "USDC").strip()
+    # Pond bills and collects; we only declare the plans and meter usage.
+    # Prices are in minor USD units, which is what the manifest wants: 300 is
+    # $3.00. Pond's schema fixes billing_interval to "month", so there is no
+    # yearly plan to configure - the protocol does not have one.
+    price_monthly_minor: int = _i("PRICE_MONTHLY_MINOR", 300)
+    free_included_results: int = _i("FREE_INCLUDED_RESULTS", 50)
+    pro_included_results: int = _i("PRO_INCLUDED_RESULTS", 2000)
+    # Where to send someone who wants the paid plan.
+    pond_listing_url: str = os.getenv(
+        "POND_LISTING_URL", "https://joinpond.ai"
+    ).strip()
     dry_run: bool = _b("DRY_RUN")
 
     agent_version: str = "2026.08.29"

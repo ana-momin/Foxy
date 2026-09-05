@@ -34,6 +34,9 @@ input:focus{outline:2px solid var(--accent);outline-offset:2px}
 .save{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:13px 24px;
 font-size:15px;font-weight:500;cursor:pointer;font-family:inherit}
 .save:hover{background:var(--accent2)}
+.btn{display:inline-block;background:var(--accent);color:#fff;border-radius:10px;
+padding:13px 24px;font-size:15px;font-weight:500;text-decoration:none}
+.btn:hover{background:var(--accent2)}
 .row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px}
 .opt{border-top:1px solid var(--border);margin-top:30px;padding-top:26px}
 .opt h2{font-size:15px;font-weight:600;margin:0 0 6px}
@@ -292,12 +295,12 @@ def welcome(install_id: str) -> dict:
 
 @router.get("/app/{install_id}/upgrade", response_model=None)
 def upgrade(install_id: str) -> HTMLResponse:
-    """What Pro costs and how to pay for it.
+    """What the paid plan costs, and where to get it.
 
-    Payment is a wallet address rather than a card checkout, for a plain
-    reason: a card processor takes a flat thirty cents, which is a tenth of a
-    three dollar plan, and Stripe does not operate in Pakistan at all. On Base
-    the fee is a fraction of a cent, so the price can actually be the price.
+    Foxy does not take payment. Subscriptions are sold and collected by Pond,
+    which is also where the plans are declared - in the manifest, so the price
+    on this page and the price a customer is charged come from one place and
+    cannot disagree.
     """
     with session() as s:
         row = installs.get(s, install_id)
@@ -314,45 +317,32 @@ def upgrade(install_id: str) -> HTMLResponse:
 <p><a href="/app/{html.escape(install_id)}">Back to settings</a></p>"""
         return _shell(body, "Pro")
 
-    wallet = settings.pay_wallet
-    monthly, yearly = settings.price_monthly_usd, settings.price_yearly_usd
-
-    if wallet:
-        how = f"""
-<div class="field">
-  <label>Send {html.escape(settings.pay_asset)} on {html.escape(settings.pay_chain)} to</label>
-  <input type="text" value="{html.escape(wallet)}" readonly onclick="this.select()">
-  <p class="hint">Then email your workspace name to
-  <a href="mailto:pakshaheen5300@gmail.com">pakshaheen5300@gmail.com</a> and Pro is
-  switched on, usually within a day.</p>
-</div>"""
-    else:
-        how = ('<p class="hint">Payment is not set up yet. Email '
-               '<a href="mailto:pakshaheen5300@gmail.com">pakshaheen5300@gmail.com</a> '
-               "and it will be sorted manually.</p>")
+    monthly = f"{settings.price_monthly_minor / 100:.0f}"
+    included = f"{settings.pro_included_results:,}"
 
     body = f"""
 <h1>Remove the limit</h1>
 <p class="lede">The free plan covers <b>{quota} alerts</b>; <b>{html.escape(team)}</b>
-has used {used}. Pro removes the cap and keeps everything else exactly the same.</p>
+has used {used}. Pro raises that to {included} a month and changes nothing else.</p>
 
 <div class="plans">
   <div class="plan">
-    <b>Monthly</b>
-    <span class="price">${html.escape(monthly)}</span>
-    <span class="per">per month</span>
+    <b>Free</b>
+    <span class="price">$0</span>
+    <span class="per">{settings.free_included_results} results</span>
   </div>
   <div class="plan best">
-    <b>Yearly</b>
-    <span class="price">${html.escape(yearly)}</span>
-    <span class="per">per year &middot; best value</span>
+    <b>Pro</b>
+    <span class="price">${html.escape(monthly)}</span>
+    <span class="per">per month &middot; {included} results</span>
   </div>
 </div>
 
-{how}
+<p><a class="btn" href="{html.escape(settings.pond_listing_url)}">Subscribe on Pond
+&rarr;</a></p>
 
-<p class="hint">Nothing changes about how Foxy works. Same sources, same eight-hour
-cadence, same channel. The only difference is that alerts stop being counted.</p>
+<p class="hint">Billing is handled by Pond, not by Foxy. Same sources, same
+eight-hour cadence, same channel &mdash; the only difference is the allowance.</p>
 <p><a href="/app/{html.escape(install_id)}">Back to settings</a></p>"""
     return _shell(body, "Upgrade")
 

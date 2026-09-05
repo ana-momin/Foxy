@@ -193,18 +193,18 @@ def client(db, monkeypatch):
     return TestClient(app)
 
 
-def test_the_upgrade_page_quotes_the_configured_prices(db, client, monkeypatch):
-    """One source for the price, so the page, the site and any notice agree."""
+def test_the_upgrade_page_quotes_the_price_from_the_manifest(db, client, monkeypatch):
+    """The page and the plan Pond charges for must come from one place."""
     from app.config import settings
 
-    monkeypatch.setattr(settings, "price_monthly_usd", "3")
-    monkeypatch.setattr(settings, "price_yearly_usd", "10")
-    monkeypatch.setattr(settings, "pay_wallet", "0xabc123")
+    monkeypatch.setattr(settings, "price_monthly_minor", 300)
+    monkeypatch.setattr(settings, "pro_included_results", 2000)
 
     r = client.get(f"/app/{_install(db, team_id='T-UP')}/upgrade")
     assert r.status_code == 200
-    assert "$3" in r.text and "$10" in r.text
-    assert "0xabc123" in r.text, "the address has to be on the page to be paid"
+    assert "$3" in r.text
+    assert "2,000" in r.text
+    assert settings.pond_listing_url in r.text, "there must be a way to subscribe"
 
 
 def test_a_workspace_on_pro_is_not_asked_to_upgrade(db, client):
@@ -218,14 +218,11 @@ def test_a_workspace_on_pro_is_not_asked_to_upgrade(db, client):
     assert "Remove the limit" not in r.text
 
 
-def test_the_page_still_works_before_payment_is_configured(db, client, monkeypatch):
-    """No wallet set must not mean a broken page."""
-    from app.config import settings
-
-    monkeypatch.setattr(settings, "pay_wallet", "")
-    r = client.get(f"/app/{_install(db, team_id='T-NOWALLET')}/upgrade")
+def test_foxy_does_not_take_payment_itself(db, client):
+    """Pond sells and collects. Foxy declares the plans and meters usage."""
+    r = client.get(f"/app/{_install(db, team_id='T-NOPAY')}/upgrade")
     assert r.status_code == 200
-    assert "not set up yet" in r.text
+    assert "Billing is handled by Pond" in r.text
 
 
 def test_an_expired_plan_sees_the_upgrade_page_again(db, client):
@@ -235,3 +232,71 @@ def test_an_expired_plan_sees_the_upgrade_page_again(db, client):
     )
     r = client.get(f"/app/{install_id}/upgrade")
     assert "Remove the limit" in r.text, "an expired plan is the free plan"
+
+
+# --- the plans Pond imports and bills ----------------------------------------
+
+
+def test_the_manifest_declares_plans_pond_can_import():
+    from app.main import manifest
+
+    plans = manifest()["metadata"]["pricing_plans"]
+    assert len(plans) >= 2
+    by_model = {p["pricing_model"] for p in plans}
+    assert {"free", "subscription"} <= by_model
+
+
+def test_every_plan_states_an_allowance():
+    """Pond's schema requires included_units and it must be positive, so
+    "unlimited" is not something a plan can say. Each one names a number."""
+    from app.main import manifest
+
+    for plan in manifest()["metadata"]["pricing_plans"]:
+        if plan["pricing_model"] in {"free", "subscription"}:
+            assert plan.get("included_units", 0) >= 1, plan["name"]
+
+
+def test_the_subscription_is_monthly_because_pond_allows_nothing_else():
+    """billing_interval is a const in the schema. A yearly plan cannot be
+    expressed, so nothing in the codebase should imply one exists."""
+    import json
+    import pathlib
+
+    schema = json.loads(
+        pathlib.Path("tests/data/pond-manifest-schema.json").read_text(encoding="utf-8")
+    )
+    interval = schema["$defs"]["importablePricingPlan"]["properties"]["billing_interval"]
+    assert interval.get("const") == "month"
+
+    from app.main import manifest
+
+    for plan in manifest()["metadata"]["pricing_plans"]:
+        if plan["pricing_model"] == "subscription":
+            assert plan["billing_interval"] == "month"
+
+
+def test_the_billed_unit_matches_what_the_agent_reports():
+    """Pond meters on the usage every terminal response carries. If the plan
+    counted something else, the customer would be charged for a unit the agent
+    never reports."""
+    from app.main import _usage, manifest
+
+    reported = _usage(1)["unit_of_measurement"]
+    for plan in manifest()["metadata"]["pricing_plans"]:
+        assert plan["usage_unit"] == reported, plan["name"]
+
+
+def test_the_plans_validate_against_ponds_schema():
+    """The whole manifest, checked the way Pond checks it."""
+    import json
+    import pathlib
+
+    jsonschema = pytest.importorskip("jsonschema")
+
+    from app.main import manifest
+
+    schema = json.loads(
+        pathlib.Path("tests/data/pond-manifest-schema.json").read_text(encoding="utf-8")
+    )
+    errors = list(jsonschema.Draft202012Validator(schema).iter_errors(manifest()))
+    assert not errors, [e.message for e in errors[:3]]
