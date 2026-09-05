@@ -353,8 +353,15 @@ def test_the_upgrade_page_says_what_you_get_not_just_what_it_costs(db, client):
     assert "Foxy Pro" in text
     assert "Remove the limit" not in text, "that heading described a cap, not a product"
     # The reason the tool exists should be the first thing on the list.
-    assert "announce before YC" in text
-    assert text.count("<li>") >= 5, "a price with no perks is not a plan"
+    assert "before YC publishes" in text
+    assert text.count("<li>") >= 4, "a price with no perks is not a plan"
+
+    # ...and stated briefly. A paragraph beside a price is an essay, not a plan.
+    import re
+
+    perks = re.findall(r"<li>(.*?)</li>", text, re.S)
+    longest = max(len(re.sub(r"<[^>]+>", "", x).strip()) for x in perks)
+    assert longest <= 70, f"the longest perk runs to {longest} characters"
 
 
 def _disabled_buttons(page: str) -> int:

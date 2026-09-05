@@ -73,10 +73,10 @@ flex-wrap:wrap;margin-bottom:10px}
 .bar{height:5px;border-radius:3px;background:var(--border);overflow:hidden}
 .bar span{display:block;height:100%;background:var(--accent);border-radius:3px}
 .plans{display:grid;grid-template-columns:1fr;gap:16px;margin:30px 0}
-@media(min-width:620px){.plans{grid-template-columns:1fr 1.25fr;align-items:start}}
+@media(min-width:620px){.plans{grid-template-columns:1fr 1.25fr;align-items:stretch}}
 
 .plan{background:var(--surface);border:1px solid var(--border);border-radius:14px;
-padding:24px}
+padding:24px;display:flex;flex-direction:column}
 .plan .tier{font-size:12px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
 color:var(--muted);font-family:"JetBrains Mono",monospace;margin-bottom:14px}
 .plan .price{font-size:40px;font-weight:600;letter-spacing:-.03em;line-height:1;
@@ -229,35 +229,6 @@ to run. Choose a channel and Foxy starts watching.</p>
     </button>
   </div>
 
-  <div class="opt">
-    <details>
-      <summary>Optional settings</summary>
-
-      <div class="field">
-        <label for="serper">Serper API key</label>
-        <p class="hint">Free 2,500 searches at serper.dev. Without it, X and
-        LinkedIn find noticeably less. The three YC sources are unaffected.</p>
-        <input type="password" name="serper" id="serper"
-               placeholder="{ph if has_serper else 'not set'}">
-      </div>
-
-      <div class="field">
-        <label for="anthropic">Anthropic API key</label>
-        <p class="hint">Helps Foxy understand unusual phrasings. Under $2 a month.</p>
-        <input type="password" name="anthropic" id="anthropic"
-               placeholder="{ph if has_anthropic else 'not set'}">
-      </div>
-
-      <div class="field">
-        <label for="conf">Alert threshold</label>
-        <p class="hint">Between 0 and 1. Higher means fewer, surer alerts.
-        Anything below it goes to a daily digest instead. Default is
-        {settings.min_confidence}.</p>
-        <input type="text" name="conf" id="conf" value="{html.escape(conf)}"
-               placeholder="{settings.min_confidence}">
-      </div>
-    </details>
-  </div>
 </form>
 
 <p class="muted" style="margin-top:30px">Foxy checks every eight hours. Keep this
@@ -389,8 +360,7 @@ def upgrade(install_id: str) -> HTMLResponse:
 
     body = f"""
 <h1>Foxy Pro</h1>
-<p class="lede">{spent} Pro lifts the cap and keeps everything else exactly as it
-is &mdash; same channel, same sources, same eight-hour rhythm.</p>
+<p class="lede">{spent} Pro lifts the cap. Everything else stays as it is.</p>
 
 <div class="plans">
   <div class="plan">
@@ -400,7 +370,7 @@ is &mdash; same channel, same sources, same eight-hour rhythm.</p>
     <ul class="perks">
       <li>All five sources</li>
       <li>Early founder signals</li>
-      <li>Alerts pause at the cap</li>
+      <li>Pauses at the cap</li>
     </ul>
   </div>
 
@@ -409,15 +379,10 @@ is &mdash; same channel, same sources, same eight-hour rhythm.</p>
     <div class="price">${html.escape(price)} <em>per month</em></div>
     <div class="cap">{included} alerts a month</div>
     <ul class="perks">
-      <li><b>Founders who announce before YC does</b> &mdash; the reason the tool
-          exists, cross-checked against the directory so you know it is genuinely
-          early</li>
-      <li><b>All five sources</b> &mdash; YC directory, Launch YC, a16z Speedrun,
-          X and LinkedIn</li>
-      <li><b>Checked every eight hours</b>, and never the same company twice</li>
-      <li><b>Threaded follow-up</b> when YC finally lists a company Foxy called
-          early, with the lead time</li>
-      <li><b>Cancel whenever</b> &mdash; billed by Pond, month to month</li>
+      <li>Founders who announce <b>before YC publishes</b></li>
+      <li>All five sources, checked every eight hours</li>
+      <li>Follow-up in thread when YC confirms</li>
+      <li>Cancel any time, billed by Pond</li>
     </ul>
   </div>
 </div>
