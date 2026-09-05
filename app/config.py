@@ -117,6 +117,8 @@ class Settings:
     # Where to send someone who wants the paid plan.
     # The agent's own listing once it is published; until then, the directory
     # every agent appears in.
+    # Guards the operator console. Unset means the console stays shut.
+    admin_key: str = os.getenv("ADMIN_KEY", "").strip()
     support_email: str = os.getenv(
         "SUPPORT_EMAIL", "pakshaheen5300@gmail.com"
     ).strip()

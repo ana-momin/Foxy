@@ -437,14 +437,131 @@ def test_an_unknown_code_activates_nothing(db):
     assert _read(db, install_id)["plan_active"] is False
 
 
-def test_the_upgrade_page_tells_you_what_to_do_after_paying(db, client):
-    """Subscribing and then having nothing happen is the worst version of this."""
+def test_a_customer_can_say_they_paid_without_leaving_the_page(db, client):
+    """Subscribing and then having nothing happen is the worst version of this.
+
+    Nobody should have to email a code, and nobody should have to run a
+    command. One button, and it lands in front of whoever can check.
+    """
     from app import installs
 
     install_id = _install(db, team_id="T-AFTER")
-    with db.session() as s:
-        code = installs.get(s, install_id).claim_code
+    page = client.get(f"/app/{install_id}/upgrade").text
+    assert "Already subscribed?" in page
+    assert f"/app/{install_id}/subscribed" in page, "there must be something to press"
 
-    text = client.get(f"/app/{install_id}/upgrade").text
-    assert code in text, "the customer has to be able to see their code"
-    assert "After you subscribe" in text
+    r = client.post(f"/app/{install_id}/subscribed", follow_redirects=False)
+    assert r.status_code == 303
+
+    with db.session() as s:
+        assert installs.get(s, install_id).upgrade_requested_at is not None
+
+    # And the page now says it is being dealt with rather than asking again.
+    after = client.get(f"/app/{install_id}/upgrade?asked=1").text
+    assert "nearly there" in after.lower()
+
+
+# --- the operator console ----------------------------------------------------
+
+
+ADMIN = "admin-key-for-the-suite"
+
+
+@pytest.fixture()
+def admin(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "admin_key", ADMIN)
+    return client
+
+
+def test_the_console_is_shut_without_the_key(db, admin):
+    for url in ("/admin", "/admin?key=", "/admin?key=wrong"):
+        r = admin.get(url)
+        assert r.status_code == 200
+        assert "Workspaces" not in r.text, f"{url} exposed the console"
+
+
+def test_the_console_is_shut_when_no_key_is_configured(db, admin, monkeypatch):
+    """An unset key must close the door, not leave it open.
+
+    Defaulting to reachable is how a deployment ends up with a billing console
+    anyone can find.
+    """
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "admin_key", "")
+    assert "Workspaces" not in admin.get("/admin?key=").text
+    assert "Workspaces" not in admin.get("/admin").text
+
+
+def test_the_console_lists_workspaces(db, admin):
+    _install(db, team_id="T-LIST")
+    r = admin.get(f"/admin?key={ADMIN}")
+    assert "Workspaces" in r.text
+    assert "Test" in r.text
+
+
+def test_a_plan_is_switched_on_with_one_press(db, admin):
+    """The whole point: no terminal, for anybody."""
+    install_id = _install(db, team_id="T-PRESS")
+    assert _read(db, install_id)["plan_active"] is False
+
+    r = admin.post(
+        "/admin/plan",
+        data={"key": ADMIN, "install_id": install_id, "months": 12},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert _read(db, install_id)["plan_active"] is True
+
+
+def test_a_plan_cannot_be_changed_without_the_key(db, admin):
+    install_id = _install(db, team_id="T-NOKEY")
+    admin.post(
+        "/admin/plan",
+        data={"key": "wrong", "install_id": install_id, "months": 12},
+        follow_redirects=False,
+    )
+    assert _read(db, install_id)["plan_active"] is False, "billing changed unauthorised"
+
+
+def test_downgrading_is_one_press_too(db, admin):
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    install_id = _install(
+        db, team_id="T-DOWN", plan="pro", plan_until=now + dt.timedelta(days=30)
+    )
+    admin.post(
+        "/admin/plan",
+        data={"key": ADMIN, "install_id": install_id, "months": 0},
+        follow_redirects=False,
+    )
+    assert _read(db, install_id)["plan_active"] is False
+
+
+def test_a_request_to_upgrade_surfaces_at_the_top(db, admin):
+    """A customer who says they paid must be impossible to miss."""
+    install_id = _install(db, team_id="T-ASKED")
+    admin.post(f"/app/{install_id}/subscribed", follow_redirects=False)
+
+    page = admin.get(f"/admin?key={ADMIN}").text
+    assert "Waiting to be switched on" in page
+
+
+def test_switching_a_plan_on_clears_the_request(db, admin):
+    install_id = _install(db, team_id="T-CLEARS")
+    admin.post(f"/app/{install_id}/subscribed", follow_redirects=False)
+    admin.post(
+        "/admin/plan",
+        data={"key": ADMIN, "install_id": install_id, "months": 1},
+        follow_redirects=False,
+    )
+    assert "Waiting to be switched on" not in admin.get(f"/admin?key={ADMIN}").text
+
+
+def test_changing_a_plan_needs_a_post(db, admin):
+    """A GET that changes billing would fire on anything that follows links."""
+    install_id = _install(db, team_id="T-GET")
+    r = admin.get(f"/admin/plan?key={ADMIN}&install_id={install_id}&months=12")
+    assert r.status_code == 405
+    assert _read(db, install_id)["plan_active"] is False

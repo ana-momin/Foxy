@@ -329,7 +329,7 @@ def welcome(install_id: str) -> dict:
 
 
 @router.get("/app/{install_id}/upgrade", response_model=None)
-def upgrade(install_id: str) -> HTMLResponse:
+def upgrade(install_id: str, asked: str = "") -> HTMLResponse:
     """Foxy Pro: what it costs and what it gets you.
 
     Foxy takes no payment. Pond sells and collects, and the plans are declared
@@ -354,6 +354,27 @@ def upgrade(install_id: str) -> HTMLResponse:
 {used} alerts have gone out so far. Nothing else to do.</p>
 <div class="actions">{back}</div>"""
         return _shell(body, "Foxy Pro")
+
+    # Pond cannot tell Foxy which workspace subscribed, so the last step is a
+    # person joining the two records. This at least puts the request in front
+    # of them, rather than asking a customer to email a code and hope.
+    if asked:
+        after = """
+<div class="claim">
+  <h2>Thanks &mdash; nearly there</h2>
+  <p>Pro is switched on by hand, usually within a day. Nothing else for you
+  to do, and this page will say Pro once it is.</p>
+</div>"""
+    else:
+        after = f"""
+<div class="claim">
+  <h2>Already subscribed?</h2>
+  <p>Pond does not tell Foxy which workspace paid, so press this and Pro is
+  switched on for <b>{html.escape(team)}</b>, usually within a day.</p>
+  <form method="post" action="/app/{html.escape(install_id)}/subscribed">
+    <button class="ghost" type="submit">I have subscribed</button>
+  </form>
+</div>"""
 
     price = f"{settings.price_monthly_minor / 100:.0f}"
     included = f"{settings.pro_included_results:,}"
@@ -397,13 +418,7 @@ def upgrade(install_id: str) -> HTMLResponse:
   {back}
 </div>
 
-<div class="claim">
-  <h2>After you subscribe</h2>
-  <p>Pond does not tell Foxy which Slack workspace you are, so send this code to
-  <a href="mailto:{html.escape(settings.support_email)}">{html.escape(settings.support_email)}</a>
-  and Pro is switched on for <b>{html.escape(team)}</b>.</p>
-  <input type="text" value="{html.escape(code)}" readonly onclick="this.select()">
-</div>"""
+{after}"""
     return _shell(body, "Foxy Pro")
 
 

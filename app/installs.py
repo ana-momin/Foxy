@@ -186,6 +186,12 @@ class Install(Base):
     # When a paid plan lapses. Null on the free plan, and on any plan that was
     # granted without an end date.
     plan_until: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    # When the workspace said it had subscribed. Pond tells the agent nothing
+    # about who is calling, so someone has to join the two records; this is
+    # what puts the request in front of them instead of in an inbox.
+    upgrade_requested_at: Mapped[dt.datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
 
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow)
     last_alert_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
@@ -305,6 +311,31 @@ def upsert(
 
 def get(s: Session, install_id: str) -> Install | None:
     return s.get(Install, install_id)
+
+
+def activate(row: "Install", months: int) -> None:
+    """Put a workspace on Pro, extending from whatever is left.
+
+    Extending from today would throw away time the customer had already paid
+    for, so a renewal that arrives early keeps its remainder.
+    """
+    now = _utcnow()
+    base = now
+    if row.plan_until is not None:
+        current = row.plan_until
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=dt.timezone.utc)
+        base = max(now, current)
+    row.plan = "pro"
+    row.plan_until = (base + dt.timedelta(days=30 * months)).replace(tzinfo=None)
+    row.quota_notified = False
+    row.upgrade_requested_at = None
+
+
+def downgrade(row: "Install") -> None:
+    row.plan = "free"
+    row.plan_until = None
+    row.upgrade_requested_at = None
 
 
 def by_claim_code(s: Session, code: str) -> Install | None:

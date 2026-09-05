@@ -1014,9 +1014,11 @@ from .oauth import router as oauth_router  # noqa: E402
 app.include_router(oauth_router)
 
 # Hosted mode: the settings page a workspace lands on after installing.
+from .admin import router as admin_router  # noqa: E402
 from .dashboard import router as dashboard_router  # noqa: E402
 
 app.include_router(dashboard_router)
+app.include_router(admin_router)
 
 
 # ---------------------------------------------------------------------------
