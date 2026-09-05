@@ -579,8 +579,42 @@ class Engine:
 
     # -- self-monitoring ----------------------------------------------------
 
+    def _warn_if_search_budget_low(self) -> None:
+        """Say something before the search allowance runs out.
+
+        When serper credits go, X and LinkedIn fall back to engines that mostly
+        return nothing: early detection degrades and every health check still
+        reads "ok". A warning once, at the point it can still be acted on.
+        """
+        from . import budget
+
+        if not budget.should_warn():
+            return
+        snap = budget.snapshot()
+        text = (
+            f"Foxy has used {snap.get('used')} of its {snap.get('allowance')} "
+            "search credits. When they run out, X and LinkedIn early detection "
+            "gets much weaker; the YC and Speedrun sources are unaffected."
+        )
+        headline = ":warning: *Search credits running low.*"
+        blocks = [
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": headline + "\n" + text},
+            }
+        ]
+        if self.dry_run or not self.slack.usable:
+            log.warning(text)
+            return
+        try:
+            self.slack.post(blocks, "Foxy: search credits running low")
+        except Exception:  # noqa: BLE001 - a warning is not worth failing over
+            log.warning("could not deliver the search-budget warning")
+
     def _report_degraded(self) -> None:
         """Tell Slack when a source has failed twice running."""
+        self._warn_if_search_budget_low()
+
         failures: dict[str, str] = {}
         with session() as s:
             for source in self.sources:

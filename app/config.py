@@ -82,6 +82,9 @@ class Settings:
     # Encrypts stored Slack tokens. Falls back to the client secret so hosted
     # mode still works if this is forgotten, but set it explicitly.
     encryption_key: str = os.getenv("ENCRYPTION_KEY", "").strip()
+    # Search credits this key started with. serper gives 2,500 on signup; set
+    # this to whatever a replacement key carries so the warning stays honest.
+    serper_allowance: int = int(os.getenv("SERPER_ALLOWANCE", "2500") or 0)
     # Shared secret the scheduled sweep presents to POST /internal/sweep.
     sweep_key: str = os.getenv("SWEEP_KEY", "").strip()
 
@@ -101,6 +104,17 @@ class Settings:
     first_run_alerts: int = _i("FIRST_RUN_ALERTS", 6)
     # Alerts included on the free plan, per workspace, lifetime.
     free_alert_quota: int = _i("FREE_ALERT_QUOTA", 50)
+
+    # Pricing, kept here so the site, the upgrade page and the Slack notice
+    # cannot quote three different numbers.
+    price_monthly_usd: str = os.getenv("PRICE_MONTHLY_USD", "3").strip()
+    price_yearly_usd: str = os.getenv("PRICE_YEARLY_USD", "10").strip()
+    # Where payment goes. USDC on Base: the fee is a fraction of a cent, which
+    # is what makes a three dollar plan possible at all - a card processor's
+    # flat 30c would take a tenth of it.
+    pay_wallet: str = os.getenv("PAY_WALLET", "").strip()
+    pay_chain: str = os.getenv("PAY_CHAIN", "Base").strip()
+    pay_asset: str = os.getenv("PAY_ASSET", "USDC").strip()
     dry_run: bool = _b("DRY_RUN")
 
     agent_version: str = "2026.08.29"

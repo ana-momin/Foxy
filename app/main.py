@@ -860,11 +860,16 @@ def healthz() -> dict[str, Any]:
         except Exception:  # noqa: BLE001 - health must never fail on a detail
             hosted["error"] = "could not read installs"
 
+    from . import budget
+
     return {
         "status": "degraded" if degraded else "ok",
         "degraded_sources": degraded,
         "agent_version": settings.agent_version,
         "hosted": hosted,
+        # The one metered dependency. Watching it here means running out is
+        # something you read in advance rather than infer from worse results.
+        "search_budget": budget.snapshot(),
         **snap,
     }
 

@@ -183,6 +183,9 @@ class Install(Base):
     plan: Mapped[str] = mapped_column(String(16), default="free")
     alerts_used: Mapped[int] = mapped_column(Integer, default=0)
     quota_notified: Mapped[bool] = mapped_column(Boolean, default=False)
+    # When a paid plan lapses. Null on the free plan, and on any plan that was
+    # granted without an end date.
+    plan_until: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
 
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow)
     last_alert_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
@@ -210,9 +213,34 @@ class Install(Base):
             return settings.min_confidence
 
     @property
+    def plan_active(self) -> bool:
+        """Is a paid plan currently in force?
+
+        An expired plan is the free plan again. Checked here rather than by a
+        job that downgrades rows, so a plan cannot outlive its payment because
+        some scheduled task did not run.
+        """
+        if self.plan == "free":
+            return False
+        if self.plan_until is None:
+            return True  # granted open-endedly
+        until = self.plan_until
+        if until.tzinfo is None:
+            until = until.replace(tzinfo=dt.timezone.utc)
+        return until > _utcnow()
+
+    @property
     def quota(self) -> int:
         """Alerts included in this plan. 0 means unlimited."""
-        return 0 if self.plan != "free" else settings.free_alert_quota
+        return 0 if self.plan_active else settings.free_alert_quota
+
+    @property
+    def plan_label(self) -> str:
+        if not self.plan_active:
+            return "Free"
+        if self.plan_until is None:
+            return "Pro"
+        return f"Pro, until {self.plan_until:%d %b %Y}"
 
     @property
     def remaining(self) -> int:

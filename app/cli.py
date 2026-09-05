@@ -522,6 +522,95 @@ def cmd_audit_early(args) -> int:
     return 0
 
 
+def cmd_set_plan(args) -> int:
+    """Put a workspace on a paid plan after payment has landed.
+
+    Deliberately a command rather than an automatic webhook. At this scale a
+    payment arrives a few times a week and a human confirming it is both
+    simpler and harder to get wrong than a listener that has to be trusted with
+    money. It can be automated the day the volume justifies it.
+    """
+    import datetime as dt
+
+    from sqlalchemy import select
+
+    from . import installs
+    from .db import init_db, session
+
+    init_db()
+    with session() as s:
+        rows = s.execute(select(installs.Install)).scalars().all()
+        match = [
+            r
+            for r in rows
+            if args.workspace.lower() in (r.team_name or "").lower()
+            or r.id == args.workspace
+        ]
+        if not match:
+            print(f"\n  no workspace matching {args.workspace!r}\n")
+            for r in rows:
+                print(f"    {r.team_name:<16} {r.id}")
+            return 1
+        if len(match) > 1:
+            print(f"\n  {args.workspace!r} matches several workspaces:\n")
+            for r in match:
+                print(f"    {r.team_name:<16} {r.id}")
+            return 1
+
+        row = match[0]
+        if args.plan == "free":
+            row.plan, row.plan_until = "free", None
+            print(f"\n  {row.team_name} is back on the free plan\n")
+            return 0
+
+        # Extend from whatever is left rather than from today, so paying again
+        # early does not throw away the remainder.
+        now = dt.datetime.now(dt.timezone.utc)
+        base = now
+        if row.plan_until is not None:
+            current = row.plan_until
+            if current.tzinfo is None:
+                current = current.replace(tzinfo=dt.timezone.utc)
+            base = max(now, current)
+
+        row.plan = "pro"
+        row.plan_until = (base + dt.timedelta(days=30 * args.months)).replace(tzinfo=None)
+        row.quota_notified = False
+        print(
+            f"\n  {row.team_name} is on Pro for {args.months} month(s), "
+            f"until {row.plan_until:%d %b %Y}\n"
+        )
+    return 0
+
+
+def cmd_budget(args) -> int:
+    """How much of the search allowance is left."""
+    from . import budget
+    from .db import init_db
+
+    init_db()
+    if getattr(args, "reset", False):
+        budget.reset()
+        print(f"\n  search usage reset to zero\n")
+        return 0
+
+    snap = budget.snapshot()
+    if not snap.get("tracked"):
+        print(f"\n  usage is not being tracked\n")
+        return 1
+
+    used, allowance = snap.get("used", 0), snap.get("allowance", 0)
+    print(f"\n  serper searches used   {used}")
+    if allowance:
+        share = snap.get("spent_share", 0)
+        print(f"  allowance              {allowance}")
+        print(f"  remaining              {snap.get('remaining')}  ({share:.0%} spent)")
+        if snap.get("low"):
+            print(f"\n  running low - replace the key, or X and LinkedIn will weaken")
+    print("")
+    return 0
+
+
 def cmd_status(_args) -> int:
     from .db import health_snapshot, init_db, session
     from .engine import source_modes
@@ -602,6 +691,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--fix", action="store_true", help="demote the ones that fail")
     p.set_defaults(fn=cmd_audit_early)
+    p = sub.add_parser("set-plan", help="put a workspace on a plan after payment")
+    p.add_argument("workspace", help="team name or install id")
+    p.add_argument("plan", choices=["pro", "free"])
+    p.add_argument("--months", type=int, default=1, help="1 for monthly, 12 for yearly")
+    p.set_defaults(fn=cmd_set_plan)
+    p = sub.add_parser("budget", help="search allowance used and remaining")
+    p.add_argument("--reset", action="store_true", help="start counting again")
+    p.set_defaults(fn=cmd_budget)
     sub.add_parser("status", help="per-source health").set_defaults(fn=cmd_status)
 
     p = sub.add_parser("reset", help="wipe local state")

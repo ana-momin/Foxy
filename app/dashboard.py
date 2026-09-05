@@ -69,6 +69,14 @@ flex-wrap:wrap;margin-bottom:10px}
 .usage-top span{font-size:13px;color:var(--muted);font-family:"JetBrains Mono",monospace}
 .bar{height:5px;border-radius:3px;background:var(--border);overflow:hidden}
 .bar span{display:block;height:100%;background:var(--accent);border-radius:3px}
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;
+margin:26px 0 30px}
+.plan{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+padding:20px;display:flex;flex-direction:column;gap:4px}
+.plan.best{border-color:var(--accent)}
+.plan b{font-size:13px;font-weight:600;letter-spacing:.02em;color:var(--muted)}
+.plan .price{font-size:34px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+.plan .per{font-size:13px;color:var(--muted)}
 """
 
 
@@ -93,7 +101,8 @@ def dashboard(install_id: str, saved: str = "") -> HTMLResponse:
         has_serper = bool(row.serper_key_enc)
         has_anthropic = bool(row.anthropic_key_enc)
         conf = row.min_confidence or ""
-        plan, used, quota = row.plan, row.alerts_used or 0, row.quota
+        plan, used, quota = row.plan_label, row.alerts_used or 0, row.quota
+        plan_active = row.plan_active
 
     options = ""
     try:
@@ -136,10 +145,11 @@ to run. Choose a channel and Foxy starts watching.</p>
 
 <div class="usage">
   <div class="usage-top">
-    <b>{"Free plan" if plan == "free" else plan.title() + " plan"}</b>
+    <b>{html.escape(plan)}</b>
     <span>{f"{used} of {quota} alerts used" if quota else f"{used} alerts sent"}</span>
   </div>
   {f'<div class="bar"><span style="width:{min(100, round(used * 100 / quota)) if quota else 0}%"></span></div>' if quota else ""}
+  {"" if plan_active else f'<p class="hint"><a href="/app/{html.escape(install_id)}/upgrade">Remove the limit &rarr;</a></p>'}
 </div>
 
 <form method="post" action="/app/{html.escape(install_id)}/save">
@@ -278,6 +288,73 @@ def welcome(install_id: str) -> dict:
     except Exception as exc:  # noqa: BLE001 - the page must still render
         log.exception("welcome sweep failed for %s", install_id)
         return {"ok": False, "reason": f"{type(exc).__name__}: {exc}"[:200]}
+
+
+@router.get("/app/{install_id}/upgrade", response_model=None)
+def upgrade(install_id: str) -> HTMLResponse:
+    """What Pro costs and how to pay for it.
+
+    Payment is a wallet address rather than a card checkout, for a plain
+    reason: a card processor takes a flat thirty cents, which is a tenth of a
+    three dollar plan, and Stripe does not operate in Pakistan at all. On Base
+    the fee is a fraction of a cent, so the price can actually be the price.
+    """
+    with session() as s:
+        row = installs.get(s, install_id)
+        if row is None or not row.active:
+            return _err("That settings link is not valid.")
+        team, active, label = row.team_name, row.plan_active, row.plan_label
+        used, quota = row.alerts_used or 0, row.quota
+
+    if active:
+        body = f"""
+<div class="ok">&#10003; {html.escape(label)}</div>
+<h1>You are on Pro</h1>
+<p class="lede">Unlimited alerts for <b>{html.escape(team)}</b>. Nothing to do.</p>
+<p><a href="/app/{html.escape(install_id)}">Back to settings</a></p>"""
+        return _shell(body, "Pro")
+
+    wallet = settings.pay_wallet
+    monthly, yearly = settings.price_monthly_usd, settings.price_yearly_usd
+
+    if wallet:
+        how = f"""
+<div class="field">
+  <label>Send {html.escape(settings.pay_asset)} on {html.escape(settings.pay_chain)} to</label>
+  <input type="text" value="{html.escape(wallet)}" readonly onclick="this.select()">
+  <p class="hint">Then email your workspace name to
+  <a href="mailto:pakshaheen5300@gmail.com">pakshaheen5300@gmail.com</a> and Pro is
+  switched on, usually within a day.</p>
+</div>"""
+    else:
+        how = ('<p class="hint">Payment is not set up yet. Email '
+               '<a href="mailto:pakshaheen5300@gmail.com">pakshaheen5300@gmail.com</a> '
+               "and it will be sorted manually.</p>")
+
+    body = f"""
+<h1>Remove the limit</h1>
+<p class="lede">The free plan covers <b>{quota} alerts</b>; <b>{html.escape(team)}</b>
+has used {used}. Pro removes the cap and keeps everything else exactly the same.</p>
+
+<div class="plans">
+  <div class="plan">
+    <b>Monthly</b>
+    <span class="price">${html.escape(monthly)}</span>
+    <span class="per">per month</span>
+  </div>
+  <div class="plan best">
+    <b>Yearly</b>
+    <span class="price">${html.escape(yearly)}</span>
+    <span class="per">per year &middot; best value</span>
+  </div>
+</div>
+
+{how}
+
+<p class="hint">Nothing changes about how Foxy works. Same sources, same eight-hour
+cadence, same channel. The only difference is that alerts stop being counted.</p>
+<p><a href="/app/{html.escape(install_id)}">Back to settings</a></p>"""
+    return _shell(body, "Upgrade")
 
 
 @router.get("/app/{install_id}/stop", response_model=None)

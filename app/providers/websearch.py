@@ -172,6 +172,12 @@ def _serper(query: str, limit: int) -> list[WebResult]:
     # "Query pattern not allowed for free accounts" - so always ask for 10 and
     # trim locally. Paid accounts accept 20/30/…, but 10 costs one credit and
     # is plenty per query at this cadence.
+    # Counted before the answer is read, because a credit is spent whether or
+    # not the results are useful.
+    from ..budget import record_call
+
+    record_call()
+
     with client(headers={"X-API-KEY": key, "Content-Type": "application/json"}) as c:
         r = c.post(
             "https://google.serper.dev/search",
