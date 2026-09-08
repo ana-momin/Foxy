@@ -521,3 +521,39 @@ def test_a_source_without_dates_can_still_introduce_itself(world):
 
     assert posted > 0, "a dateless source must still introduce itself"
     assert posted <= settings.first_run_alerts, "but only a handful of them"
+
+
+def test_a_sweep_with_nowhere_to_post_says_so(monkeypatch, capsys):
+    """Exit 1 after a page of successful detections explains nothing.
+
+    The self-hosted workflow ran every eight hours with no Slack token: it
+    found everything, delivered none of it, and mailed a failure whose log
+    looked entirely healthy. The reason has to be in the output.
+
+    The sweep itself is stubbed - what is under test is what the command says
+    when one comes back undelivered, not the sweeping.
+    """
+    import argparse
+
+    import app.cli as cli
+    import app.engine as engine_mod
+    from app.models import SweepResult
+
+    def undelivered(self, **kw):
+        result = SweepResult(started_at=dt.datetime.now(dt.timezone.utc))
+        result.record("yc_directory", found=100, new=3, error=None)
+        result.delivery_errors.append("no usable Slack client: token=missing")
+        return result
+
+    monkeypatch.setattr(
+        engine_mod,
+        "Engine",
+        type("E", (), {"__init__": lambda s: None, "sweep": undelivered}),
+    )
+
+    code = cli.cmd_sweep(argparse.Namespace(dry=False, force=False))
+    out = capsys.readouterr().out
+
+    assert code == 1, "a sweep that delivered nothing is not a success"
+    assert "Nothing was delivered" in out
+    assert "SLACK_BOT_TOKEN" in out, "it must say what to set"
