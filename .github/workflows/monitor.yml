@@ -1,8 +1,14 @@
-# Free recurring sweeps via GitHub Actions.
+# Free recurring sweeps via GitHub Actions, for a SELF-HOSTED Foxy.
 #
-# Use this when you do not want to pay for an always-on host. Actions minutes
-# are free for public repositories, and this runs every 8 hours exactly as the
-# brief asks for.
+# This drives one workspace, reading SLACK_BOT_TOKEN and SLACK_TARGET. If you
+# are running hosted mode - several workspaces installing through Slack - you
+# want hosted-sweep.yml instead, and you should leave this one alone: two
+# schedulers against one database do the same work twice and spend the search
+# allowance twice over.
+#
+# The schedule is deliberately commented out, so a fork does not start burning
+# credits and emailing failures the moment it is cloned. Uncomment it once the
+# secrets below are set.
 #
 # Required repository secrets (Settings -> Secrets -> Actions):
 #   SLACK_BOT_TOKEN   your Slack bot token
@@ -19,9 +25,12 @@
 name: Foxy sweep
 
 on:
-  schedule:
-    - cron: "0 */8 * * *"   # every 8 hours
-  workflow_dispatch:         # and a manual "Run workflow" button
+  # Uncomment once SLACK_BOT_TOKEN and SLACK_TARGET are set, for a self-hosted
+  # single-workspace Foxy. Without them the sweep has nowhere to post, exits
+  # non-zero, and mails you about it every eight hours.
+  # schedule:
+  #   - cron: "0 */8 * * *"   # every 8 hours
+  workflow_dispatch:         # the manual "Run workflow" button
 
 concurrency:
   group: foxy-sweep

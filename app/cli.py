@@ -130,6 +130,18 @@ def cmd_sweep(args) -> int:
         print(f"    [{kind}] {(sig.company_name or sig.title)[:28]:<28} {str(sig.batch or '-')[:12]:<12} {sig.source_label}")
     if result.digest:
         print(f"  Digest (low confidence)  {len(result.digest)}")
+
+    # Say which of the two things went wrong. "Exit 1" after a page of
+    # successful detections tells you nothing, and this sweep fails far more
+    # often for having nowhere to post than for a broken source.
+    if result.delivery_errors:
+        print("\n  Nothing was delivered:")
+        for why in result.delivery_errors[:3]:
+            print(f"    {why}")
+        print("\n  Set SLACK_BOT_TOKEN and SLACK_TARGET, or pass --dry to")
+        print("  detect without posting.")
+    if result.failed_sources:
+        print(f"\n  Sources that failed: {', '.join(result.failed_sources)}")
     print()
     return 0 if result.ok else 1
 
