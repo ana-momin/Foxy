@@ -125,7 +125,8 @@ class Settings:
     # Without the @. Left empty, the page simply offers email instead.
     contact_x: str = os.getenv("CONTACT_X", "ana_momin").strip().lstrip("@")
     pond_listing_url: str = os.getenv(
-        "POND_LISTING_URL", "https://joinpond.ai/agent/list"
+        "POND_LISTING_URL",
+        "https://joinpond.ai/agent/list?agent=043bbd2b-c065-432a-bc0e-b3158ff5873c",
     ).strip()
     dry_run: bool = _b("DRY_RUN")
 
