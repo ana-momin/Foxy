@@ -534,3 +534,50 @@ def test_a_stored_percentage_is_rounded_when_shown(client):
     assert _tidy("fuzzy name match 85.5%: Foo") == "fuzzy name match 85%: Foo"
     assert _tidy("no similar names") == "no similar names"
     assert _tidy("") == ""
+
+
+def test_a_pond_scan_does_not_imply_slack_it_cannot_reach(client, monkeypatch):
+    """A Pond conversation is not a Slack workspace.
+
+    Someone in the marketplace chat said "I want to add you in my slack
+    channel", Pond read that as post_to_slack and answered "scanning X with
+    Slack notifications on". Nothing here identifies a Slack workspace, so
+    nothing was ever going to arrive there. The results were fine; the promise
+    was not, and a promise nobody can keep is worse than no promise.
+    """
+    import app.pond_tasks as pt
+
+    monkeypatch.setattr(pt, "_do_one_source", _stub_source)
+
+    r = _run(client, "scan_now", {"sources": ["x"], "post_to_slack": True})
+    task_id = r.json()["task_id"]
+    for _ in range(10):
+        got = client.get(f"/tasks/{task_id}", headers=HEADERS).json()
+        if got["status"] not in {"queued", "running"}:
+            break
+
+    text = got["output"][0]["text"]
+    assert "install Foxy in your workspace" in text, text
+    assert "results are here only" in text.lower()
+
+
+def test_a_scan_without_slack_says_nothing_about_it(client, monkeypatch):
+    import app.pond_tasks as pt
+
+    monkeypatch.setattr(pt, "_do_one_source", _stub_source)
+
+    r = _run(client, "scan_now", {"sources": ["x"]})
+    task_id = r.json()["task_id"]
+    for _ in range(10):
+        got = client.get(f"/tasks/{task_id}", headers=HEADERS).json()
+        if got["status"] not in {"queued", "running"}:
+            break
+    assert "install Foxy in your workspace" not in got["output"][0]["text"]
+
+
+def test_the_manifest_says_what_post_to_slack_actually_does():
+    from app.main import _ACTIONS
+
+    scan = next(a for a in _ACTIONS if a["id"] == "scan_now")
+    desc = scan["input_schema"]["properties"]["post_to_slack"]["description"]
+    assert "not linked to a Slack workspace" in desc

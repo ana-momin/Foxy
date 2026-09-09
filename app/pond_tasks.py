@@ -244,6 +244,8 @@ def _finish(task_id: str) -> None:
 
 def render(state: dict[str, Any]) -> str:
     """The finished task as markdown for Pond."""
+    from .config import settings
+
     progress = state["progress"]
     findings = state["findings"]
     early = [f for f in findings if f["early"]]
@@ -266,6 +268,18 @@ def render(state: dict[str, Any]) -> str:
         lines.append(
             f"- `{tag}` **{f['company']}** ({batch}) · {f['source']} · [link]({f['url']})"
         )
+
+    # Someone asked for Slack from a Pond conversation, which cannot reach
+    # one: nothing here identifies a Slack workspace, so the request was
+    # honoured as far as it could be and the rest has to be said rather than
+    # implied. A user told "Slack notifications on" who then gets nothing in
+    # Slack has been misled, however good the results in front of them are.
+    if state.get("params", {}).get("post_to_slack"):
+        base = settings.public_base_url or "https://tryfoxy.vercel.app"
+        lines += [
+            "",
+            "_These results are here only. To get them in Slack as they appear, install Foxy in your workspace: " + base + "_",
+        ]
     return "\n".join(lines)
 
 

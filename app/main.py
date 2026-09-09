@@ -140,7 +140,14 @@ _ACTIONS = [
                 },
                 "post_to_slack": {
                     "type": "boolean",
-                    "description": "Whether detections should also be posted to Slack.",
+                    "description": (
+                        "Only affects Slack workspaces that have installed "
+                        "Foxy. Results are always returned here; a Pond "
+                        "conversation is not linked to a Slack workspace, so "
+                        "asking for Slack from here does not send anything "
+                        "there. To get alerts in Slack, install Foxy from "
+                        "its page first."
+                    ),
                 },
             },
             "additionalProperties": False,
