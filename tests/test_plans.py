@@ -975,3 +975,41 @@ def test_the_site_and_the_manifest_quote_the_same_price():
 
     included = set(re.findall(r"([\d,]+) alerts a month", page))
     assert included == {f"{pro['included_units']:,}"}, included
+
+
+def test_the_pricing_page_is_reachable_and_whole(db):
+    """It is a route, a nav entry and a page. Missing any one of the three
+    leaves a link that goes nowhere or a page nobody can find."""
+    import pathlib
+    import re
+
+    page = pathlib.Path("app/static/index.html").read_text(encoding="utf-8")
+
+    assert 'data-r="/pricing"' in page, "no nav entry"
+    assert 'id="p-/pricing"' in page, "no page"
+    assert '"/pricing":' in page, "the router does not know the route"
+
+    # Every nav entry must have a page, and every page a nav entry.
+    nav = set(re.findall(r'data-r="([^"]+)"', page))
+    pages = set(re.findall(r'id="p-([^"]+)"', page))
+    assert nav == pages, f"nav {nav} does not match pages {pages}"
+
+
+def test_the_pricing_page_offers_a_way_out_of_the_two_fixed_plans():
+    """Somebody will want several channels, or a different set of sources, and
+    a page with no third door loses them silently."""
+    import pathlib
+
+    from app.config import settings
+
+    page = pathlib.Path("app/static/index.html").read_text(encoding="utf-8")
+    assert "Let&#39;s talk" in page or "Let's talk" in page
+    assert settings.support_email in page, "the third tier needs a way to reach a person"
+
+
+def test_one_plan_is_recommended():
+    import pathlib
+
+    page = pathlib.Path("app/static/index.html").read_text(encoding="utf-8")
+    assert page.count("pr-tag") >= 1, "nothing is marked as the one to pick"
+    assert page.count('class="pr-c up"') == 1, "exactly one plan may be recommended"

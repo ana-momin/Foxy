@@ -691,6 +691,67 @@
   }
   .pr-l b { color: var(--ink); font-weight: 600; }
   .pr-note { font-size: 13px; color: var(--muted); margin: 18px 0 0; text-align: center; }
+
+  /* Three tiers. The middle one carries the recommendation, and does it with
+     a lifted card and a badge rather than louder colour - this is a five
+     dollar decision and the page should not oversell it. */
+  .pr { display: grid; gap: 18px; margin-top: 46px; }
+  @media (min-width: 860px) { .pr { grid-template-columns: repeat(3, 1fr); align-items: stretch; } }
+
+  .pr-c {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+    padding: 30px 26px 28px; display: flex; flex-direction: column; position: relative;
+    transition: border-color .2s ease, transform .2s ease, box-shadow .25s ease;
+  }
+  .pr-c:hover { border-color: var(--border-2); transform: translateY(-2px); box-shadow: var(--shadow-m); }
+  .pr-c.up {
+    border-color: var(--accent); box-shadow: var(--shadow-l);
+    background: linear-gradient(180deg, var(--accent-sf) 0%, var(--surface) 34%);
+  }
+  @media (min-width: 860px) { .pr-c.up { transform: translateY(-10px); } .pr-c.up:hover { transform: translateY(-13px); } }
+
+  .pr-tag {
+    position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: #fff; font-size: 10.5px; font-weight: 600;
+    letter-spacing: .09em; text-transform: uppercase; padding: 5px 13px;
+    border-radius: 999px; white-space: nowrap; box-shadow: 0 4px 14px -4px var(--glow);
+  }
+  .pr-n { font-size: 12.5px; font-weight: 600; color: var(--muted); letter-spacing: .07em; text-transform: uppercase; }
+  .pr-p {
+    display: flex; align-items: baseline; gap: 7px; margin: 15px 0 5px;
+    font-size: 42px; font-weight: 600; letter-spacing: -.042em; line-height: 1; color: var(--ink);
+  }
+  .pr-p em { font-style: normal; font-size: 14.5px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+  .pr-p.word { font-size: 30px; }
+  .pr-q { font-size: 13.5px; color: var(--ink-2); margin: 0 0 24px; }
+  .pr-l { list-style: none; margin: 0 0 26px; padding: 0; flex: 1; }
+  .pr-l li {
+    position: relative; padding-left: 25px; margin-bottom: 11px;
+    font-size: 14px; color: var(--ink-2); line-height: 1.5;
+  }
+  .pr-l li:last-child { margin-bottom: 0; }
+  .pr-l li:before {
+    content: ""; position: absolute; left: 2px; top: 6px; width: 9px; height: 5px;
+    border-left: 2px solid var(--accent); border-bottom: 2px solid var(--accent);
+    transform: rotate(-45deg);
+  }
+  .pr-l b { color: var(--ink); font-weight: 600; }
+  .pr-c .btn, .pr-c .btn-s { width: 100%; justify-content: center; }
+  .pr-note { font-size: 13px; color: var(--muted); margin: 30px 0 0; text-align: center; }
+
+  .faq { margin-top: 64px; display: grid; gap: 10px; }
+  .faq details {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 0 22px;
+  }
+  .faq summary {
+    cursor: pointer; padding: 17px 0; font-size: 15px; font-weight: 500; color: var(--ink);
+    list-style: none; display: flex; align-items: center; gap: 10px;
+  }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary:before { content: "+"; color: var(--muted); width: 13px; font-size: 16px; }
+  .faq details[open] summary:before { content: "2"; }
+  .faq p { margin: 0 0 18px; font-size: 14.5px; color: var(--ink-2); line-height: 1.6; }
 </style>
 <style>html{-webkit-text-size-adjust:100%}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
@@ -703,6 +764,7 @@
     <div class="navlinks">
       <a href="#/" data-r="/">Overview</a>
       <a href="#/how" data-r="/how">How it works</a>
+      <a href="#/pricing" data-r="/pricing">Pricing</a>
       <a href="#/setup" data-r="/setup">Setup</a>
     </div>
     <a class="ghbtn" href="https://github.com/ana-momin/Foxy">GitHub</a>
@@ -870,47 +932,6 @@
   </section>
 
   <section>
-    <div class="wrap narrow">
-      <p class="eyebrow">Pricing</p>
-      <h2 class="h2">Start free. Pay when it earns it.</h2>
-      <p class="sub">Every workspace gets fifty alerts to see whether Foxy finds the
-      companies you care about.</p>
-
-      <div class="pr">
-        <div class="pr-c">
-          <div class="pr-n">Free</div>
-          <div class="pr-p">$0</div>
-          <p class="pr-q">50 alerts, then it pauses</p>
-          <ul class="pr-l">
-            <li>All five sources</li>
-            <li><b>Early founder signals</b> included</li>
-            <li>Checked every eight hours</li>
-            <li>Never the same company twice</li>
-          </ul>
-          <a class="btn btn-s" href="/slack/install">Add to Slack</a>
-        </div>
-
-        <div class="pr-c up">
-          <span class="pr-tag">Pro</span>
-          <div class="pr-n">Pro</div>
-          <div class="pr-p">$5 <em>per month</em></div>
-          <p class="pr-q">1,000 alerts a month</p>
-          <ul class="pr-l">
-            <li><b>Founders who announce before YC publishes</b> &mdash; the reason
-                the tool exists</li>
-            <li>All five sources, every eight hours</li>
-            <li>Follow-up in thread when YC confirms</li>
-            <li>Cancel any time, billed by Pond</li>
-          </ul>
-          <a class="btn" href="https://joinpond.ai/agent/list?agent=043bbd2b-c065-432a-bc0e-b3158ff5873c">Get Pro on Pond</a>
-        </div>
-      </div>
-
-      <p class="pr-note">Plans are sold and billed through Pond. Foxy never sees a card.</p>
-    </div>
-  </section>
-
-  <section>
     <div class="wrap narrow" style="text-align:center">
       <h2 class="h2">Ready in one minute.</h2>
       <p class="sub" style="margin:0 auto 28px">Approve it, choose a channel, and Foxy takes it from there.</p>
@@ -1024,6 +1045,88 @@
 </main>
 
 <!-- ================= SETUP ================= -->
+
+<main id="p-/pricing" class="page">
+  <section style="border:0">
+    <div class="wrap narrow" style="text-align:center">
+      <p class="eyebrow">Pricing</p>
+      <h2 class="h2">Start free. Pay when it earns it.</h2>
+      <p class="sub" style="margin-left:auto;margin-right:auto">Every workspace gets
+      fifty alerts to find out whether Foxy catches the companies you care about.</p>
+
+      <div class="pr" style="text-align:left">
+        <div class="pr-c">
+          <div class="pr-n">Free</div>
+          <div class="pr-p">$0</div>
+          <p class="pr-q">50 alerts, then it pauses</p>
+          <ul class="pr-l">
+            <li>All five sources</li>
+            <li><b>Early founder signals</b> included</li>
+            <li>Checked every eight hours</li>
+            <li>Never the same company twice</li>
+          </ul>
+          <a class="btn btn-s" href="/slack/install">Add to Slack</a>
+        </div>
+
+        <div class="pr-c up">
+          <span class="pr-tag">Most popular</span>
+          <div class="pr-n">Pro</div>
+          <div class="pr-p">$5 <em>per month</em></div>
+          <p class="pr-q">1,000 alerts a month</p>
+          <ul class="pr-l">
+            <li><b>Founders who announce before YC publishes</b></li>
+            <li>All five sources, every eight hours</li>
+            <li>Follow-up in thread when YC confirms</li>
+            <li>Priority on new sources</li>
+            <li>Cancel any time</li>
+          </ul>
+          <a class="btn" href="https://joinpond.ai/agent/list?agent=043bbd2b-c065-432a-bc0e-b3158ff5873c">Get Pro on Pond</a>
+        </div>
+
+        <div class="pr-c">
+          <div class="pr-n">Team</div>
+          <div class="pr-p word">Let's talk</div>
+          <p class="pr-q">Built around how you work</p>
+          <ul class="pr-l">
+            <li>Several channels or workspaces</li>
+            <li>Sources picked for your thesis</li>
+            <li>Webhook into your CRM</li>
+            <li>A human who answers</li>
+          </ul>
+          <a class="btn btn-s" href="mailto:ana.mominn@gmail.com?subject=Foxy%20for%20our%20team">Get in touch</a>
+        </div>
+      </div>
+
+      <p class="pr-note">Plans are sold and billed through Pond. Foxy never sees a card.</p>
+
+      <div class="faq" style="text-align:left">
+        <details>
+          <summary>What counts as an alert?</summary>
+          <p>One company, once. A detection reported to your channel &mdash; a new YC
+          or Speedrun listing, or a founder announcing before the directory catches
+          up. Foxy remembers everything it has seen, so the same company is never
+          counted twice.</p>
+        </details>
+        <details>
+          <summary>What happens when the free alerts run out?</summary>
+          <p>Foxy pauses and says so in your channel. Nothing is lost &mdash; it keeps
+          watching, and picks up from where it stopped the moment you upgrade.</p>
+        </details>
+        <details>
+          <summary>Do I need an API key?</summary>
+          <p>No. Three of the five sources are public feeds that cost nothing. X and
+          LinkedIn reach further with a free search key, and Foxy works without one.</p>
+        </details>
+        <details>
+          <summary>Can I cancel?</summary>
+          <p>Any time, through Pond. Your workspace drops back to the free plan and
+          keeps everything it has already received.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+</main>
+
 <main id="p-/setup" class="page">
   <div class="wrap narrow">
     <section style="border:0">
@@ -1143,7 +1246,7 @@ uvicorn app.main:app --port 8000</pre></div>
 </footer>
 
 <script>
-  var TITLES = {"/": "Foxy \u00b7 YC Launch Monitor", "/how": "How it works \u00b7 Foxy", "/setup": "Setup \u00b7 Foxy"};
+  var TITLES = {"/": "Foxy \u00b7 YC Launch Monitor", "/how": "How it works \u00b7 Foxy", "/pricing": "Pricing · Foxy", "/setup": "Setup \u00b7 Foxy"};
   var ROUTES = Object.keys(TITLES);
 
   function route() {
