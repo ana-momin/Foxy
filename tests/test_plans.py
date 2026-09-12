@@ -609,21 +609,25 @@ def test_the_console_renders_the_dashboard(db, admin):
 def test_the_console_says_a_lot_with_little(db, admin):
     """The page is read at a glance. Prose defeats the point of it.
 
-    Counting words rather than eyeballing it, because "keep it short" is the
-    kind of intent that erodes one helpful sentence at a time.
+    Measured in two parts, because a page listing fifty workspaces will always
+    carry more words than one listing two. A flat limit would only ever have
+    held for a small fixture, which is how the first version of this passed
+    while the live page ran to 117 words.
     """
     import re
 
-    _install(db, team_id="T-TERSE", alerts_used=5)
+    for n in range(6):
+        _install(db, team_id=f"T-TERSE{n}", alerts_used=n * 7)
     page = admin.get(f"/admin?key={ADMIN}").text
 
-    # What is actually on screen: the dashboard, minus anything folded away
-    # behind a <details>, since that is opt-in rather than something the eye
-    # has to travel over.
     dash = page[page.index('<div class="adm">') :]
+    # Folded panels are opt-in, and the lists grow with the customer count.
     visible = re.sub(r"<details.*?</details>", " ", dash, flags=re.S)
-    words = [w for w in re.sub(r"<[^>]+>", " ", visible).split() if w != "&middot;"]
-    assert len(words) < 70, f"{len(words)} words visible at a glance is an essay"
+    chrome = re.sub(r'<div class="(rows|att)">.*?(?=<div class="sec"|<div class="foot")',
+                    " ", visible, flags=re.S)
+
+    words = [w for w in re.sub(r"<[^>]+>", " ", chrome).split() if w != "&middot;"]
+    assert len(words) < 55, f"{len(words)} words of page furniture is an essay"
 
 
 def test_the_json_and_the_page_agree(db, admin):
