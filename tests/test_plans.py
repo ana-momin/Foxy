@@ -626,3 +626,29 @@ def test_dead_claim_codes_are_gone_from_the_console(db, admin):
     _install(db, team_id="T-OLD")
     page = admin.get(f"/admin?key={ADMIN}").text
     assert "FOXY-" not in page
+
+
+def test_the_json_survives_real_timestamps(db, admin):
+    """It returned 500 in production while every test passed.
+
+    The fixtures had no dated rows, so nothing ever handed a datetime to the
+    serialiser. Anything with a clock in it belongs in this test.
+    """
+    import datetime as dt
+
+    from app.db import Alert, PondTask, session
+
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    _install(db, team_id="T-TIME", alerts_used=3, last_alert_at=now)
+    with session() as s:
+        s.add(Alert(fingerprint="t1", entity_key="e1", source="x", kind="early",
+                    confidence=1.0, ts="1.0", created_at=now, payload={}))
+        s.add(PondTask(task_id="tk1", run_id="r1", action_id="scan_now",
+                       status="completed", created_at=now, updated_at=now))
+
+    r = admin.get(f"/admin/status?key={ADMIN}")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["last_alert"] is not None
+    assert body["last_pond"] is not None
+    assert body["workspaces"][0]["last_alert"] is not None

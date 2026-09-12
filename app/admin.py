@@ -440,6 +440,22 @@ def _buttons(r: dict, key: str) -> str:
     return form(1, "Pro &middot; 1 month", lead) + form(12, "1 year", "")
 
 
+def _jsonable(value: Any) -> Any:
+    """Datetimes do not survive json.dumps.
+
+    The page formats them and never noticed; this endpoint handed them straight
+    to the serialiser and returned a 500 in production while every test passed,
+    because the test database had no dated rows to trip over.
+    """
+    if isinstance(value, dt.datetime):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {k: _jsonable(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_jsonable(v) for v in value]
+    return value
+
+
 @router.get("/admin/status")
 def status_json(key: str = "") -> JSONResponse:
     """The same numbers as JSON, for watching from somewhere else.
@@ -452,7 +468,7 @@ def status_json(key: str = "") -> JSONResponse:
     d["workspaces"] = [
         {k: v for k, v in w.items() if k != "id"} for w in d["workspaces"]
     ]
-    return JSONResponse(d)
+    return JSONResponse(_jsonable(d))
 
 
 @router.post("/admin/plan", response_model=None)
