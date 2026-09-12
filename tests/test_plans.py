@@ -946,3 +946,32 @@ def test_actions_still_work_without_javascript(db, admin):
         follow_redirects=False,
     )
     assert r.status_code == 303, "a plain form post must redirect"
+
+
+def test_the_site_and_the_manifest_quote_the_same_price():
+    """Two places naming a price is two places for it to drift.
+
+    The site is hand-written HTML and the manifest is generated, so nothing
+    connects them but this.
+    """
+    import pathlib
+    import re
+
+    from app.config import settings
+    from app.main import manifest
+
+    pro = next(
+        p for p in manifest()["metadata"]["pricing_plans"]
+        if p["pricing_model"] == "subscription"
+    )
+    dollars = pro["amount_minor"] / 100
+    assert dollars == settings.price_monthly_minor / 100
+
+    page = pathlib.Path("app/static/index.html").read_text(encoding="utf-8")
+    quoted = set(re.findall(r"\$(\d+)\s*<em>per month</em>", page))
+    assert quoted == {f"{dollars:.0f}"}, (
+        f"the site says {quoted} and the manifest says ${dollars:.0f}"
+    )
+
+    included = set(re.findall(r"([\d,]+) alerts a month", page))
+    assert included == {f"{pro['included_units']:,}"}, included

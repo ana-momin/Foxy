@@ -653,6 +653,44 @@
   .term { background: #14100C; color: #EFE7DC; border-radius: 11px; padding: 16px 18px; font-family: "JetBrains Mono", monospace; font-size: 12px; line-height: 1.8; overflow-x: auto; margin-top: 22px; border: 1px solid var(--border); }
   .term .p { color: #7E7266; }
   .term .g { color: #A8CF63; }
+
+  /* Pricing. Two cards, the paid one carrying a little more weight than the
+     free one without shouting - the decision here is small and the page should
+     not pretend otherwise. */
+  .pr { display: grid; gap: 16px; margin-top: 40px; }
+  @media (min-width: 720px) { .pr { grid-template-columns: 1fr 1.08fr; align-items: stretch; } }
+
+  .pr-c {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 18px; padding: 30px 28px 28px;
+    display: flex; flex-direction: column;
+  }
+  .pr-c.up { border-color: var(--accent); box-shadow: var(--shadow-m); position: relative; }
+  .pr-tag {
+    position: absolute; top: -11px; left: 28px; background: var(--accent); color: #fff;
+    font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+    padding: 4px 11px; border-radius: 999px;
+  }
+  .pr-n { font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+  .pr-p {
+    display: flex; align-items: baseline; gap: 8px; margin: 14px 0 4px;
+    font-size: 44px; font-weight: 600; letter-spacing: -.04em; line-height: 1; color: var(--ink);
+  }
+  .pr-p em { font-style: normal; font-size: 15px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+  .pr-q { font-size: 14px; color: var(--ink-2); margin: 0 0 22px; }
+  .pr-l { list-style: none; margin: 0 0 26px; padding: 0; flex: 1; }
+  .pr-l li {
+    position: relative; padding-left: 26px; margin-bottom: 11px;
+    font-size: 14.5px; color: var(--ink-2); line-height: 1.5;
+  }
+  .pr-l li:last-child { margin-bottom: 0; }
+  .pr-l li:before {
+    content: ""; position: absolute; left: 2px; top: 6px; width: 9px; height: 5px;
+    border-left: 2px solid var(--accent); border-bottom: 2px solid var(--accent);
+    transform: rotate(-45deg);
+  }
+  .pr-l b { color: var(--ink); font-weight: 600; }
+  .pr-note { font-size: 13px; color: var(--muted); margin: 18px 0 0; text-align: center; }
 </style>
 <style>html{-webkit-text-size-adjust:100%}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
@@ -828,6 +866,47 @@
           </div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap narrow">
+      <p class="eyebrow">Pricing</p>
+      <h2 class="h2">Start free. Pay when it earns it.</h2>
+      <p class="sub">Every workspace gets fifty alerts to see whether Foxy finds the
+      companies you care about.</p>
+
+      <div class="pr">
+        <div class="pr-c">
+          <div class="pr-n">Free</div>
+          <div class="pr-p">$0</div>
+          <p class="pr-q">50 alerts, then it pauses</p>
+          <ul class="pr-l">
+            <li>All five sources</li>
+            <li><b>Early founder signals</b> included</li>
+            <li>Checked every eight hours</li>
+            <li>Never the same company twice</li>
+          </ul>
+          <a class="btn btn-s" href="/slack/install">Add to Slack</a>
+        </div>
+
+        <div class="pr-c up">
+          <span class="pr-tag">Pro</span>
+          <div class="pr-n">Pro</div>
+          <div class="pr-p">$5 <em>per month</em></div>
+          <p class="pr-q">1,000 alerts a month</p>
+          <ul class="pr-l">
+            <li><b>Founders who announce before YC publishes</b> &mdash; the reason
+                the tool exists</li>
+            <li>All five sources, every eight hours</li>
+            <li>Follow-up in thread when YC confirms</li>
+            <li>Cancel any time, billed by Pond</li>
+          </ul>
+          <a class="btn" href="https://joinpond.ai/agent/list?agent=043bbd2b-c065-432a-bc0e-b3158ff5873c">Get Pro on Pond</a>
+        </div>
+      </div>
+
+      <p class="pr-note">Plans are sold and billed through Pond. Foxy never sees a card.</p>
     </div>
   </section>
 

@@ -111,7 +111,7 @@ class Settings:
     # Prices are in minor USD units, which is what the manifest wants: 300 is
     # $3.00. Pond's schema fixes billing_interval to "month", so there is no
     # yearly plan to configure - the protocol does not have one.
-    price_monthly_minor: int = _i("PRICE_MONTHLY_MINOR", 300)
+    price_monthly_minor: int = _i("PRICE_MONTHLY_MINOR", 500)
     free_included_results: int = _i("FREE_INCLUDED_RESULTS", 50)
     pro_included_results: int = _i("PRO_INCLUDED_RESULTS", 1000)
     # Where to send someone who wants the paid plan.
