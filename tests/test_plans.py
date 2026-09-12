@@ -828,3 +828,53 @@ def test_every_action_needs_the_key(db, admin):
     with db.session() as s:
         row = installs.get(s, install_id)
         assert row.active is True and (row.bonus_alerts or 0) == 0
+
+
+def test_the_console_stays_light_on_a_dark_system(db, admin):
+    """It rendered as dark text on a dark ground and was unreadable.
+
+    The shared stylesheet flips its palette under prefers-color-scheme, and the
+    console set its own colours on an inner element while the page behind it
+    stayed dark. The light values have to come after that block, because order
+    is what settles a tie in the cascade.
+    """
+    page = admin.get(f"/admin?key={ADMIN}").text
+    css = page[page.index("<style>") : page.index("</style>")]
+
+    dark_at = css.find("prefers-color-scheme:dark")
+    light_at = css.rfind(":root{")
+    assert dark_at != -1, "the shared sheet still has a dark block to beat"
+    assert light_at > dark_at, "the light palette must be declared after it"
+    assert "body{background:" in css, "the page behind the cards needs a colour too"
+
+
+def test_a_workspace_row_is_identifiable_before_it_is_read(db, admin):
+    from app.admin import _initials
+
+    assert _initials("YC alert") == "YA"
+    assert _initials("Zen") == "ZE"
+    assert _initials("all-foxy-land") == "AF"
+    assert _initials("") == "?"
+
+    _install(db, team_id="T-AV", alerts_used=1)
+    assert 'class="av"' in admin.get(f"/admin?key={ADMIN}").text
+
+
+def test_the_week_of_delivery_is_shown(db, admin):
+    """A running total says nothing about whether it is still working."""
+    import datetime as dt
+
+    from app.admin import gather
+    from app.db import Alert, session
+
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    with session() as s:
+        for n in range(3):
+            s.add(Alert(fingerprint=f"w{n}", entity_key=f"e{n}", source="x",
+                        kind="confirmed", confidence=1.0, ts="1.0",
+                        created_at=now - dt.timedelta(days=1), payload={}))
+
+    week = gather()["week"]
+    assert len(week) == 7
+    assert sum(x["count"] for x in week) == 3
+    assert "Last 7 days" in admin.get(f"/admin?key={ADMIN}").text

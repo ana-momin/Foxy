@@ -42,95 +42,127 @@ router = APIRouter()
 SWEEP_HOURS = (0, 8, 16)
 
 _CSS = """
-/* The console keeps a light surface whatever the viewer's system says. A
-   status page is read at a glance, often outdoors on a phone, and the warm
-   paper reads better than a dark one for a wall of numbers. */
-.adm{--paper:#FFFDFB;--card:#fff;--line:#F0EAE3;--line2:#E2D9CF;
---txt:#16120E;--txt2:#6B6157;--dim:#9C9086;--brand:#E1590C;
---up:#2E9E5B;--warn:#D9822B;
-max-width:760px;margin:0 auto}
-.adm *{color-scheme:light}
+/* The console stays light whatever the system says. It is read at a glance,
+   often outdoors, and warm paper carries a wall of numbers better than a dark
+   one. These come after the shared dark-mode block, so they win on order -
+   which is the whole trick, and why the page was previously dark text on a
+   dark ground. */
+:root{
+--bg:#FBF8F5;--surface:#fff;--ink:#171310;--ink2:#5C5249;--muted:#938779;
+--border:#EDE6DE;--border2:#E0D6CA;--accent:#E1590C;--accent2:#FF7A38;
+--sf:#FFF2E9;--good:#2E9E5B;--goodsf:#EAF6EF;
+--sh:0 1px 2px rgba(40,25,10,.04),0 10px 30px -16px rgba(40,25,10,.18)}
+body{background:#FBF8F5;color:#171310}
+.w{max-width:840px}
 
-.top{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:44px}
-.top h1{font-size:30px;letter-spacing:-.034em;margin:0;font-weight:600;color:var(--txt)}
-.state{display:inline-flex;align-items:center;gap:8px;margin-left:auto;
-font-size:13.5px;color:var(--txt2);padding-top:7px}
-.pip{width:8px;height:8px;border-radius:50%;background:var(--up);flex:none;
-box-shadow:0 0 0 3px rgba(46,158,91,.14)}
-.pip.warn{background:var(--warn);box-shadow:0 0 0 3px rgba(217,130,43,.14)}
+.adm{--paper:#FBF8F5;--card:#fff;--line:#EFE8E1;--line2:#E2D9CE;
+--txt:#171310;--txt2:#5C5249;--dim:#9A8E81;--brand:#E1590C;
+--up:#2E9E5B;--warn:#D9822B}
 
-.figs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:46px}
-@media(max-width:560px){.figs{grid-template-columns:repeat(2,1fr);gap:26px 8px}}
-.fig b{display:block;font-size:36px;font-weight:600;letter-spacing:-.04em;
+.top{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.top h1{font-size:34px;letter-spacing:-.035em;margin:0;font-weight:600;color:var(--txt)}
+.state{display:inline-flex;align-items:center;gap:9px;margin-left:auto;
+font-size:13.5px;color:var(--txt2);background:var(--card);border:1px solid var(--line);
+border-radius:999px;padding:7px 15px 7px 13px}
+.state.warn{border-color:#F0D4AF;background:#FFFBF5;color:#8A5418}
+.pip{width:7px;height:7px;border-radius:50%;background:var(--up);flex:none}
+.pip.warn{background:var(--warn)}
+.top{margin-bottom:34px}
+
+.figs{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+@media(max-width:600px){.figs{grid-template-columns:repeat(2,1fr)}}
+.fig{background:var(--card);border:1px solid var(--line);border-radius:14px;
+padding:18px 20px}
+.fig b{display:block;font-size:32px;font-weight:600;letter-spacing:-.04em;
 line-height:1;color:var(--txt);font-variant-numeric:tabular-nums}
-.fig span{display:block;font-size:12px;color:var(--dim);margin-top:7px;
-letter-spacing:.01em}
+.fig span{display:block;font-size:12px;color:var(--dim);margin-top:8px}
 
-.sec{margin-bottom:42px}
+.spark{background:var(--card);border:1px solid var(--line);border-radius:14px;
+padding:18px 20px 14px;margin-bottom:44px}
+.spark .hd{display:flex;align-items:baseline;gap:10px;margin-bottom:16px}
+.spark .hd b{font-size:12px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+color:var(--dim);font-family:"JetBrains Mono",monospace}
+.spark .hd span{margin-left:auto;font-size:12.5px;color:var(--dim)}
+.bars{display:flex;align-items:flex-end;gap:6px;height:56px}
+.bars div{flex:1;background:var(--sf);border-radius:4px 4px 2px 2px;position:relative;
+min-height:3px;transition:background .15s}
+.bars div.has{background:var(--accent)}
+.bars div:hover{background:var(--accent2)}
+.days{display:flex;gap:6px;margin-top:8px}
+.days span{flex:1;text-align:center;font-size:10.5px;color:var(--dim);
+font-family:"JetBrains Mono",monospace}
+
+.sec{margin-bottom:38px}
 .sec>h2{font-size:11px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;
-color:var(--dim);font-family:"JetBrains Mono",monospace;margin:0 0 16px}
+color:var(--dim);font-family:"JetBrains Mono",monospace;margin:0 0 14px}
 
 .srcs{display:flex;flex-wrap:wrap;gap:8px}
-.src{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);
-border-radius:999px;padding:7px 14px 7px 11px;font-size:13px;color:var(--txt2);
+.src{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);
+border-radius:10px;padding:9px 14px;font-size:13px;color:var(--txt2);
 background:var(--card)}
-.src i{width:6px;height:6px;border-radius:50%;background:var(--up);font-style:normal}
+.src i{width:6px;height:6px;border-radius:50%;background:var(--up);font-style:normal;
+flex:none}
 .src i.warn{background:var(--warn)}
+.src u{text-decoration:none;color:var(--dim);font-size:11.5px;
+font-family:"JetBrains Mono",monospace}
 .src em{font-style:normal;color:var(--brand);font-weight:600;font-size:12px}
 
-.att{border:1px solid var(--warn);border-radius:12px;overflow:hidden;background:var(--card)}
-.att .row{border-top:1px solid var(--line)}
-.att .row:first-child{border-top:0}
-
-.row{display:flex;align-items:center;gap:14px;padding:15px 18px;
+.att{border:1px solid #F0D4AF;border-radius:14px;overflow:hidden;background:#FFFBF5}
+.rows{border:1px solid var(--line);border-radius:14px;background:var(--card);
+overflow:hidden}
+.row{display:flex;align-items:center;gap:14px;padding:16px 18px;
 border-top:1px solid var(--line)}
-.rows>.row:first-child{border-top:0}
-.rows{border:1px solid var(--line);border-radius:12px;background:var(--card)}
-.row .who{min-width:0}
+.rows>.row:first-child,.att>.row:first-child{border-top:0}
+.att .row{border-top-color:#F5E3CB}
+.av{width:34px;height:34px;border-radius:10px;flex:none;display:grid;place-items:center;
+background:var(--sf);color:var(--brand);font-size:13px;font-weight:600;
+font-family:"JetBrains Mono",monospace}
+.row .who{min-width:0;flex:1}
 .row .nm{font-size:14.5px;font-weight:600;color:var(--txt);
 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .sub{font-size:12.5px;color:var(--dim);margin-top:2px}
-.row .rt{margin-left:auto;display:flex;align-items:center;gap:10px;flex:none}
+.row .rt{display:flex;align-items:center;gap:9px;flex:none}
 .num{font-size:13px;color:var(--dim);font-family:"JetBrains Mono",monospace;
 font-variant-numeric:tabular-nums}
 
-.chip{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;
-white-space:nowrap;letter-spacing:.01em}
+.chip{font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;
+white-space:nowrap}
 .chip.pro{background:var(--brand);color:#fff}
-.chip.free{background:#F3EEE8;color:var(--txt2)}
-.chip.cap{background:#FDF0E2;color:var(--warn)}
+.chip.free{background:#F4EFE9;color:var(--txt2)}
+.chip.cap{background:#FBE6CC;color:#8A5418}
 .chip.off{background:transparent;color:var(--dim);border:1px solid var(--line2)}
 
 .mini{border:1px solid var(--line2);background:var(--card);color:var(--txt2);
-border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:500;cursor:pointer;
+border-radius:9px;padding:7px 13px;font-size:12.5px;font-weight:500;cursor:pointer;
 font-family:inherit;white-space:nowrap;transition:border-color .15s,color .15s}
 .mini:hover{border-color:var(--brand);color:var(--brand)}
 .mini.go{background:var(--brand);border-color:var(--brand);color:#fff}
 .mini.go:hover{background:#C94D08}
 
-.bar{height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin-bottom:10px}
-.bar span{display:block;height:100%;background:var(--brand);border-radius:2px}
+.bar{height:5px;border-radius:3px;background:var(--line);overflow:hidden;
+margin-bottom:12px}
+.bar span{display:block;height:100%;background:var(--brand);border-radius:3px}
 .bar.warn span{background:var(--warn)}
 
 .foot{font-size:13px;color:var(--dim);line-height:1.9;border-top:1px solid var(--line);
-padding-top:18px}
+padding-top:20px;margin-top:6px}
 .foot b{color:var(--txt2);font-weight:500;font-variant-numeric:tabular-nums}
 .none{color:var(--dim);font-size:13.5px}
 
-.tool{border:1px solid var(--line);border-radius:12px;background:var(--card);
-margin-bottom:8px;padding:0 18px}
-.tool summary{cursor:pointer;padding:14px 0;font-size:14px;color:var(--txt2);
-list-style:none;display:flex;align-items:center;gap:8px}
+.tool{border:1px solid var(--line);border-radius:14px;background:var(--card);
+margin-bottom:9px;padding:0 18px}
+.tool summary{cursor:pointer;padding:15px 0;font-size:14px;color:var(--txt2);
+list-style:none;display:flex;align-items:center;gap:9px}
 .tool summary::-webkit-details-marker{display:none}
 .tool summary:before{content:"+";color:var(--dim);font-size:15px;width:12px}
 .tool[open] summary:before{content:"2"}
 .tool[open] summary{color:var(--txt);font-weight:500}
 .tool form{display:flex;gap:8px;padding:0 0 16px;flex-wrap:wrap}
-.tool input[type=text]{flex:1;min-width:200px;padding:9px 12px;border-radius:8px;
+.tool input[type=text]{flex:1;min-width:210px;padding:10px 13px;border-radius:9px;
 border:1px solid var(--line2);background:var(--paper);color:var(--txt);
 font-family:inherit;font-size:13.5px}
 .tool input[type=text]:focus{outline:2px solid var(--brand);outline-offset:1px}
-.tool .hint{font-size:12.5px;color:var(--dim);margin:0 0 16px;line-height:1.5}
+.tool .hint{font-size:12.5px;color:var(--dim);margin:0 0 16px;line-height:1.55}
 """
 
 
@@ -161,12 +193,17 @@ def _denied() -> HTMLResponse:
 # ---------------------------------------------------------------------------
 
 
+def _utcnow() -> dt.datetime:
+    """Naive UTC, matching how the database stores its timestamps."""
+    return dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+
+
 def _ago(when: dt.datetime | None) -> str:
     if when is None:
         return "never"
     if when.tzinfo is not None:
         when = when.astimezone(dt.timezone.utc).replace(tzinfo=None)
-    mins = (dt.datetime.utcnow() - when).total_seconds() / 60
+    mins = (_utcnow() - when).total_seconds() / 60
     if mins < 1:
         return "just now"
     if mins < 60:
@@ -214,6 +251,17 @@ def gather() -> dict[str, Any]:
             select(func.max(Alert.created_at)).where(Alert.ts.isnot(None))
         ).scalar()
         tracked = s.execute(select(func.count()).select_from(Seen)).scalar()
+
+        # A week of delivery, so the shape of the last few days is visible
+        # rather than only the running total. Counted in Python because the
+        # date functions differ between SQLite and Postgres, and a week of rows
+        # is nothing to read.
+        since = _utcnow() - dt.timedelta(days=7)
+        recent = s.execute(
+            select(Alert.created_at).where(
+                Alert.ts.isnot(None), Alert.created_at >= since
+            )
+        ).scalars().all()
 
         tasks = dict(
             s.execute(
@@ -267,8 +315,21 @@ def gather() -> dict[str, Any]:
     if b.get("low"):
         problems.append("search credits low")
 
+    days: list[dict[str, Any]] = []
+    today = _utcnow().date()
+    for back in range(6, -1, -1):
+        day = today - dt.timedelta(days=back)
+        days.append(
+            {
+                "label": day.strftime("%a")[:1],
+                "date": day.isoformat(),
+                "count": sum(1 for c in recent if c and c.date() == day),
+            }
+        )
+
     return {
         "ok": not problems,
+        "week": days,
         "problems": problems,
         "sources": sources,
         "failing": failing,
@@ -310,6 +371,17 @@ def console(key: str = "") -> HTMLResponse:
     else:
         state = f'<span class="pip warn"></span>{html.escape(d["problems"][0])}'
 
+    week = d["week"]
+    peak = max((x["count"] for x in week), default=0) or 1
+    bars = "".join(
+        f'<div class="{"has" if x["count"] else ""}" '
+        f'style="height:{max(3, round(x["count"] / peak * 56))}px" '
+        f'title="{x["date"]}: {x["count"]}"></div>'
+        for x in week
+    )
+    labels = "".join(f"<span>{x['label']}</span>" for x in week)
+    week_total = sum(x["count"] for x in week)
+
     figs = "".join(
         f'<div class="fig"><b>{v}</b><span>{lab}</span></div>'
         for v, lab in [
@@ -342,7 +414,7 @@ def console(key: str = "") -> HTMLResponse:
         f'<span class="src"><i class="{"" if i["ok"] else "warn"}"></i>'
         f'{html.escape(name.replace("_", " "))}'
         + (f' <em>+{i["new"]}</em>' if i["ok"] and i["new"] else "")
-        + "</span>"
+        + f' <u>{_ago(_parse(i["ran_at"]))}</u></span>'
         for name, i in sorted(d["sources"].items())
     )
 
@@ -364,10 +436,17 @@ def console(key: str = "") -> HTMLResponse:
 <div class="adm">
   <div class="top">
     <h1>Foxy</h1>
-    <div class="state">{state}</div>
+    <div class="state{" warn" if not d["ok"] else ""}">{state}</div>
   </div>
 
+
   <div class="figs">{figs}</div>
+
+  <div class="spark">
+    <div class="hd"><b>Last 7 days</b><span>{week_total} delivered</span></div>
+    <div class="bars">{bars}</div>
+    <div class="days">{labels}</div>
+  </div>
 
   {attention}
 
@@ -433,6 +512,16 @@ def _parse(value: Any) -> dt.datetime | None:
     return None
 
 
+def _initials(name: str) -> str:
+    """Two letters at most, so a row is identifiable before it is read."""
+    parts = [w for w in name.replace("-", " ").split() if w]
+    if not parts:
+        return "?"
+    if len(parts) == 1:
+        return parts[0][:2].upper()
+    return (parts[0][0] + parts[1][0]).upper()
+
+
 def _rows(rows: list[dict], key: str) -> str:
     """One line per workspace. Name, state, count, and a way to act on it."""
     if not rows:
@@ -452,6 +541,7 @@ def _rows(rows: list[dict], key: str) -> str:
         )
         out += f"""
     <div class="row">
+      <div class="av">{html.escape(_initials(r["team"]))}</div>
       <div class="who">
         <div class="nm">{html.escape(r["team"])}</div>
         <div class="sub">{where} &middot; joined {r["joined"]:%d %b}</div>
