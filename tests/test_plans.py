@@ -1039,22 +1039,28 @@ def test_the_site_links_are_real_paths(db):
         assert 'href="#' not in link, link
 
 
-def test_the_hero_shows_an_alert_rather_than_only_describing_one():
-    """The headline can claim "before YC does"; one real alert argues it."""
+def test_the_hero_shows_detections_rather_than_describing_them():
+    """The headline can claim "before YC does"; the detections argue it."""
     import pathlib
 
     page = pathlib.Path("app/static/index.html").read_text(encoding="utf-8")
     hero = page[page.index('class="hero split"') : page.index("<!-- the gap -->")]
 
-    assert "hero-proof" in hero, "the hero shows nothing"
+    assert 'id="scope"' in hero, "the hero shows nothing"
+    assert hero.count('class="sig') >= 3, "one card does not cycle"
     assert "EARLY SIGNAL" in hero
-    assert "Not yet in the YC directory" in hero, "the claim needs its evidence"
+    assert "Not in the YC directory yet" in hero, "the claim needs its evidence"
+    # Real companies Foxy actually caught, not invented ones.
+    for name in ("EVO HQ", "Arcline", "Adalat AI"):
+        assert name in hero, name
 
 
-def test_the_hero_survives_missing_artwork():
-    """A picture that has not been made yet is a normal state, not a hole."""
+def test_the_hero_animation_yields_to_a_visitor_who_asked_for_less():
+    """Motion is decoration. Somebody who has switched it off in their system
+    should not have to watch it anyway."""
     import pathlib
 
     page = pathlib.Path("app/static/index.html").read_text(encoding="utf-8")
-    assert "onerror=" in page, "a missing image must remove itself"
-    assert ".hero-art.empty" in page, "and the column must still stand up"
+    assert "prefers-reduced-motion" in page
+    assert "matchMedia" in page, "the script must check it too, not only the CSS"
+    assert "document.hidden" in page, "and stop while the tab is in the background"

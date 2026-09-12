@@ -838,6 +838,101 @@
   @media (max-width: 919px) {
     .hero-art .hero-proof { position: static; width: auto; margin-top: -34px; }
   }
+
+  /* The scope. Foxy watching five sources and catching something before the
+     directory does, built rather than drawn - so it is crisp at any size,
+     weighs nothing, and can show real detections instead of a mock-up.
+     Everything animated here is transform and opacity, which the compositor
+     handles without repainting. */
+  .scope {
+    position: relative; aspect-ratio: 1; width: 100%; max-width: 460px;
+    margin-inline: auto; perspective: 1100px;
+  }
+
+  .rings { position: absolute; inset: 0; display: grid; place-items: center; }
+  .rings i {
+    position: absolute; border-radius: 50%; border: 1px solid var(--border-2);
+    opacity: 0; animation: ping 4.8s cubic-bezier(.2,.6,.3,1) infinite;
+  }
+  .rings i:nth-child(1) { width: 34%; height: 34%; animation-delay: 0s; }
+  .rings i:nth-child(2) { width: 34%; height: 34%; animation-delay: 1.6s; }
+  .rings i:nth-child(3) { width: 34%; height: 34%; animation-delay: 3.2s; }
+  @keyframes ping {
+    0%   { transform: scale(.5); opacity: 0; }
+    18%  { opacity: .55; }
+    100% { transform: scale(2.9); opacity: 0; }
+  }
+
+  .scope .halo {
+    position: absolute; inset: 12%; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(closest-side, var(--glow), transparent 70%);
+  }
+
+  /* The stack of detections, tilted just enough to read as an object. */
+  .deck {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    transform-style: preserve-3d;
+    transform: rotateX(var(--rx, 6deg)) rotateY(var(--ry, -11deg));
+    transition: transform .45s cubic-bezier(.2,.7,.3,1);
+  }
+  .sig {
+    position: absolute; width: min(300px, 78%);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 15px;
+    box-shadow: var(--shadow-l); padding: 15px 16px 16px;
+    opacity: 0; transform: translateY(14px) scale(.96); pointer-events: none;
+    transition: opacity .5s ease, transform .5s cubic-bezier(.2,.7,.3,1);
+  }
+  .sig.on { opacity: 1; transform: translateY(0) scale(1); }
+  .sig.back { opacity: .35; transform: translate3d(16px, -26px, -70px) scale(.93); }
+
+  .sig .tag {
+    display: inline-flex; align-items: center; gap: 6px; background: var(--accent);
+    color: #fff; font-size: 10px; font-weight: 600; letter-spacing: .08em;
+    padding: 3px 8px; border-radius: 5px; margin-bottom: 10px;
+  }
+  .sig .tag.listed { background: var(--ink-2); }
+  .sig .co { font-size: 16px; font-weight: 600; color: var(--ink); letter-spacing: -.015em; }
+  .sig .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .sig .quote {
+    margin-top: 11px; padding-left: 11px; border-left: 2px solid var(--border-2);
+    font-size: 12.5px; line-height: 1.5; color: var(--ink-2); font-style: italic;
+  }
+  .sig .verdict {
+    margin-top: 12px; display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11.5px; color: var(--good); background: var(--good-sf);
+    padding: 5px 10px; border-radius: 6px;
+  }
+  .sig .verdict.wait { color: var(--muted); background: var(--bg); }
+
+  /* Sources around the rim, lighting up as the sweep passes them. */
+  .feeds {
+    position: absolute; inset: 0; pointer-events: none;
+  }
+  .feed {
+    position: absolute; display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+    padding: 5px 11px; font-size: 11.5px; color: var(--muted);
+    box-shadow: var(--shadow-s); white-space: nowrap;
+    transition: color .4s ease, border-color .4s ease, transform .4s ease;
+  }
+  .feed i {
+    width: 5px; height: 5px; border-radius: 50%; background: var(--border-2);
+    transition: background .4s ease, box-shadow .4s ease;
+  }
+  .feed.hot { color: var(--ink); border-color: var(--accent); transform: scale(1.06); }
+  .feed.hot i { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-sf); }
+
+  .feed:nth-child(1) { top: 6%;  left: 4%; }
+  .feed:nth-child(2) { top: 23%; right: 1%; }
+  .feed:nth-child(3) { bottom: 27%; left: 0%; }
+  .feed:nth-child(4) { bottom: 8%; right: 7%; }
+  .feed:nth-child(5) { top: 46%; right: -2%; }
+
+  @media (max-width: 919px) { .scope { max-width: 380px; } }
+  @media (prefers-reduced-motion: reduce) {
+    .rings i { animation: none; opacity: .25; }
+    .sig, .deck, .feed { transition: none; }
+  }
 </style>
 <style>html{-webkit-text-size-adjust:100%}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
@@ -880,30 +975,57 @@
           </div>
         </div>
 
-        <div class="hero-art" id="heroart">
-          <img src="/assets/hero.png" alt="" width="900" height="900"
-               onerror="document.getElementById('heroart').classList.add('empty')">
-          <div class="hero-proof">
-        <div class="hp-bar">
-          <span class="hp-dots"><i></i><i></i><i></i></span>
-          <b>#yc-signals</b> &middot; Slack
-        </div>
-        <div class="hp-body">
-          <div class="hp-av">&#129418;</div>
-          <div class="hp-msg">
-            <div class="hp-who"><b>Foxy</b><span>APP &middot; 9:14 AM</span></div>
-            <span class="hp-tag">EARLY SIGNAL</span>
-            <div class="hp-co">EVO HQ</div>
-            <div class="hp-meta">YC F26 &middot; LinkedIn &middot; 95% confidence</div>
-            <p class="hp-quote">&ldquo;EVO HQ (YC F26) got into Y Combinator and we are
-            just getting started&hellip;&rdquo;</p>
-            <div class="hp-foot">Not yet in the YC directory &mdash; checked just now</div>
+        <div class="hero-art">
+          <div class="scope" id="scope" aria-hidden="true">
+            <span class="halo"></span>
+            <div class="rings"><i></i><i></i><i></i></div>
+
+            <div class="feeds">
+              <span class="feed"><i></i>YC Directory</span>
+              <span class="feed"><i></i>Launch YC</span>
+              <span class="feed"><i></i>Speedrun</span>
+              <span class="feed"><i></i>LinkedIn</span>
+              <span class="feed"><i></i>X</span>
+            </div>
+
+            <div class="deck" id="deck">
+              <article class="sig on">
+                <span class="tag">EARLY SIGNAL</span>
+                <div class="co">EVO HQ</div>
+                <div class="meta">YC F26 &middot; LinkedIn &middot; 95%</div>
+                <p class="quote">&ldquo;EVO HQ (YC F26) got into Y Combinator&hellip;&rdquo;</p>
+                <span class="verdict">Not in the YC directory yet</span>
+              </article>
+
+              <article class="sig back">
+                <span class="tag">EARLY SIGNAL</span>
+                <div class="co">Arcline</div>
+                <div class="meta">YC W26 &middot; LinkedIn &middot; 95%</div>
+                <p class="quote">&ldquo;We&rsquo;re backed by Y Combinator&hellip;&rdquo;</p>
+                <span class="verdict">Not in the YC directory yet</span>
+              </article>
+
+              <article class="sig">
+                <span class="tag">EARLY SIGNAL</span>
+                <div class="co">Adalat AI</div>
+                <div class="meta">X &middot; 100%</div>
+                <p class="quote">&ldquo;Thrilled to share we&rsquo;ve joined Y Combinator&hellip;&rdquo;</p>
+                <span class="verdict">Not in the YC directory yet</span>
+              </article>
+
+              <article class="sig">
+                <span class="tag listed">NEW COMPANY</span>
+                <div class="co">Orca Aerospace</div>
+                <div class="meta">YC F26 &middot; YC Directory</div>
+                <p class="quote">Just appeared in the official directory.</p>
+                <span class="verdict wait">Confirmed by YC</span>
+              </article>
+            </div>
           </div>
         </div>
       </div>
-        </div>
-      </div>
     </div>
+
   </div>
 
   <!-- the gap -->
@@ -1447,6 +1569,63 @@ uvicorn app.main:app --port 8000</pre></div>
       }
     });
   });
+
+  // The scope in the hero. Three small behaviours, all cheap: the detections
+  // cycle, the sources light up as though a sweep were passing them, and the
+  // stack leans toward the pointer. Nothing here runs when the tab is hidden
+  // or when the visitor has asked for less motion.
+  (function () {
+    var scope = document.getElementById("scope");
+    var deck = document.getElementById("deck");
+    if (!scope || !deck) return;
+
+    var still = window.matchMedia("(prefers-reduced-motion: reduce)");
+    var cards = Array.prototype.slice.call(deck.querySelectorAll(".sig"));
+    var feeds = Array.prototype.slice.call(scope.querySelectorAll(".feed"));
+    var at = 0;
+
+    function show(i) {
+      cards.forEach(function (c, n) {
+        c.classList.toggle("on", n === i);
+        c.classList.toggle("back", n === (i + 1) % cards.length);
+      });
+    }
+
+    function tick() {
+      if (document.hidden) return;
+      at = (at + 1) % cards.length;
+      show(at);
+    }
+
+    // The sweep runs a little faster than the cards, so the two never fall
+    // into a rhythm that reads as one animation.
+    var lit = 0;
+    function sweep() {
+      if (document.hidden) return;
+      feeds.forEach(function (f, n) {
+        f.classList.toggle("hot", n === lit);
+      });
+      lit = (lit + 1) % feeds.length;
+    }
+
+    if (!still.matches) {
+      setInterval(tick, 4200);
+      setInterval(sweep, 900);
+      sweep();
+
+      scope.addEventListener("pointermove", function (e) {
+        var b = scope.getBoundingClientRect();
+        var x = (e.clientX - b.left) / b.width - 0.5;
+        var y = (e.clientY - b.top) / b.height - 0.5;
+        deck.style.setProperty("--ry", (-11 + x * 12).toFixed(2) + "deg");
+        deck.style.setProperty("--rx", (6 - y * 10).toFixed(2) + "deg");
+      });
+      scope.addEventListener("pointerleave", function () {
+        deck.style.removeProperty("--ry");
+        deck.style.removeProperty("--rx");
+      });
+    }
+  })();
 </script>
 </body>
 </html>
