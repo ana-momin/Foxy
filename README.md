@@ -21,6 +21,10 @@ moment a new company appears, or a founder announces before YC does.
 
 ---
 
+> **Picking this up after a while?** [CONTEXT.md](CONTEXT.md) has the whole
+> picture in one place: how it fits together, why the odd decisions are the way
+> they are, every bug that reached production, and what the Pond review caught.
+
 ## The problem
 
 Everyone scraping YC's directory finds the same companies on the same day.
