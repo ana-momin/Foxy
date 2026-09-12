@@ -32,7 +32,7 @@ from typing import Any
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import APIRouter, FastAPI, Header, Request
 from fastapi import Response
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from . import pond_schema, pond_tasks
 from .config import active_batch_codes, settings
@@ -940,6 +940,36 @@ def healthz() -> dict[str, Any]:
         "search_budget": budget.snapshot(),
         **snap,
     }
+
+
+@router.api_route("/assets/foxy.png", methods=["GET", "HEAD"])
+def logo() -> Response:
+    """Foxy's face, small enough to sit in a header.
+
+    Served rather than inlined so the browser caches it once instead of
+    carrying fourteen kilobytes of base64 in every page.
+    """
+    path = pathlib.Path(__file__).parent / "static" / "foxy-96.png"
+    if not path.exists():
+        return Response(status_code=404)
+    return Response(
+        path.read_bytes(),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=604800, immutable"},
+    )
+
+
+@router.api_route("/assets/admin.js", methods=["GET", "HEAD"])
+def admin_script() -> Response:
+    """The console's behaviour, served rather than inlined so it caches."""
+    path = pathlib.Path(__file__).parent / "static" / "admin.js"
+    if not path.exists():
+        return Response(status_code=404)
+    return Response(
+        path.read_text(encoding="utf-8"),
+        media_type="application/javascript",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @router.post("/slack/command")

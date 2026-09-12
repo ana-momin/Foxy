@@ -87,6 +87,29 @@ class Entity(Base):
         return max(0, (self.confirmed_at - self.first_signal_at).days)
 
 
+class Event(Base):
+    """Something worth being able to look back at.
+
+    Sweeps, deliveries and failures are already recoverable from their own
+    tables; this is for the things that leave no other trace - an operator
+    granting alerts, a key being replaced, an announcement going out. Without
+    it those changes are invisible the moment they happen, which is how a
+    workspace can lose its plan to a stray click and nobody can say when.
+
+    Deliberately small and append-only. It is a record, not a queue.
+    """
+
+    __tablename__ = "events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, index=True)
+    kind: Mapped[str] = mapped_column(String(32), index=True)
+    actor: Mapped[str] = mapped_column(String(32), default="system")
+    subject: Mapped[str] = mapped_column(String(128), default="")
+    detail: Mapped[str] = mapped_column(Text, default="")
+    ok: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class PondTask(Base):
     """One asynchronous Pond run, and everything needed to resume it.
 
@@ -435,6 +458,37 @@ def consecutive_failures(s: Session, source: str, limit: int = 2) -> int:
             break
         count += 1
     return count
+
+
+def record(
+    kind: str,
+    *,
+    subject: str = "",
+    detail: str = "",
+    actor: str = "system",
+    ok: bool = True,
+) -> None:
+    """Note that something happened. Never raises: a log that can break the
+    thing it is logging is worse than no log."""
+    try:
+        with session() as s:
+            s.add(
+                Event(
+                    kind=kind[:32],
+                    actor=actor[:32],
+                    subject=subject[:128],
+                    detail=detail[:2000],
+                    ok=ok,
+                )
+            )
+    except Exception:  # noqa: BLE001
+        log.debug("could not record a %s event", kind, exc_info=True)
+
+
+def recent_events(s: Session, limit: int = 100) -> list[Event]:
+    return (
+        s.execute(select(Event).order_by(Event.at.desc()).limit(limit)).scalars().all()
+    )
 
 
 def recent_alerts(s: Session, limit: int = 20, kind: str = "") -> list[Alert]:

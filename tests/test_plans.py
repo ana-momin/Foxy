@@ -571,7 +571,7 @@ def test_a_workspace_at_its_cap_is_surfaced(db, admin):
     d = gather()
 
     assert d["ok"] is False
-    assert any("cap" in p for p in d["problems"]), d["problems"]
+    assert any("run out of alerts" in p for p in d["problems"]), d["problems"]
     assert d["workspaces"][0]["at_cap"] is True
 
 
@@ -586,7 +586,7 @@ def test_an_install_without_a_channel_is_surfaced(db, admin):
         row.channel_id = ""
 
     d = gather()
-    assert any("without a channel" in p for p in d["problems"]), d["problems"]
+    assert any("not chosen a channel" in p for p in d["problems"]), d["problems"]
 
 
 def test_a_quiet_system_reports_itself_as_fine(db, admin):
@@ -688,7 +688,14 @@ def test_taking_a_plan_away_asks_first(db, admin):
 
     page = admin.get(f"/admin?key={ADMIN}").text
     assert "Remove Pro" in page
-    assert "onsubmit=\"return confirm(" in page, "a destructive action must ask"
+    assert 'data-ask="Remove Pro from' in page, "a destructive action must ask"
+    # The browser's own confirm() names the hostname and reads like a phishing
+    # prompt on the one screen that changes billing. Checked in the markup, not
+    # the stylesheet, which explains in a comment why it is gone.
+    import re
+
+    markup = re.sub(r"<(style|script)[^>]*>.*?</\1>", " ", page, flags=re.S)
+    assert "confirm(" not in markup
 
 
 def test_a_stopped_workspace_is_not_offered_a_plan(db, admin):
@@ -789,7 +796,10 @@ def test_an_announcement_reaches_every_active_channel(db, admin, monkeypatch):
 
     import app.admin as admin_mod
 
-    monkeypatch.setattr(admin_mod, "_say", lambda tok, ch, txt: said.append((ch, txt)) is None)
+    monkeypatch.setattr(
+        admin_mod, "_say",
+        lambda tok, ch, txt, blocks=None: said.append((ch, txt, blocks)) is None,
+    )
 
     _install(db, team_id="T-A1")
     _install(db, team_id="T-A2")
@@ -798,14 +808,37 @@ def test_an_announcement_reaches_every_active_channel(db, admin, monkeypatch):
         follow_redirects=False,
     )
     assert len(said) == 2
-    assert all(txt == "Foxy got faster" for _, txt in said)
+    assert all("Foxy got faster" in txt for _, txt, _ in said)
+    # Dressed, so it does not read as another detection in a channel of alerts.
+    blocks = said[0][2]
+    assert blocks and blocks[0]["text"]["text"].endswith("*Announcement*")
+    assert blocks[-1]["type"] == "context"
+
+
+def test_an_announcement_can_carry_a_tone(db, admin, monkeypatch):
+    said = []
+    import app.admin as admin_mod
+
+    monkeypatch.setattr(
+        admin_mod, "_say",
+        lambda tok, ch, txt, blocks=None: said.append(blocks) is None,
+    )
+    _install(db, team_id="T-TONE")
+    admin.post(
+        "/admin/announce",
+        data={"key": ADMIN, "message": "Sources were slow today", "tone": "heads-up"},
+        follow_redirects=False,
+    )
+    assert "Heads up" in said[0][0]["text"]["text"]
 
 
 def test_an_empty_announcement_says_nothing(db, admin, monkeypatch):
     said = []
     import app.admin as admin_mod
 
-    monkeypatch.setattr(admin_mod, "_say", lambda tok, ch, txt: said.append(ch) is None)
+    monkeypatch.setattr(
+        admin_mod, "_say", lambda tok, ch, txt, blocks=None: said.append(ch) is None
+    )
 
     _install(db, team_id="T-A3")
     admin.post("/admin/announce", data={"key": ADMIN, "message": "   "},
@@ -878,3 +911,57 @@ def test_the_week_of_delivery_is_shown(db, admin):
     assert len(week) == 7
     assert sum(x["count"] for x in week) == 3
     assert "Last 7 days" in admin.get(f"/admin?key={ADMIN}").text
+
+
+def test_the_headline_reads_like_english(db, admin):
+    """"1 install(s) without a channel" is the first line anyone reads."""
+    from app.admin import gather
+    from app.config import settings
+
+    _install(db, team_id="T-ONE", alerts_used=settings.free_alert_quota)
+    one = gather()["problems"]
+    assert any("1 workspace has run out" in p for p in one), one
+    assert not any("(s)" in p for p in one), one
+
+    _install(db, team_id="T-TWO", alerts_used=settings.free_alert_quota)
+    two = gather()["problems"]
+    assert any("2 workspaces have run out" in p for p in two), two
+
+
+def test_the_activity_log_records_what_was_done(db, admin):
+    """A workspace lost its plan to a stray click and nothing could say when."""
+    install_id = _install(db, team_id="T-LOG", alerts_used=5)
+    admin.post("/admin/grant", data={"key": ADMIN, "install_id": install_id, "alerts": 50},
+               follow_redirects=False)
+
+    page = admin.get(f"/admin/logs?key={ADMIN}").text
+    assert "Activity" in page
+    assert "grant" in page
+    assert "50 alerts" in page
+
+
+def test_the_activity_log_needs_the_key(db, admin):
+    assert "Activity" not in admin.get("/admin/logs?key=wrong").text
+
+
+def test_actions_answer_json_when_the_page_asks(db, admin):
+    """So pressing a button costs a request, not a page load."""
+    install_id = _install(db, team_id="T-AJAX", alerts_used=1)
+    r = admin.post(
+        "/admin/grant",
+        data={"key": ADMIN, "install_id": install_id, "alerts": 50, "ajax": "1"},
+    )
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
+    assert "50 alerts added" in r.json()["message"]
+
+
+def test_actions_still_work_without_javascript(db, admin):
+    """The console is a set of real forms first; the script is an improvement
+    on top, not a requirement."""
+    install_id = _install(db, team_id="T-NOJS", alerts_used=1)
+    r = admin.post(
+        "/admin/grant", data={"key": ADMIN, "install_id": install_id, "alerts": 50},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303, "a plain form post must redirect"

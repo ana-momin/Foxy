@@ -29,7 +29,16 @@ from sqlalchemy import func, select
 
 from . import budget, installs, runtime
 from .config import settings
-from .db import Alert, PondRun, PondTask, Seen, health_snapshot, session
+from .db import (
+    Alert,
+    PondRun,
+    PondTask,
+    Seen,
+    health_snapshot,
+    record,
+    recent_events,
+    session,
+)
 from .oauth import _page
 from .slack import SlackClient
 
@@ -163,6 +172,48 @@ border:1px solid var(--line2);background:var(--paper);color:var(--txt);
 font-family:inherit;font-size:13.5px}
 .tool input[type=text]:focus{outline:2px solid var(--brand);outline-offset:1px}
 .tool .hint{font-size:12.5px;color:var(--dim);margin:0 0 16px;line-height:1.55}
+.tool select{padding:10px 12px;border-radius:9px;border:1px solid var(--line2);
+background:var(--paper);color:var(--txt);font-family:inherit;font-size:13.5px}
+
+.mark{width:38px;height:38px;border-radius:11px;flex:none;object-fit:cover;
+box-shadow:var(--sh)}
+.ico{margin-left:8px;width:36px;height:36px;border-radius:10px;border:1px solid var(--line);
+background:var(--card);color:var(--txt2);display:grid;place-items:center;cursor:pointer;
+text-decoration:none;transition:border-color .15s,color .15s}
+.ico:hover{border-color:var(--brand);color:var(--brand)}
+.ico svg{width:16px;height:16px}
+
+/* Replaces the browser's confirm(), which announces the hostname and looks
+   like a phishing prompt on the one screen that changes billing. */
+.veil{position:fixed;inset:0;background:rgba(23,19,16,.38);backdrop-filter:blur(3px);
+display:none;place-items:center;z-index:40;padding:22px}
+.veil.on{display:grid}
+.ask{background:var(--card);border-radius:16px;padding:26px;max-width:400px;width:100%;
+box-shadow:0 24px 60px -20px rgba(30,20,10,.4);border:1px solid var(--line)}
+.ask h3{margin:0 0 8px;font-size:17px;font-weight:600;color:var(--txt)}
+.ask p{margin:0 0 22px;font-size:14px;color:var(--txt2);line-height:1.55}
+.ask .btns{display:flex;gap:9px;justify-content:flex-end}
+
+.toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,80px);
+background:var(--txt);color:#fff;padding:12px 20px;border-radius:11px;font-size:13.5px;
+box-shadow:0 16px 40px -14px rgba(0,0,0,.5);opacity:0;transition:all .22s ease;z-index:50}
+.toast.on{transform:translate(-50%,0);opacity:1}
+
+.busy{opacity:.5;pointer-events:none}
+
+.logs{border:1px solid var(--line);border-radius:14px;background:var(--card);
+overflow:hidden}
+.log{display:flex;gap:13px;align-items:flex-start;padding:13px 18px;
+border-top:1px solid var(--line);font-size:13.5px}
+.logs>.log:first-child{border-top:0}
+.log .when{color:var(--dim);font-family:"JetBrains Mono",monospace;font-size:11.5px;
+flex:none;width:76px;padding-top:2px}
+.log .what{min-width:0;flex:1}
+.log .what b{font-weight:600;color:var(--txt)}
+.log .what span{color:var(--txt2)}
+.log .kd{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+font-family:"JetBrains Mono",monospace;color:var(--dim);flex:none;padding-top:3px}
+.log.bad .kd{color:var(--warn)}
 """
 
 
@@ -179,6 +230,18 @@ def _authorised(key: str) -> bool:
     nobody meant to publish.
     """
     return bool(settings.admin_key) and hmac.compare_digest(key or "", settings.admin_key)
+
+
+def _done(key: str, wants_json: bool, **extra: Any) -> Any:
+    """Answer an action.
+
+    A browser form gets a redirect; the page's own fetch gets JSON and updates
+    in place. Both paths exist so the console still works with no JavaScript,
+    and so a full reload is not the price of pressing a button.
+    """
+    if wants_json:
+        return JSONResponse({"ok": True, **extra})
+    return RedirectResponse(f"/admin?key={key}", 303)
 
 
 def _denied() -> HTMLResponse:
@@ -301,16 +364,26 @@ def gather() -> dict[str, Any]:
     failing = [n for n, i in sources.items() if not i["ok"]]
     # Things worth interrupting someone about, in the order they matter.
     problems: list[str] = []
+    def count(n: int, one: str, many: str) -> str:
+        """English, rather than "1 install(s)". It is the first line anyone
+        reads on the page and it should not look generated."""
+        return f"{n} {one}" if n == 1 else f"{n} {many}"
+
     if failing:
-        problems.append(f"{len(failing)} source failing")
+        problems.append(count(len(failing), "source is failing", "sources are failing"))
     stalled = [r for r in live if r["at_cap"]]
     if stalled:
-        problems.append(f"{len(stalled)} workspace(s) at the free cap")
+        problems.append(
+            count(len(stalled), "workspace has", "workspaces have") + " run out of alerts"
+        )
     unfinished = [r for r in live if r["no_channel"]]
     if unfinished:
-        problems.append(f"{len(unfinished)} install(s) without a channel")
+        problems.append(
+            count(len(unfinished), "workspace has", "workspaces have")
+            + " not chosen a channel"
+        )
     if tasks.get("failed"):
-        problems.append(f"{tasks['failed']} Pond task(s) failed")
+        problems.append(count(tasks["failed"], "Pond scan failed", "Pond scans failed"))
     b = budget.snapshot()
     if b.get("low"):
         problems.append("search credits low")
@@ -435,12 +508,17 @@ def console(key: str = "") -> HTMLResponse:
         f"""
 <div class="adm">
   <div class="top">
+    <img class="mark" src="/assets/foxy.png" alt="" width="38" height="38">
     <h1>Foxy</h1>
-    <div class="state{" warn" if not d["ok"] else ""}">{state}</div>
+    <div class="state{" warn" if not d["ok"] else ""}" id="state">{state}</div>
+    <a class="ico" href="/admin/logs?key={k}" title="Activity log" aria-label="Activity log">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+    </a>
   </div>
 
 
-  <div class="figs">{figs}</div>
+  <div class="figs" id="figs">{figs}</div>
 
   <div class="spark">
     <div class="hd"><b>Last 7 days</b><span>{week_total} delivered</span></div>
@@ -457,15 +535,15 @@ def console(key: str = "") -> HTMLResponse:
 
   <div class="sec">
     <h2>Workspaces</h2>
-    {_rows(d["workspaces"], k)}
+    <div id="wsp">{_rows(d["workspaces"], k)}</div>
   </div>
 
   <div class="sec">
     <h2>Capacity</h2>
-    {credits}
+    <div id="cap">{credits}
     <div class="foot" style="border:0;padding:0">
       <b>{left}</b> &middot; swept {_ago(_parse(d["last_sweep"]))}, next {d["next_sweep"]}
-    </div>
+    </div></div>
   </div>
 
   <div class="sec">
@@ -475,8 +553,16 @@ def console(key: str = "") -> HTMLResponse:
       <form method="post" action="/admin/announce">
         <input type="hidden" name="key" value="{k}">
         <input type="text" name="message" placeholder="Goes to every active channel">
+        <select name="tone">
+          <option value="news">Announcement</option>
+          <option value="update">What's new</option>
+          <option value="heads-up">Heads up</option>
+          <option value="thanks">From Foxy</option>
+        </select>
         <button class="mini go" type="submit">Send</button>
       </form>
+      <p class="hint">Arrives with a heading and a divider, so it does not read
+      like another detection.</p>
     </details>
     <details class="tool">
       <summary>Replace the search key &middot; {html.escape(keys["serper_source"])}
@@ -490,6 +576,19 @@ def console(key: str = "") -> HTMLResponse:
       next sweep &mdash; no deployment.</p>
     </details>
   </div>
+
+  <div class="veil" id="veil">
+    <div class="ask" role="dialog" aria-modal="true">
+      <h3></h3>
+      <p></p>
+      <div class="btns">
+        <button class="mini no" type="button">Cancel</button>
+        <button class="mini go" type="button">Yes, do it</button>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script src="/assets/admin.js" defer></script>
 
   <div class="foot">
     Pond &middot; <b>{d["pond_runs"]}</b> calls, <b>{pond_done}</b> scans
@@ -561,6 +660,16 @@ def _chip(r: dict) -> str:
     return '<span class="chip free">Free</span>'
 
 
+# Filled as the questions are built, read by the dialog on the page.
+_DETAIL: dict[str, str] = {}
+
+
+def _remove_q(team: str) -> str:
+    q = f"Remove Pro from {team}?"
+    _DETAIL[q] = "Alerts stop once it reaches the free cap again."
+    return q
+
+
 def _buttons(r: dict, key: str) -> str:
     """One form per action. A GET that changes a plan would be triggered by
     anything that follows links, a preview fetch included.
@@ -573,7 +682,8 @@ def _buttons(r: dict, key: str) -> str:
 
     def form(months: int, label: str, cls: str, confirm: str = "") -> str:
         ask = (
-            f' onsubmit="return confirm({html.escape(confirm, quote=True)!r})"'
+            f' data-ask="{html.escape(confirm, quote=True)}"'
+            f' data-detail="{html.escape(_DETAIL.get(confirm, ""), quote=True)}"'
             if confirm
             else ""
         )
@@ -591,7 +701,8 @@ def _buttons(r: dict, key: str) -> str:
 
     def act(path: str, label: str, cls: str, extra: str = "", confirm: str = "") -> str:
         ask = (
-            f' onsubmit="return confirm({html.escape(confirm, quote=True)!r})"'
+            f' data-ask="{html.escape(confirm, quote=True)}"'
+            f' data-detail="{html.escape(_DETAIL.get(confirm, ""), quote=True)}"'
             if confirm
             else ""
         )
@@ -603,21 +714,13 @@ def _buttons(r: dict, key: str) -> str:
         <button class="mini {cls}" type="submit">{label}</button>
       </form>"""
 
-    stop = act(
-        "stop",
-        "Stop",
-        "",
-        confirm=f"Stop sending to {r['team']}? It keeps its history.",
-    )
+    stop_q = f"Stop sending to {r['team']}?"
+    _DETAIL[stop_q] = "It keeps everything it has received. Reinstalling resumes it."
+    stop = act("stop", "Stop", "", confirm=stop_q)
 
     if r["pro"]:
         return (
-            form(
-                0,
-                "Remove Pro",
-                "",
-                confirm=f"Remove Pro from {r['team']}? Alerts stop at the free cap.",
-            )
+            form(0, "Remove Pro", "", confirm=_remove_q(r["team"]))
             + stop
         )
 
@@ -642,6 +745,66 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
+@router.get("/admin/logs", response_model=None)
+def logs(key: str = "") -> HTMLResponse:
+    """What has happened, newest first.
+
+    Sweeps and deliveries leave their own trail; this is for the changes that
+    otherwise leave none - somebody granting alerts, replacing a key, sending
+    an announcement. A workspace lost its plan to a stray click once and there
+    was no way to say when or by whom.
+    """
+    if not _authorised(key):
+        return _denied()
+
+    with session() as s:
+        rows = [
+            {
+                "at": e.at,
+                "kind": e.kind,
+                "actor": e.actor,
+                "subject": e.subject,
+                "detail": e.detail,
+                "ok": e.ok,
+            }
+            for e in recent_events(s, limit=150)
+        ]
+
+    if rows:
+        items = "".join(
+            f"""
+    <div class="log{"" if r["ok"] else " bad"}">
+      <div class="when">{r["at"]:%d %b %H:%M}</div>
+      <div class="what">
+        <b>{html.escape(r["subject"] or r["kind"])}</b>
+        <span>{html.escape(r["detail"][:120])}</span>
+      </div>
+      <div class="kd">{html.escape(r["kind"])}</div>
+    </div>"""
+            for r in rows
+        )
+        body = f'<div class="logs">{items}</div>'
+    else:
+        body = '<p class="none">Nothing has happened yet.</p>'
+
+    return _shell(
+        f"""
+<div class="adm">
+  <div class="top">
+    <img class="mark" src="/assets/foxy.png" alt="" width="38" height="38">
+    <h1>Activity</h1>
+    <a class="ico" href="/admin?key={html.escape(key)}" title="Back"
+       aria-label="Back" style="margin-left:auto">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </a>
+  </div>
+  <div class="sec">{body}</div>
+</div>""",
+        "Foxy activity",
+    )
+
+
 @router.get("/admin/status")
 def status_json(key: str = "") -> JSONResponse:
     """The same numbers as JSON, for watching from somewhere else.
@@ -658,7 +821,9 @@ def status_json(key: str = "") -> JSONResponse:
 
 
 @router.post("/admin/key", response_model=None)
-def replace_key(key: str = Form(""), serper: str = Form("")) -> HTMLResponse | RedirectResponse:
+def replace_key(
+    key: str = Form(""), serper: str = Form(""), ajax: str = Form("")
+) -> Any:
     """Replace the search key without a deployment.
 
     It is the one credential certain to need swapping one day, and needing a
@@ -669,13 +834,17 @@ def replace_key(key: str = Form(""), serper: str = Form("")) -> HTMLResponse | R
     value = (serper or "").strip()
     if value:
         runtime.set_serper_key(value)
-    return RedirectResponse(f"/admin?key={key}", 303)
+        record("key", subject="serper", detail="search key replaced", actor="admin")
+    return _done(key, bool(ajax), message="Search key replaced")
 
 
 @router.post("/admin/grant", response_model=None)
 def grant_alerts(
-    key: str = Form(""), install_id: str = Form(""), alerts: int = Form(50)
-) -> HTMLResponse | RedirectResponse:
+    key: str = Form(""),
+    install_id: str = Form(""),
+    alerts: int = Form(50),
+    ajax: str = Form(""),
+) -> Any:
     """Give a workspace more headroom, and tell it so.
 
     Silently raising a cap leaves somebody wondering why the bot went quiet and
@@ -694,14 +863,15 @@ def grant_alerts(
 
     if token and channel:
         _say(token, channel, f"*{alerts} more alerts added.* {left} left on this channel.")
+    record("grant", subject=team, detail=f"+{alerts} alerts, {left} remaining", actor="admin")
     log.info("admin granted %s %d alerts", team, alerts)
-    return RedirectResponse(f"/admin?key={key}", 303)
+    return _done(key, bool(ajax), message=f"{alerts} alerts added to {team}")
 
 
 @router.post("/admin/stop", response_model=None)
 def stop_workspace(
-    key: str = Form(""), install_id: str = Form("")
-) -> HTMLResponse | RedirectResponse:
+    key: str = Form(""), install_id: str = Form(""), ajax: str = Form("")
+) -> Any:
     """Stop delivering to a workspace. Deactivated rather than deleted: the
     seen-set and the record of what it received stay true, and a reinstall
     picks up where it left off."""
@@ -713,14 +883,20 @@ def stop_workspace(
         if row is None:
             return _denied()
         row.active = False
-        log.info("admin stopped %s", row.team_name)
-    return RedirectResponse(f"/admin?key={key}", 303)
+        team = row.team_name
+    record("stop", subject=team, detail="delivery stopped", actor="admin")
+    log.info("admin stopped %s", team)
+    return _done(key, bool(ajax), message=f"Stopped {team}")
 
 
 @router.post("/admin/announce", response_model=None)
 def announce(
-    key: str = Form(""), message: str = Form(""), install_id: str = Form("")
-) -> HTMLResponse | RedirectResponse:
+    key: str = Form(""),
+    message: str = Form(""),
+    install_id: str = Form(""),
+    tone: str = Form("news"),
+    ajax: str = Form(""),
+) -> Any:
     """Say something in one channel, or in all of them.
 
     Failures are per workspace: one unreachable channel must not stop the rest
@@ -731,7 +907,7 @@ def announce(
 
     text = (message or "").strip()
     if not text:
-        return RedirectResponse(f"/admin?key={key}", 303)
+        return _done(key, bool(ajax), message="Nothing to say")
 
     with session() as s:
         rows = [
@@ -740,23 +916,66 @@ def announce(
             if not install_id or r.id == install_id
         ]
 
+    blocks, fallback = _announcement(text, tone)
     sent = 0
     for _id, team, token, channel in rows:
-        if _say(token, channel, text):
+        if _say(token, channel, fallback, blocks=blocks):
             sent += 1
         else:
             log.warning("could not announce to %s", team)
+    record(
+        "announce",
+        subject=f"{sent}/{len(rows)} channels",
+        detail=text,
+        actor="admin",
+        ok=sent == len(rows),
+    )
     log.info("admin announced to %d of %d channels", sent, len(rows))
-    return RedirectResponse(f"/admin?key={key}", 303)
+    return _done(
+        key, bool(ajax), message=f"Sent to {sent} of {len(rows)} channels"
+    )
 
 
-def _say(token: str, channel: str, text: str) -> bool:
+TONES = {
+    "news": (":loudspeaker:", "Announcement"),
+    "update": (":sparkles:", "What's new"),
+    "heads-up": (":warning:", "Heads up"),
+    "thanks": (":wave:", "From Foxy"),
+}
+
+
+def _announcement(text: str, tone: str) -> tuple[list[dict], str]:
+    """Dress an announcement so it does not read like an alert.
+
+    A bare line of text in a channel full of company alerts looks like another
+    detection. A header and a divider say, before anything is read, that this
+    one is from a person.
+    """
+    icon, title = TONES.get(tone, TONES["news"])
+    blocks = [
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": f"{icon}  *{title}*"},
+        },
+        {"type": "section", "text": {"type": "mrkdwn", "text": text}},
+        {
+            "type": "context",
+            "elements": [
+                {"type": "mrkdwn", "text": "Foxy · you can reply to this channel"}
+            ],
+        },
+    ]
+    return blocks, f"{title}: {text}"
+
+
+def _say(token: str, channel: str, text: str, blocks: list[dict] | None = None) -> bool:
     """One message, best effort. Never raises: this is never the main event."""
     if not token or not channel:
         return False
     try:
         SlackClient(token=token, target=channel).post(
-            [{"type": "section", "text": {"type": "mrkdwn", "text": text}}], text
+            blocks or [{"type": "section", "text": {"type": "mrkdwn", "text": text}}],
+            text,
         )
         return True
     except Exception:  # noqa: BLE001
@@ -769,7 +988,8 @@ def set_plan(
     key: str = Form(""),
     install_id: str = Form(""),
     months: int = Form(1),
-) -> HTMLResponse | RedirectResponse:
+    ajax: str = Form(""),
+) -> Any:
     if not _authorised(key):
         return _denied()
 
@@ -777,11 +997,13 @@ def set_plan(
         row = installs.get(s, install_id)
         if row is None:
             return _denied()
+        team = row.team_name
         if months <= 0:
             installs.downgrade(row)
-            log.info("admin downgraded %s", row.team_name)
+            note = "Pro removed"
         else:
             installs.activate(row, months)
-            log.info("admin gave %s %d month(s) of Pro", row.team_name, months)
-
-    return RedirectResponse(f"/admin?key={key}", 303)
+            note = f"Pro for {months} month(s)"
+    record("plan", subject=team, detail=note, actor="admin")
+    log.info("admin: %s - %s", team, note)
+    return _done(key, bool(ajax), message=f"{team}: {note.lower()}")
