@@ -536,3 +536,93 @@ def test_pond_still_carries_the_real_plans():
 
     models = {p["pricing_model"] for p in manifest()["metadata"]["pricing_plans"]}
     assert "subscription" in models
+
+
+# --- the status console -------------------------------------------------------
+
+
+def test_the_console_counts_delivered_alerts_not_decided_ones(db, admin):
+    """The one number this page must never get wrong.
+
+    Foxy once recorded 687 alerts and delivered none. A console that counted
+    rows rather than Slack message ids would have shown a healthy wall of green
+    throughout.
+    """
+    from app.admin import gather
+    from app.db import Alert, session
+
+    with session() as s:
+        s.add(Alert(fingerprint="f1", entity_key="e1", source="x", kind="early",
+                    confidence=1.0, ts="1.0", payload={}))
+        s.add(Alert(fingerprint="f2", entity_key="e2", source="x", kind="early",
+                    confidence=1.0, ts=None, payload={}))
+
+    d = gather()
+    assert d["delivered"] == 1, "an alert with no message id was never sent"
+    assert d["early"] == 1
+
+
+def test_a_workspace_at_its_cap_is_surfaced(db, admin):
+    """A live user who has gone silent is the thing most worth noticing."""
+    from app.admin import gather
+    from app.config import settings
+
+    _install(db, team_id="T-CAP", alerts_used=settings.free_alert_quota)
+    d = gather()
+
+    assert d["ok"] is False
+    assert any("cap" in p for p in d["problems"]), d["problems"]
+    assert d["workspaces"][0]["at_cap"] is True
+
+
+def test_an_install_without_a_channel_is_surfaced(db, admin):
+    """Authorised, then abandoned before choosing a channel - they get nothing
+    and will not know why."""
+    from app.admin import gather
+    from app import installs
+
+    with db.session() as s:
+        row = installs.upsert(s, team_id="T-NOCH", team_name="Half", token="xoxb-1")
+        row.channel_id = ""
+
+    d = gather()
+    assert any("without a channel" in p for p in d["problems"]), d["problems"]
+
+
+def test_a_quiet_system_reports_itself_as_fine(db, admin):
+    from app.admin import gather
+
+    _install(db, team_id="T-FINE", alerts_used=2)
+    d = gather()
+    assert d["ok"] is True and d["problems"] == []
+
+
+def test_the_console_renders_the_dashboard(db, admin):
+    _install(db, team_id="T-RENDER", alerts_used=5)
+    page = admin.get(f"/admin?key={ADMIN}").text
+
+    for section in ("Sources", "Sweeps", "Pond", "Search credits", "Workspaces"):
+        assert section in page, f"missing the {section} panel"
+    assert "alerts delivered" in page
+    assert "companies tracked" in page
+
+
+def test_the_json_and_the_page_agree(db, admin):
+    """Two readings of the same world must not tell different stories."""
+    from app.admin import gather
+
+    _install(db, team_id="T-JSON", alerts_used=7)
+    body = admin.get(f"/admin/status?key={ADMIN}").json()
+    assert body["delivered"] == gather()["delivered"]
+    assert body["live"] == gather()["live"]
+
+
+def test_the_json_needs_the_key_too(db, admin):
+    assert admin.get("/admin/status?key=wrong").status_code == 401
+
+
+def test_dead_claim_codes_are_gone_from_the_console(db, admin):
+    """They were shown for a flow that no longer exists."""
+    _install(db, team_id="T-OLD")
+    page = admin.get(f"/admin?key={ADMIN}").text
+    assert "FOXY-" not in page
