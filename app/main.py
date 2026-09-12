@@ -959,6 +959,23 @@ def logo() -> Response:
     )
 
 
+@router.api_route("/assets/hero.png", methods=["GET", "HEAD"])
+def hero_art() -> Response:
+    """The hero artwork, if one has been added.
+
+    Absent is a normal state, not an error: the page hides the image and lets
+    the alert card carry that column, so the hero never looks half-built.
+    """
+    path = pathlib.Path(__file__).parent / "static" / "hero.png"
+    if not path.exists():
+        return Response(status_code=404)
+    return Response(
+        path.read_bytes(),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=604800"},
+    )
+
+
 @router.api_route("/assets/admin.js", methods=["GET", "HEAD"])
 def admin_script() -> Response:
     """The console's behaviour, served rather than inlined so it caches."""

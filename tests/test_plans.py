@@ -1044,8 +1044,17 @@ def test_the_hero_shows_an_alert_rather_than_only_describing_one():
     import pathlib
 
     page = pathlib.Path("app/static/index.html").read_text(encoding="utf-8")
-    hero = page[page.index('class="hero"') : page.index("<!-- the gap -->")]
+    hero = page[page.index('class="hero split"') : page.index("<!-- the gap -->")]
 
     assert "hero-proof" in hero, "the hero shows nothing"
     assert "EARLY SIGNAL" in hero
     assert "Not yet in the YC directory" in hero, "the claim needs its evidence"
+
+
+def test_the_hero_survives_missing_artwork():
+    """A picture that has not been made yet is a normal state, not a hole."""
+    import pathlib
+
+    page = pathlib.Path("app/static/index.html").read_text(encoding="utf-8")
+    assert "onerror=" in page, "a missing image must remove itself"
+    assert ".hero-art.empty" in page, "and the column must still stand up"
