@@ -668,3 +668,25 @@ def test_the_json_survives_real_timestamps(db, admin):
     assert body["last_alert"] is not None
     assert body["last_pond"] is not None
     assert body["workspaces"][0]["last_alert"] is not None
+
+
+def test_taking_a_plan_away_asks_first(db, admin):
+    """A stray click cost a live workspace its Pro plan.
+
+    It sat as a bare button beside a harmless one, and nothing announced the
+    result: a downgraded workspace looks exactly like one never upgraded.
+    """
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    _install(db, team_id="T-CONFIRM", plan="pro", plan_until=now + dt.timedelta(days=300))
+
+    page = admin.get(f"/admin?key={ADMIN}").text
+    assert "Remove Pro" in page
+    assert "onsubmit=\"return confirm(" in page, "a destructive action must ask"
+
+
+def test_a_stopped_workspace_is_not_offered_a_plan(db, admin):
+    """It receives nothing either way, so the button is noise."""
+    _install(db, team_id="T-STOPPED", active=False)
+    page = admin.get(f"/admin?key={ADMIN}").text
+    assert "stopped" in page
+    assert "Give Pro" not in page

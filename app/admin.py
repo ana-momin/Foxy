@@ -421,11 +421,22 @@ def _chip(r: dict) -> str:
 
 def _buttons(r: dict, key: str) -> str:
     """One form per action. A GET that changes a plan would be triggered by
-    anything that follows links, a preview fetch included."""
+    anything that follows links, a preview fetch included.
 
-    def form(months: int, label: str, cls: str) -> str:
+    Taking a plan away asks first. It sat as a bare button beside a harmless
+    one and a stray click cost a live workspace its Pro plan - which nothing
+    announced, because a downgrade looks exactly like a workspace that was
+    never upgraded.
+    """
+
+    def form(months: int, label: str, cls: str, confirm: str = "") -> str:
+        ask = (
+            f' onsubmit="return confirm({html.escape(confirm, quote=True)!r})"'
+            if confirm
+            else ""
+        )
         return f"""
-      <form method="post" action="/admin/plan" style="display:inline">
+      <form method="post" action="/admin/plan" style="display:inline"{ask}>
         <input type="hidden" name="key" value="{key}">
         <input type="hidden" name="install_id" value="{html.escape(r["id"])}">
         <input type="hidden" name="months" value="{months}">
@@ -433,8 +444,16 @@ def _buttons(r: dict, key: str) -> str:
       </form>"""
 
     if r["pro"]:
-        return form(0, "Downgrade", "")
-    # A workspace that has run out is the one worth acting on, so it leads.
+        return form(
+            0,
+            "Remove Pro",
+            "",
+            confirm=f"Remove Pro from {r['team']}? Alerts stop at the free cap.",
+        )
+    # A stopped workspace receives nothing, so offering it a plan is noise.
+    if not r["active"]:
+        return ""
+    # One that has run out is the one worth acting on, so it leads.
     return form(12, "Give Pro", "go" if r["at_cap"] else "")
 
 
