@@ -601,10 +601,26 @@ def test_the_console_renders_the_dashboard(db, admin):
     _install(db, team_id="T-RENDER", alerts_used=5)
     page = admin.get(f"/admin?key={ADMIN}").text
 
-    for section in ("Sources", "Sweeps", "Pond", "Search credits", "Workspaces"):
-        assert section in page, f"missing the {section} panel"
-    assert "alerts delivered" in page
-    assert "companies tracked" in page
+    for section in ("Sources", "Workspaces", "Capacity", "Pond"):
+        assert section in page, f"missing the {section} section"
+    assert "Test" in page, "the workspace should be listed"
+
+
+def test_the_console_says_a_lot_with_little(db, admin):
+    """The page is read at a glance. Prose defeats the point of it.
+
+    Counting words rather than eyeballing it, because "keep it short" is the
+    kind of intent that erodes one helpful sentence at a time.
+    """
+    import re
+
+    _install(db, team_id="T-TERSE", alerts_used=5)
+    page = admin.get(f"/admin?key={ADMIN}").text
+
+    # The dashboard itself, not the document around it.
+    dash = page[page.index('<div class="adm">') :]
+    words = [w for w in re.sub(r"<[^>]+>", " ", dash).split() if w != "&middot;"]
+    assert len(words) < 70, f"{len(words)} words on a status page is an essay"
 
 
 def test_the_json_and_the_page_agree(db, admin):

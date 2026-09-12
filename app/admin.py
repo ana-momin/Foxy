@@ -41,66 +41,80 @@ router = APIRouter()
 SWEEP_HOURS = (0, 8, 16)
 
 _CSS = """
-.dash{margin:26px 0}
-.verdict{display:flex;align-items:center;gap:13px;background:var(--surface);
-border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin-bottom:14px}
-.verdict.bad{border-color:#d9822b}
-.dot{width:11px;height:11px;border-radius:50%;background:#2ea043;flex:none;
-box-shadow:0 0 0 4px rgba(46,160,67,.16)}
-.dot.warn{background:#d9822b;box-shadow:0 0 0 4px rgba(217,130,43,.16)}
-.dot.off{background:var(--border2);box-shadow:none}
-.verdict h2{font-size:16.5px;font-weight:600;margin:0}
-.verdict span{font-size:13px;color:var(--muted);margin-left:auto;
-font-family:"JetBrains Mono",monospace}
+/* The console keeps a light surface whatever the viewer's system says. A
+   status page is read at a glance, often outdoors on a phone, and the warm
+   paper reads better than a dark one for a wall of numbers. */
+.adm{--paper:#FFFDFB;--card:#fff;--line:#F0EAE3;--line2:#E2D9CF;
+--txt:#16120E;--txt2:#6B6157;--dim:#9C9086;--brand:#E1590C;
+--up:#2E9E5B;--warn:#D9822B;
+max-width:760px;margin:0 auto}
+.adm *{color-scheme:light}
 
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;
-margin-bottom:26px}
-.tile{background:var(--surface);border:1px solid var(--border);border-radius:12px;
-padding:16px 18px}
-.tile b{display:block;font-size:26px;font-weight:600;letter-spacing:-.02em;
-line-height:1.15}
-.tile span{display:block;font-size:12.5px;color:var(--muted);margin-top:3px}
+.top{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:44px}
+.top h1{font-size:30px;letter-spacing:-.034em;margin:0;font-weight:600;color:var(--txt)}
+.state{display:inline-flex;align-items:center;gap:8px;margin-left:auto;
+font-size:13.5px;color:var(--txt2);padding-top:7px}
+.pip{width:8px;height:8px;border-radius:50%;background:var(--up);flex:none;
+box-shadow:0 0 0 3px rgba(46,158,91,.14)}
+.pip.warn{background:var(--warn);box-shadow:0 0 0 3px rgba(217,130,43,.14)}
 
-.panel{background:var(--surface);border:1px solid var(--border);border-radius:13px;
-padding:20px 22px;margin-bottom:16px}
-.panel h3{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
-color:var(--muted);font-family:"JetBrains Mono",monospace;margin:0 0 14px}
-.line{display:flex;align-items:center;gap:11px;padding:9px 0;font-size:14px;
-border-top:1px solid var(--border)}
-.line:first-of-type{border-top:0}
-.line .nm{font-weight:500}
-.line .val{margin-left:auto;color:var(--muted);font-size:13px;
-font-family:"JetBrains Mono",monospace;text-align:right}
+.figs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:46px}
+@media(max-width:560px){.figs{grid-template-columns:repeat(2,1fr);gap:26px 8px}}
+.fig b{display:block;font-size:36px;font-weight:600;letter-spacing:-.04em;
+line-height:1;color:var(--txt);font-variant-numeric:tabular-nums}
+.fig span{display:block;font-size:12px;color:var(--dim);margin-top:7px;
+letter-spacing:.01em}
 
-.meter{height:6px;border-radius:3px;background:var(--border);overflow:hidden;
-margin:12px 0 8px}
-.meter span{display:block;height:100%;background:var(--accent);border-radius:3px}
-.meter.warn span{background:#d9822b}
+.sec{margin-bottom:42px}
+.sec>h2{font-size:11px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;
+color:var(--dim);font-family:"JetBrains Mono",monospace;margin:0 0 16px}
 
-.wsp{width:100%;border-collapse:collapse}
-.wsp th{text-align:left;font-size:11px;font-weight:600;letter-spacing:.07em;
-text-transform:uppercase;color:var(--muted);font-family:"JetBrains Mono",monospace;
-padding:0 10px 9px 0;border-bottom:1px solid var(--border)}
-.wsp td{padding:13px 10px 13px 0;border-bottom:1px solid var(--border);font-size:14px;
-vertical-align:middle}
-.wsp tr:last-child td{border-bottom:0}
-.wsp .name{font-weight:600;font-size:14.5px}
-.wsp .sub{font-size:12px;color:var(--muted);margin-top:2px}
-.tag{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;
-border-radius:20px;white-space:nowrap}
-.tag.pro{background:var(--accent);color:#fff}
-.tag.free{background:var(--border);color:var(--ink2)}
-.tag.off{background:transparent;color:var(--muted);border:1px solid var(--border2)}
-.tag.cap{background:#d9822b;color:#fff}
-.acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-.mini{border:1px solid var(--border2);background:var(--surface);color:var(--ink2);
-border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:500;cursor:pointer;
-font-family:inherit;transition:border-color .15s ease,color .15s ease;white-space:nowrap}
-.mini:hover{border-color:var(--accent);color:var(--accent)}
-.mini.go{background:var(--accent);border-color:var(--accent);color:#fff}
-.mini.go:hover{background:var(--accent2);color:#fff}
-.empty{color:var(--muted);font-size:14px;padding:22px 0}
-@media(max-width:620px){.wsp .hide{display:none}}
+.srcs{display:flex;flex-wrap:wrap;gap:8px}
+.src{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);
+border-radius:999px;padding:7px 14px 7px 11px;font-size:13px;color:var(--txt2);
+background:var(--card)}
+.src i{width:6px;height:6px;border-radius:50%;background:var(--up);font-style:normal}
+.src i.warn{background:var(--warn)}
+.src em{font-style:normal;color:var(--brand);font-weight:600;font-size:12px}
+
+.att{border:1px solid var(--warn);border-radius:12px;overflow:hidden;background:var(--card)}
+.att .row{border-top:1px solid var(--line)}
+.att .row:first-child{border-top:0}
+
+.row{display:flex;align-items:center;gap:14px;padding:15px 18px;
+border-top:1px solid var(--line)}
+.rows>.row:first-child{border-top:0}
+.rows{border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.row .who{min-width:0}
+.row .nm{font-size:14.5px;font-weight:600;color:var(--txt);
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .sub{font-size:12.5px;color:var(--dim);margin-top:2px}
+.row .rt{margin-left:auto;display:flex;align-items:center;gap:10px;flex:none}
+.num{font-size:13px;color:var(--dim);font-family:"JetBrains Mono",monospace;
+font-variant-numeric:tabular-nums}
+
+.chip{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;
+white-space:nowrap;letter-spacing:.01em}
+.chip.pro{background:var(--brand);color:#fff}
+.chip.free{background:#F3EEE8;color:var(--txt2)}
+.chip.cap{background:#FDF0E2;color:var(--warn)}
+.chip.off{background:transparent;color:var(--dim);border:1px solid var(--line2)}
+
+.mini{border:1px solid var(--line2);background:var(--card);color:var(--txt2);
+border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:500;cursor:pointer;
+font-family:inherit;white-space:nowrap;transition:border-color .15s,color .15s}
+.mini:hover{border-color:var(--brand);color:var(--brand)}
+.mini.go{background:var(--brand);border-color:var(--brand);color:#fff}
+.mini.go:hover{background:#C94D08}
+
+.bar{height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin-bottom:10px}
+.bar span{display:block;height:100%;background:var(--brand);border-radius:2px}
+.bar.warn span{background:var(--warn)}
+
+.foot{font-size:13px;color:var(--dim);line-height:1.9;border-top:1px solid var(--line);
+padding-top:18px}
+.foot b{color:var(--txt2);font-weight:500;font-variant-numeric:tabular-nums}
+.none{color:var(--dim);font-size:13.5px}
 """
 
 
@@ -270,97 +284,94 @@ def console(key: str = "") -> HTMLResponse:
     k = html.escape(key)
     b = d["budget"]
 
+    # One line for the verdict. If a glance is enough, nothing else needs reading.
     if d["ok"]:
-        verdict = (
-            '<div class="verdict"><span class="dot"></span>'
-            "<h2>Foxy is running normally</h2>"
-        )
+        state = '<span class="pip"></span>everything normal'
     else:
-        trouble = "; ".join(d["problems"])
-        verdict = (
-            '<div class="verdict bad"><span class="dot warn"></span>'
-            f"<h2>{html.escape(trouble[:1].upper() + trouble[1:])}</h2>"
-        )
-    verdict += f'<span>checked {dt.datetime.now(dt.timezone.utc):%H:%M} UTC</span></div>'
+        state = f'<span class="pip warn"></span>{html.escape(d["problems"][0])}'
 
-    tiles = "".join(
-        f'<div class="tile"><b>{v}</b><span>{lab}</span></div>'
+    figs = "".join(
+        f'<div class="fig"><b>{v}</b><span>{lab}</span></div>'
         for v, lab in [
-            (d["live"], "active workspaces"),
-            (d["channels"], "Slack channels"),
-            (f"{d['delivered']:,}", "alerts delivered"),
-            (d["early"], "early catches"),
-            (f"{d['tracked']:,}", "companies tracked"),
+            (f"{d['delivered']:,}", "alerts"),
+            (d["early"], "early"),
+            (d["live"], "workspaces"),
+            (f"{d['tracked']:,}", "tracked"),
         ]
     )
 
-    # Sources: the "are the servers up" part.
-    src_lines = ""
-    for name, info in sorted(d["sources"].items()):
-        cls = "dot" if info["ok"] else "dot warn"
-        detail = (
-            f"{info['found']} seen · {info['new']} new"
-            if info["ok"]
-            else html.escape(str(info["error"])[:60])
+    # Only what needs a person, and only when there is any.
+    attention = ""
+    needs = [w for w in d["workspaces"] if w["active"] and (w["at_cap"] or w["no_channel"])]
+    if needs:
+        rows = "".join(
+            f"""
+    <div class="row">
+      <div class="who">
+        <div class="nm">{html.escape(w["team"])}</div>
+        <div class="sub">{"out of free alerts" if w["at_cap"] else "no channel chosen"}</div>
+      </div>
+      <div class="rt">{_buttons(w, k) if w["at_cap"] else ""}</div>
+    </div>"""
+            for w in needs
         )
-        src_lines += (
-            f'<div class="line"><span class="{cls}"></span>'
-            f'<span class="nm">{html.escape(name)}</span>'
-            f'<span class="val">{detail}<br>{_ago(_parse(info["ran_at"]))}</span></div>'
-        )
+        attention = f'<div class="sec"><h2>Needs you</h2><div class="att">{rows}</div></div>'
 
-    pond_lines = "".join(
-        f'<div class="line"><span class="nm">{nm}</span>'
-        f'<span class="val">{val}</span></div>'
-        for nm, val in [
-            ("Tasks completed", d["tasks"].get("completed", 0)),
-            ("Tasks failed", d["tasks"].get("failed", 0)),
-            ("Tasks waiting", d["tasks"].get("queued", 0) + d["tasks"].get("running", 0)),
-            ("Action calls", d["pond_runs"]),
-            ("Last call", _ago(d["last_pond"])),
-        ]
+    # Sources as a health strip: a dot each, and a number only when there is news.
+    chips = "".join(
+        f'<span class="src"><i class="{"" if i["ok"] else "warn"}"></i>'
+        f'{html.escape(name.replace("_", " "))}'
+        + (f' <em>+{i["new"]}</em>' if i["ok"] and i["new"] else "")
+        + "</span>"
+        for name, i in sorted(d["sources"].items())
     )
 
-    sweep_lines = "".join(
-        f'<div class="line"><span class="nm">{nm}</span>'
-        f'<span class="val">{val}</span></div>'
-        for nm, val in [
-            ("Sweeps completed", d["sweeps"]),
-            ("Last sweep", _ago(_parse(d["last_sweep"]))),
-            ("Next sweep", d["next_sweep"]),
-            ("Last alert delivered", _ago(d["last_alert"])),
-        ]
+    pct = round(b.get("spent_share", 0) * 100)
+    meter = "bar warn" if b.get("low") else "bar"
+    credits = (
+        f'<div class="{meter}"><span style="width:{min(100, pct)}%"></span></div>'
+        if b.get("tracked")
+        else ""
     )
 
-    if b.get("tracked"):
-        pct = round(b["spent_share"] * 100)
-        meter = "meter warn" if b.get("low") else "meter"
-        credits = f"""
-<div class="{meter}"><span style="width:{min(100, pct)}%"></span></div>
-<div class="line" style="border:0;padding-top:4px">
-  <span class="nm">{b['remaining']:,} searches left</span>
-  <span class="val">{b['used']:,} of {b['allowance']:,} used</span>
-</div>"""
-    else:
-        credits = '<p class="empty">Not tracked.</p>'
+    left = f"{b['remaining']:,} searches left" if b.get("tracked") else "searches untracked"
+    pond_done = d["tasks"].get("completed", 0)
+    pond_bad = d["tasks"].get("failed", 0)
 
     return _shell(
         f"""
-<h1>Foxy</h1>
-<p class="lede">Everything Foxy is doing, measured rather than assumed.</p>
+<div class="adm">
+  <div class="top">
+    <h1>Foxy</h1>
+    <div class="state">{state}</div>
+  </div>
 
-<div class="dash">
-  {verdict}
-  <div class="tiles">{tiles}</div>
+  <div class="figs">{figs}</div>
 
-  <div class="panel"><h3>Sources</h3>{src_lines}</div>
-  <div class="panel"><h3>Sweeps</h3>{sweep_lines}</div>
-  <div class="panel"><h3>Pond</h3>{pond_lines}</div>
-  <div class="panel"><h3>Search credits</h3>{credits}</div>
+  {attention}
 
-  <div class="panel">
-    <h3>Workspaces</h3>
-    {_table(d["workspaces"], k)}
+  <div class="sec">
+    <h2>Sources</h2>
+    <div class="srcs">{chips}</div>
+  </div>
+
+  <div class="sec">
+    <h2>Workspaces</h2>
+    {_rows(d["workspaces"], k)}
+  </div>
+
+  <div class="sec">
+    <h2>Capacity</h2>
+    {credits}
+    <div class="foot" style="border:0;padding:0">
+      <b>{left}</b> &middot; swept {_ago(_parse(d["last_sweep"]))}, next {d["next_sweep"]}
+    </div>
+  </div>
+
+  <div class="foot">
+    Pond &middot; <b>{d["pond_runs"]}</b> calls, <b>{pond_done}</b> scans
+    {f", <b>{pond_bad}</b> failed" if pond_bad else ""}<br>
+    {d["sweeps"]} sweeps &middot; last alert {_ago(d["last_alert"])}
   </div>
 </div>""",
         "Foxy status",
@@ -378,46 +389,34 @@ def _parse(value: Any) -> dt.datetime | None:
     return None
 
 
-def _table(rows: list[dict], key: str) -> str:
+def _rows(rows: list[dict], key: str) -> str:
+    """One line per workspace. Name, state, count, and a way to act on it."""
     if not rows:
-        return '<p class="empty">No workspaces yet.</p>'
+        return '<p class="none">Nobody has installed Foxy yet.</p>'
 
-    body = ""
+    out = ""
     for r in rows:
-        note = ""
-        if r["no_channel"]:
-            note = "no channel chosen"
-        elif r["error"]:
-            note = html.escape(str(r["error"])[:48])
-        elif r["last_alert"]:
-            note = f"last alert {_ago(r['last_alert'])}"
-
-        body += f"""
-  <tr>
-    <td>
-      <div class="name">{html.escape(r["team"])}</div>
-      {f'<div class="sub">{note}</div>' if note else ""}
-    </td>
-    <td>{_tag(r)}</td>
-    <td class="val hide">{r["used"]}{f" / {r['quota']}" if r["quota"] else ""}</td>
-    <td><div class="acts">{_buttons(r, key)}</div></td>
-  </tr>"""
-
-    return f"""
-<table class="wsp">
-  <tr><th>Workspace</th><th>Plan</th><th class="hide">Alerts</th><th></th></tr>
-  {body}
-</table>"""
+        count = (
+            f'<span class="num">{r["used"]}/{r["quota"]}</span>'
+            if r["quota"]
+            else f'<span class="num">{r["used"]}</span>'
+        )
+        out += f"""
+    <div class="row">
+      <div class="who"><div class="nm">{html.escape(r["team"])}</div></div>
+      <div class="rt">{count}{_chip(r)}{_buttons(r, key)}</div>
+    </div>"""
+    return f'<div class="rows">{out}</div>'
 
 
-def _tag(r: dict) -> str:
+def _chip(r: dict) -> str:
     if not r["active"]:
-        return '<span class="tag off">stopped</span>'
+        return '<span class="chip off">stopped</span>'
     if r["pro"]:
-        return f'<span class="tag pro">{html.escape(r["label"])}</span>'
+        return '<span class="chip pro">Pro</span>'
     if r["at_cap"]:
-        return '<span class="tag cap">at cap</span>'
-    return '<span class="tag free">Free</span>'
+        return '<span class="chip cap">at cap</span>'
+    return '<span class="chip free">Free</span>'
 
 
 def _buttons(r: dict, key: str) -> str:
@@ -434,10 +433,9 @@ def _buttons(r: dict, key: str) -> str:
       </form>"""
 
     if r["pro"]:
-        return form(12, "+1 year", "") + form(0, "Downgrade", "")
-    # A workspace that has run out is the one worth lifting, so it leads.
-    lead = "go" if r["at_cap"] else ""
-    return form(1, "Pro &middot; 1 month", lead) + form(12, "1 year", "")
+        return form(0, "Downgrade", "")
+    # A workspace that has run out is the one worth acting on, so it leads.
+    return form(12, "Give Pro", "go" if r["at_cap"] else "")
 
 
 def _jsonable(value: Any) -> Any:
