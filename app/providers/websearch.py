@@ -160,12 +160,21 @@ def _mojeek(query: str, limit: int) -> list[WebResult]:
     return out
 
 
+def _serper_configured() -> bool:
+    """Whether serper is worth trying at all, without importing at module load."""
+    from ..runtime import serper_key
+
+    return bool(serper_key())
+
+
 def _serper(query: str, limit: int) -> list[WebResult]:
     """serper.dev - Google results via API. 2,500 free credits on signup, which
     at the default cadence lasts months. Optional: set SERPER_API_KEY."""
-    # Read through settings, not os.getenv - settings is what loads .env, and
-    # this module can be imported without app.config ever being touched.
-    key = settings.serper_api_key
+    # The key in force, which may have been replaced from the console without a
+    # deployment. Falls back to the environment when nothing is stored.
+    from ..runtime import serper_key
+
+    key = serper_key()
     if not key:
         raise SearchUnavailable("no SERPER_API_KEY")
     # Free serper accounts reject any page size other than 10 with
@@ -267,7 +276,7 @@ def engine_status() -> dict[str, str]:
     now = time.monotonic()
     out = {}
     for name, _ in ENGINES:
-        if name == "serper" and not settings.serper_api_key:
+        if name == "serper" and not _serper_configured():
             out[name] = "not configured"
         elif now < _cooldown.get(name, 0.0):
             out[name] = f"cooling down {int(_cooldown[name] - now)}s"

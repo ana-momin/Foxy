@@ -277,7 +277,20 @@ async def save(install_id: str, request: Request) -> HTMLResponse | RedirectResp
     # page says so.
     joined = True
     if channel:
-        joined = SlackClient(token=token, target=channel).join_channel(channel)
+        client = SlackClient(token=token, target=channel)
+        joined = client.join_channel(channel)
+        # Remember the readable name now, while we are already talking to
+        # Slack. Resolving it per page load would be a call per workspace, and
+        # "#yc-alerts" tells an operator more than "C0BTR553PH9" ever will.
+        try:
+            name = (client.channel_info(channel) or {}).get("name", "")
+        except Exception:  # noqa: BLE001 - a nicer label is not worth failing over
+            name = ""
+        if name:
+            with session() as s:
+                row = installs.get(s, install_id)
+                if row is not None:
+                    row.channel_name = name
 
     if action == "test" and channel:
         try:

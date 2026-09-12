@@ -617,10 +617,13 @@ def test_the_console_says_a_lot_with_little(db, admin):
     _install(db, team_id="T-TERSE", alerts_used=5)
     page = admin.get(f"/admin?key={ADMIN}").text
 
-    # The dashboard itself, not the document around it.
+    # What is actually on screen: the dashboard, minus anything folded away
+    # behind a <details>, since that is opt-in rather than something the eye
+    # has to travel over.
     dash = page[page.index('<div class="adm">') :]
-    words = [w for w in re.sub(r"<[^>]+>", " ", dash).split() if w != "&middot;"]
-    assert len(words) < 70, f"{len(words)} words on a status page is an essay"
+    visible = re.sub(r"<details.*?</details>", " ", dash, flags=re.S)
+    words = [w for w in re.sub(r"<[^>]+>", " ", visible).split() if w != "&middot;"]
+    assert len(words) < 70, f"{len(words)} words visible at a glance is an essay"
 
 
 def test_the_json_and_the_page_agree(db, admin):
@@ -690,3 +693,134 @@ def test_a_stopped_workspace_is_not_offered_a_plan(db, admin):
     page = admin.get(f"/admin?key={ADMIN}").text
     assert "stopped" in page
     assert "Give Pro" not in page
+
+
+# --- superaccess --------------------------------------------------------------
+
+
+def test_the_search_key_can_be_replaced_without_a_deployment(db, admin):
+    """The one credential certain to need swapping one day. Needing a developer
+    for that is how an agent quietly stops finding things."""
+    from app import runtime
+    from app.config import settings
+
+    monkey = settings.serper_api_key
+    try:
+        settings.serper_api_key = "from-the-environment"
+        assert runtime.serper_key() == "from-the-environment"
+        assert runtime.serper_source() == "environment"
+
+        r = admin.post(
+            "/admin/key", data={"key": ADMIN, "serper": "typed-in-the-console"},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert runtime.serper_key() == "typed-in-the-console", "stored beats configured"
+        assert runtime.serper_source() == "console"
+    finally:
+        settings.serper_api_key = monkey
+        runtime.set_serper_key("")
+
+
+def test_a_blank_key_does_not_wipe_the_stored_one(db, admin):
+    """An empty box is a slip, not an instruction."""
+    from app import runtime
+
+    runtime.set_serper_key("still-here")
+    admin.post("/admin/key", data={"key": ADMIN, "serper": "  "}, follow_redirects=False)
+    assert runtime.serper_key() == "still-here"
+    runtime.set_serper_key("")
+
+
+def test_the_key_is_never_shown_back(db, admin):
+    from app import runtime
+
+    runtime.set_serper_key("secret-key-abcd1234")
+    page = admin.get(f"/admin?key={ADMIN}").text
+    assert "secret-key-abcd1234" not in page
+    assert "…1234" in page, "enough to tell two keys apart"
+    runtime.set_serper_key("")
+
+
+def test_granting_alerts_raises_the_cap_without_rewriting_history(db, admin):
+    """Adjusting what a workspace has used would corrupt the only honest count
+    there is. The grant sits beside it instead."""
+    from app.config import settings
+
+    install_id = _install(db, team_id="T-GRANT", alerts_used=settings.free_alert_quota)
+    assert _read(db, install_id)["remaining"] == 0
+
+    admin.post(
+        "/admin/grant", data={"key": ADMIN, "install_id": install_id, "alerts": 50},
+        follow_redirects=False,
+    )
+
+    got = _read(db, install_id)
+    assert got["remaining"] == 50
+    assert got["quota"] == settings.free_alert_quota + 50
+
+    from app import installs
+    with db.session() as s:
+        assert installs.get(s, install_id).alerts_used == settings.free_alert_quota
+
+
+def test_stopping_a_workspace_keeps_its_history(db, admin):
+    """Deactivated, not deleted: a reinstall should pick up where it left off."""
+    from app import installs
+
+    install_id = _install(db, team_id="T-STOP2", alerts_used=9)
+    admin.post(
+        "/admin/stop", data={"key": ADMIN, "install_id": install_id},
+        follow_redirects=False,
+    )
+
+    with db.session() as s:
+        row = installs.get(s, install_id)
+        assert row.active is False
+        assert row.alerts_used == 9, "the record of what it received must survive"
+
+
+def test_an_announcement_reaches_every_active_channel(db, admin, monkeypatch):
+    said = []
+
+    import app.admin as admin_mod
+
+    monkeypatch.setattr(admin_mod, "_say", lambda tok, ch, txt: said.append((ch, txt)) is None)
+
+    _install(db, team_id="T-A1")
+    _install(db, team_id="T-A2")
+    admin.post(
+        "/admin/announce", data={"key": ADMIN, "message": "Foxy got faster"},
+        follow_redirects=False,
+    )
+    assert len(said) == 2
+    assert all(txt == "Foxy got faster" for _, txt in said)
+
+
+def test_an_empty_announcement_says_nothing(db, admin, monkeypatch):
+    said = []
+    import app.admin as admin_mod
+
+    monkeypatch.setattr(admin_mod, "_say", lambda tok, ch, txt: said.append(ch) is None)
+
+    _install(db, team_id="T-A3")
+    admin.post("/admin/announce", data={"key": ADMIN, "message": "   "},
+               follow_redirects=False)
+    assert said == []
+
+
+def test_every_action_needs_the_key(db, admin):
+    """All of these change something real."""
+    install_id = _install(db, team_id="T-GUARD")
+    for path, data in [
+        ("/admin/key", {"serper": "x"}),
+        ("/admin/grant", {"install_id": install_id, "alerts": 50}),
+        ("/admin/stop", {"install_id": install_id}),
+        ("/admin/announce", {"message": "hello"}),
+    ]:
+        admin.post(path, data={"key": "wrong", **data}, follow_redirects=False)
+
+    from app import installs
+    with db.session() as s:
+        row = installs.get(s, install_id)
+        assert row.active is True and (row.bonus_alerts or 0) == 0

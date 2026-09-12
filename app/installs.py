@@ -169,6 +169,9 @@ class Install(Base):
 
     token_enc: Mapped[str] = mapped_column(Text, default="")
     channel_id: Mapped[str] = mapped_column(String(64), default="")
+    # Remembered at save time. Looking it up per page load would be one Slack
+    # call per workspace, and "#yc-alerts" is worth more than "C0BTR553PH9".
+    channel_name: Mapped[str] = mapped_column(String(128), default="")
 
     # Optional per-workspace keys, so one install's spend is its own.
     serper_key_enc: Mapped[str] = mapped_column(Text, default="")
@@ -186,6 +189,11 @@ class Install(Base):
     # When a paid plan lapses. Null on the free plan, and on any plan that was
     # granted without an end date.
     plan_until: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    # Alerts granted by hand, on top of whatever the plan includes. Kept
+    # separate from alerts_used so the record of what was actually sent stays
+    # true - adjusting usage to fake headroom would corrupt the only honest
+    # count there is.
+    bonus_alerts: Mapped[int] = mapped_column(Integer, default=0)
     # When the workspace said it had subscribed. Pond tells the agent nothing
     # about who is calling, so someone has to join the two records; this is
     # what puts the request in front of them instead of in an inbox.
@@ -237,8 +245,10 @@ class Install(Base):
 
     @property
     def quota(self) -> int:
-        """Alerts included in this plan. 0 means unlimited."""
-        return 0 if self.plan_active else settings.free_alert_quota
+        """Alerts included, granted ones added. 0 means unlimited."""
+        if self.plan_active:
+            return 0
+        return settings.free_alert_quota + (self.bonus_alerts or 0)
 
     @property
     def plan_label(self) -> str:
@@ -330,6 +340,12 @@ def activate(row: "Install", months: int) -> None:
     row.plan_until = (base + dt.timedelta(days=30 * months)).replace(tzinfo=None)
     row.quota_notified = False
     row.upgrade_requested_at = None
+
+
+def grant(row: "Install", alerts: int) -> None:
+    """Give a workspace more headroom without touching what it has used."""
+    row.bonus_alerts = (row.bonus_alerts or 0) + max(0, alerts)
+    row.quota_notified = False
 
 
 def downgrade(row: "Install") -> None:

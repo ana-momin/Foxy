@@ -27,10 +27,11 @@ from fastapi import APIRouter, Form
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import func, select
 
-from . import budget, installs
+from . import budget, installs, runtime
 from .config import settings
 from .db import Alert, PondRun, PondTask, Seen, health_snapshot, session
 from .oauth import _page
+from .slack import SlackClient
 
 log = logging.getLogger("foxy.admin")
 
@@ -115,6 +116,21 @@ font-family:inherit;white-space:nowrap;transition:border-color .15s,color .15s}
 padding-top:18px}
 .foot b{color:var(--txt2);font-weight:500;font-variant-numeric:tabular-nums}
 .none{color:var(--dim);font-size:13.5px}
+
+.tool{border:1px solid var(--line);border-radius:12px;background:var(--card);
+margin-bottom:8px;padding:0 18px}
+.tool summary{cursor:pointer;padding:14px 0;font-size:14px;color:var(--txt2);
+list-style:none;display:flex;align-items:center;gap:8px}
+.tool summary::-webkit-details-marker{display:none}
+.tool summary:before{content:"+";color:var(--dim);font-size:15px;width:12px}
+.tool[open] summary:before{content:"2"}
+.tool[open] summary{color:var(--txt);font-weight:500}
+.tool form{display:flex;gap:8px;padding:0 0 16px;flex-wrap:wrap}
+.tool input[type=text]{flex:1;min-width:200px;padding:9px 12px;border-radius:8px;
+border:1px solid var(--line2);background:var(--paper);color:var(--txt);
+font-family:inherit;font-size:13.5px}
+.tool input[type=text]:focus{outline:2px solid var(--brand);outline-offset:1px}
+.tool .hint{font-size:12.5px;color:var(--dim);margin:0 0 16px;line-height:1.5}
 """
 
 
@@ -215,6 +231,9 @@ def gather() -> dict[str, Any]:
                     "id": r.id,
                     "team": r.team_name or "(unnamed)",
                     "channel": r.channel_id,
+                    "channel_name": r.channel_name,
+                    "joined": r.created_at,
+                    "bonus": r.bonus_alerts or 0,
                     "active": r.active,
                     "pro": r.plan_active,
                     "label": r.plan_label,
@@ -264,6 +283,7 @@ def gather() -> dict[str, Any]:
         "pond_runs": pond_runs,
         "last_pond": last_pond,
         "budget": b,
+        "keys": runtime.snapshot(),
         "workspaces": rows,
         "live": len(live),
         "channels": len({r["channel"] for r in live if r["channel"]}),
@@ -335,6 +355,7 @@ def console(key: str = "") -> HTMLResponse:
     )
 
     left = f"{b['remaining']:,} searches left" if b.get("tracked") else "searches untracked"
+    keys = d["keys"]
     pond_done = d["tasks"].get("completed", 0)
     pond_bad = d["tasks"].get("failed", 0)
 
@@ -366,6 +387,29 @@ def console(key: str = "") -> HTMLResponse:
     <div class="foot" style="border:0;padding:0">
       <b>{left}</b> &middot; swept {_ago(_parse(d["last_sweep"]))}, next {d["next_sweep"]}
     </div>
+  </div>
+
+  <div class="sec">
+    <h2>Controls</h2>
+    <details class="tool">
+      <summary>Send an announcement</summary>
+      <form method="post" action="/admin/announce">
+        <input type="hidden" name="key" value="{k}">
+        <input type="text" name="message" placeholder="Goes to every active channel">
+        <button class="mini go" type="submit">Send</button>
+      </form>
+    </details>
+    <details class="tool">
+      <summary>Replace the search key &middot; {html.escape(keys["serper_source"])}
+        {html.escape(keys["serper_hint"])}</summary>
+      <form method="post" action="/admin/key">
+        <input type="hidden" name="key" value="{k}">
+        <input type="text" name="serper" placeholder="New serper.dev API key">
+        <button class="mini go" type="submit">Save</button>
+      </form>
+      <p class="hint">Free keys at serper.dev. Saved here, it takes effect on the
+      next sweep &mdash; no deployment.</p>
+    </details>
   </div>
 
   <div class="foot">
@@ -401,9 +445,17 @@ def _rows(rows: list[dict], key: str) -> str:
             if r["quota"]
             else f'<span class="num">{r["used"]}</span>'
         )
+        where = (
+            f'#{html.escape(r["channel_name"])}'
+            if r["channel_name"]
+            else ("no channel" if r["no_channel"] else html.escape(r["channel"]))
+        )
         out += f"""
     <div class="row">
-      <div class="who"><div class="nm">{html.escape(r["team"])}</div></div>
+      <div class="who">
+        <div class="nm">{html.escape(r["team"])}</div>
+        <div class="sub">{where} &middot; joined {r["joined"]:%d %b}</div>
+      </div>
       <div class="rt">{count}{_chip(r)}{_buttons(r, key)}</div>
     </div>"""
     return f'<div class="rows">{out}</div>'
@@ -443,18 +495,45 @@ def _buttons(r: dict, key: str) -> str:
         <button class="mini {cls}" type="submit">{label}</button>
       </form>"""
 
-    if r["pro"]:
-        return form(
-            0,
-            "Remove Pro",
-            "",
-            confirm=f"Remove Pro from {r['team']}? Alerts stop at the free cap.",
-        )
-    # A stopped workspace receives nothing, so offering it a plan is noise.
+    # A stopped workspace receives nothing, so every control is noise on it.
     if not r["active"]:
         return ""
-    # One that has run out is the one worth acting on, so it leads.
-    return form(12, "Give Pro", "go" if r["at_cap"] else "")
+
+    def act(path: str, label: str, cls: str, extra: str = "", confirm: str = "") -> str:
+        ask = (
+            f' onsubmit="return confirm({html.escape(confirm, quote=True)!r})"'
+            if confirm
+            else ""
+        )
+        return f"""
+      <form method="post" action="/admin/{path}" style="display:inline"{ask}>
+        <input type="hidden" name="key" value="{key}">
+        <input type="hidden" name="install_id" value="{html.escape(r["id"])}">
+        {extra}
+        <button class="mini {cls}" type="submit">{label}</button>
+      </form>"""
+
+    stop = act(
+        "stop",
+        "Stop",
+        "",
+        confirm=f"Stop sending to {r['team']}? It keeps its history.",
+    )
+
+    if r["pro"]:
+        return (
+            form(
+                0,
+                "Remove Pro",
+                "",
+                confirm=f"Remove Pro from {r['team']}? Alerts stop at the free cap.",
+            )
+            + stop
+        )
+
+    give = act("grant", "+50", "", '<input type="hidden" name="alerts" value="50">')
+    # A workspace that has run out is the one worth acting on, so it leads.
+    return give + form(12, "Give Pro", "go" if r["at_cap"] else "") + stop
 
 
 def _jsonable(value: Any) -> Any:
@@ -486,6 +565,113 @@ def status_json(key: str = "") -> JSONResponse:
         {k: v for k, v in w.items() if k != "id"} for w in d["workspaces"]
     ]
     return JSONResponse(_jsonable(d))
+
+
+@router.post("/admin/key", response_model=None)
+def replace_key(key: str = Form(""), serper: str = Form("")) -> HTMLResponse | RedirectResponse:
+    """Replace the search key without a deployment.
+
+    It is the one credential certain to need swapping one day, and needing a
+    developer for that is how an agent quietly stops finding things.
+    """
+    if not _authorised(key):
+        return _denied()
+    value = (serper or "").strip()
+    if value:
+        runtime.set_serper_key(value)
+    return RedirectResponse(f"/admin?key={key}", 303)
+
+
+@router.post("/admin/grant", response_model=None)
+def grant_alerts(
+    key: str = Form(""), install_id: str = Form(""), alerts: int = Form(50)
+) -> HTMLResponse | RedirectResponse:
+    """Give a workspace more headroom, and tell it so.
+
+    Silently raising a cap leaves somebody wondering why the bot went quiet and
+    then why it did not, so the workspace hears about it in its own channel.
+    """
+    if not _authorised(key):
+        return _denied()
+
+    with session() as s:
+        row = installs.get(s, install_id)
+        if row is None:
+            return _denied()
+        installs.grant(row, alerts)
+        token, channel, team = row.token, row.channel_id, row.team_name
+        left = row.remaining
+
+    if token and channel:
+        _say(token, channel, f"*{alerts} more alerts added.* {left} left on this channel.")
+    log.info("admin granted %s %d alerts", team, alerts)
+    return RedirectResponse(f"/admin?key={key}", 303)
+
+
+@router.post("/admin/stop", response_model=None)
+def stop_workspace(
+    key: str = Form(""), install_id: str = Form("")
+) -> HTMLResponse | RedirectResponse:
+    """Stop delivering to a workspace. Deactivated rather than deleted: the
+    seen-set and the record of what it received stay true, and a reinstall
+    picks up where it left off."""
+    if not _authorised(key):
+        return _denied()
+
+    with session() as s:
+        row = installs.get(s, install_id)
+        if row is None:
+            return _denied()
+        row.active = False
+        log.info("admin stopped %s", row.team_name)
+    return RedirectResponse(f"/admin?key={key}", 303)
+
+
+@router.post("/admin/announce", response_model=None)
+def announce(
+    key: str = Form(""), message: str = Form(""), install_id: str = Form("")
+) -> HTMLResponse | RedirectResponse:
+    """Say something in one channel, or in all of them.
+
+    Failures are per workspace: one unreachable channel must not stop the rest
+    from hearing it.
+    """
+    if not _authorised(key):
+        return _denied()
+
+    text = (message or "").strip()
+    if not text:
+        return RedirectResponse(f"/admin?key={key}", 303)
+
+    with session() as s:
+        rows = [
+            (r.id, r.team_name, r.token, r.channel_id)
+            for r in installs.active_installs(s)
+            if not install_id or r.id == install_id
+        ]
+
+    sent = 0
+    for _id, team, token, channel in rows:
+        if _say(token, channel, text):
+            sent += 1
+        else:
+            log.warning("could not announce to %s", team)
+    log.info("admin announced to %d of %d channels", sent, len(rows))
+    return RedirectResponse(f"/admin?key={key}", 303)
+
+
+def _say(token: str, channel: str, text: str) -> bool:
+    """One message, best effort. Never raises: this is never the main event."""
+    if not token or not channel:
+        return False
+    try:
+        SlackClient(token=token, target=channel).post(
+            [{"type": "section", "text": {"type": "mrkdwn", "text": text}}], text
+        )
+        return True
+    except Exception:  # noqa: BLE001
+        log.warning("message to %s failed", channel, exc_info=True)
+        return False
 
 
 @router.post("/admin/plan", response_model=None)
