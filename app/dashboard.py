@@ -344,14 +344,11 @@ def welcome(install_id: str) -> dict:
 
 @router.get("/app/{install_id}/upgrade", response_model=None)
 def upgrade(install_id: str, asked: str = "") -> HTMLResponse:
-    """More alerts, arranged by talking to a person.
+    """Where to get more alerts.
 
-    There is a price here but no checkout, and the difference matters. Pond
-    sells to Pond users and enforces their allowance before the agent is
-    called; a Slack workspace is not a Pond user, and the protocol carries no
-    subscriber identity, so a Buy button here would take money on a promise
-    nobody could verify. Arranging it directly is slower and completely
-    honest: whoever takes the payment is the same person who lifts the cap.
+    No prices here. Pond sells the plans, enforces the allowance and takes the
+    money, so quoting a figure on this page only creates somewhere for the two
+    to disagree. One sentence and a link out.
     """
     with session() as s:
         row = installs.get(s, install_id)
@@ -367,23 +364,10 @@ def upgrade(install_id: str, asked: str = "") -> HTMLResponse:
 <div class="ok">&#10003; {html.escape(label)}</div>
 <h1>No limit on this workspace</h1>
 <p class="lede">Everything is switched on for <b>{html.escape(team)}</b>, and
-{used} alerts have gone out so far. Nothing else to do.</p>
+{used} alerts have gone out so far.</p>
 <div class="actions">{back}</div>"""
         return _shell(body, "Foxy")
 
-    subject = f"Foxy Pro for {team}"
-    email = (
-        f'<a class="btn" href="mailto:{html.escape(settings.support_email)}'
-        f'?subject={quote(subject)}">Email me</a>'
-    )
-    # X has no reliable deep link to a DM composer without a numeric user id,
-    # so this goes to the profile, where the message button is.
-    dm = ""
-    if settings.contact_x:
-        handle = html.escape(settings.contact_x)
-        dm = f'<a class="btn" href="https://x.com/{handle}">DM on X</a>'
-
-    price = f"{settings.price_monthly_minor / 100:.0f}"
     spent = (
         f"<b>{html.escape(team)}</b> has used all {quota} of its free alerts."
         if quota and used >= quota
@@ -392,42 +376,18 @@ def upgrade(install_id: str, asked: str = "") -> HTMLResponse:
 
     body = f"""
 <h1>More alerts</h1>
-<p class="lede">{spent} Get in touch and the cap comes off, usually the same day.</p>
-
-<div class="plans">
-  <div class="plan">
-    <div class="tier">Free</div>
-    <div class="price">$0</div>
-    <div class="cap">{quota} alerts, then it pauses</div>
-    <ul class="perks">
-      <li>All five sources</li>
-      <li>Early founder signals</li>
-      <li>Checked every eight hours</li>
-    </ul>
-  </div>
-
-  <div class="plan pro">
-    <div class="tier">Pro</div>
-    <div class="price">${html.escape(price)} <em>per month</em></div>
-    <div class="cap">{settings.pro_included_results:,} alerts a month</div>
-    <ul class="perks">
-      <li>Founders who announce <b>before YC publishes</b></li>
-      <li>All five sources, every eight hours</li>
-      <li>Follow-up in thread when YC confirms</li>
-      <li>Set up by hand, no card needed</li>
-    </ul>
-  </div>
-</div>
+<p class="lede">{spent} Foxy is on Pond, where the plans live &mdash; everything
+else stays exactly as it is.</p>
 
 <div class="actions">
-  {dm}{email}
+  <a class="btn" href="{html.escape(settings.pond_listing_url)}">Open Foxy on Pond</a>
   {back}
 </div>
 
-<p class="hint" style="margin-top:22px">Foxy takes no payment on this page. Say
-which workspace you are and it is arranged directly &mdash; or subscribe through
-<a href="{html.escape(settings.pond_listing_url)}">Pond</a> if you use Foxy there.</p>"""
-    return _shell(body, "Foxy Pro")
+<p class="hint" style="margin-top:22px">Prefer to ask? <a
+href="https://x.com/{html.escape(settings.contact_x)}">DM on X</a> or <a
+href="mailto:{html.escape(settings.support_email)}">email</a>.</p>"""
+    return _shell(body, "Foxy")
 
 
 @router.get("/app/{install_id}/stop", response_model=None)
