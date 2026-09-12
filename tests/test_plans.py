@@ -1013,3 +1013,39 @@ def test_one_plan_is_recommended():
     page = pathlib.Path("app/static/index.html").read_text(encoding="utf-8")
     assert page.count("pr-tag") >= 1, "nothing is marked as the one to pick"
     assert page.count('class="pr-c up"') == 1, "exactly one plan may be recommended"
+
+
+def test_every_site_route_is_served_by_the_server_too(db, client):
+    """The site is one document that swaps sections, so each of its paths must
+    return that document. Otherwise a typed URL, a shared link or a reload is a
+    404 - which is most of the reason to have readable URLs at all."""
+    from app.main import SITE_ROUTES
+
+    for path in ("/",) + SITE_ROUTES:
+        r = client.get(path)
+        assert r.status_code == 200, path
+        assert 'id="p-/pricing"' in r.text, f"{path} did not return the site"
+
+
+def test_the_site_links_are_real_paths(db):
+    """A hash in the address bar reads as unfinished."""
+    import pathlib
+    import re
+
+    page = pathlib.Path("app/static/index.html").read_text(encoding="utf-8")
+    nav = re.findall(r'<a[^>]+data-r="[^"]*"[^>]*>', page)
+    assert nav, "no navigation found"
+    for link in nav:
+        assert 'href="#' not in link, link
+
+
+def test_the_hero_shows_an_alert_rather_than_only_describing_one():
+    """The headline can claim "before YC does"; one real alert argues it."""
+    import pathlib
+
+    page = pathlib.Path("app/static/index.html").read_text(encoding="utf-8")
+    hero = page[page.index('class="hero"') : page.index("<!-- the gap -->")]
+
+    assert "hero-proof" in hero, "the hero shows nothing"
+    assert "EARLY SIGNAL" in hero
+    assert "Not yet in the YC directory" in hero, "the claim needs its evidence"

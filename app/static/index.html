@@ -752,6 +752,53 @@
   .faq summary:before { content: "+"; color: var(--muted); width: 13px; font-size: 16px; }
   .faq details[open] summary:before { content: "2"; }
   .faq p { margin: 0 0 18px; font-size: 14.5px; color: var(--ink-2); line-height: 1.6; }
+
+  /* A hero that shows the thing. The headline can say "before YC does" all it
+     likes; one real alert, quoting a founder, argues it better. */
+  .hero-proof {
+    margin: 44px auto 0; max-width: 560px; text-align: left;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: var(--shadow-l); overflow: hidden;
+  }
+  .hp-bar {
+    display: flex; align-items: center; gap: 8px; padding: 11px 16px;
+    border-bottom: 1px solid var(--border); background: var(--bg);
+    font-size: 12.5px; color: var(--muted);
+  }
+  .hp-bar b { color: var(--ink-2); font-weight: 500; }
+  .hp-dots { display: flex; gap: 5px; margin-right: 4px; }
+  .hp-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--border-2); }
+  .hp-body { padding: 18px 18px 20px; display: flex; gap: 12px; }
+  .hp-av {
+    width: 36px; height: 36px; border-radius: 9px; flex: none;
+    background: var(--accent-sf); display: grid; place-items: center; font-size: 17px;
+  }
+  .hp-msg { min-width: 0; flex: 1; }
+  .hp-who { font-size: 13.5px; margin-bottom: 7px; }
+  .hp-who b { font-weight: 600; color: var(--ink); }
+  .hp-who span { color: var(--muted); font-size: 11.5px; margin-left: 6px; }
+  .hp-tag {
+    display: inline-block; background: var(--accent); color: #fff; font-size: 10.5px;
+    font-weight: 600; letter-spacing: .07em; padding: 3px 9px; border-radius: 5px;
+    margin-bottom: 9px;
+  }
+  .hp-co { font-size: 15.5px; font-weight: 600; color: var(--ink); margin-bottom: 3px; }
+  .hp-meta { font-size: 12.5px; color: var(--muted); margin-bottom: 11px; }
+  .hp-quote {
+    border-left: 2px solid var(--border-2); padding-left: 12px; font-size: 13.5px;
+    color: var(--ink-2); line-height: 1.55; font-style: italic;
+  }
+  .hp-foot {
+    display: flex; gap: 7px; align-items: center; margin-top: 12px;
+    font-size: 12px; color: var(--good); background: var(--good-sf);
+    padding: 6px 11px; border-radius: 7px; width: fit-content;
+  }
+  .hero-stats {
+    display: flex; justify-content: center; gap: 30px; flex-wrap: wrap;
+    margin-top: 34px; font-size: 13px; color: var(--muted);
+  }
+  .hero-stats b { color: var(--ink); font-weight: 600; }
+  @media (max-width: 560px) { .heromark { width: 84px; height: 84px; } }
 </style>
 <style>html{-webkit-text-size-adjust:100%}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
@@ -760,12 +807,12 @@
 
 <nav>
   <div class="nav-in">
-    <a class="brand" href="#/"><img src="data:image/webp;base64,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" alt=""><span>Foxy</span></a>
+    <a class="brand" href="/"><img src="data:image/webp;base64,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" alt=""><span>Foxy</span></a>
     <div class="navlinks">
-      <a href="#/" data-r="/">Overview</a>
-      <a href="#/how" data-r="/how">How it works</a>
-      <a href="#/pricing" data-r="/pricing">Pricing</a>
-      <a href="#/setup" data-r="/setup">Setup</a>
+      <a href="/" data-r="/">Overview</a>
+      <a href="/how" data-r="/how">How it works</a>
+      <a href="/pricing" data-r="/pricing">Pricing</a>
+      <a href="/setup" data-r="/setup">Setup</a>
     </div>
     <a class="ghbtn" href="https://github.com/ana-momin/Foxy">GitHub</a>
   </div>
@@ -781,9 +828,34 @@
       <p class="herosub">Foxy watches five sources and pings your Slack the moment a new company appears, or a founder announces before YC does.</p>
       <div class="cta">
         <a class="slackbtn" href="/slack/install"><svg viewBox="0 0 122 122" aria-hidden="true"><path fill="#E01E5A" d="M26 77a13 13 0 11-13-13h13zm6 0a13 13 0 0126 0v32a13 13 0 01-26 0z"/><path fill="#36C5F0" d="M45 26a13 13 0 1113-13v13zm0 6a13 13 0 010 26H13a13 13 0 010-26z"/><path fill="#2EB67D" d="M96 45a13 13 0 1113 13H96zm-6 0a13 13 0 01-26 0V13a13 13 0 0126 0z"/><path fill="#ECB22E" d="M77 96a13 13 0 11-13 13V96zm0-6a13 13 0 010-26h32a13 13 0 010 26z"/></svg>Add to Slack</a>
-        <a class="btn btn-s" href="#/how">How it works</a>
+        <a class="btn btn-s" href="/how">How it works</a>
       </div>
       <p class="microcopy">Free &middot; nothing to install</p>
+
+      <div class="hero-proof">
+        <div class="hp-bar">
+          <span class="hp-dots"><i></i><i></i><i></i></span>
+          <b>#yc-signals</b> &middot; Slack
+        </div>
+        <div class="hp-body">
+          <div class="hp-av">&#129418;</div>
+          <div class="hp-msg">
+            <div class="hp-who"><b>Foxy</b><span>APP &middot; 9:14 AM</span></div>
+            <span class="hp-tag">EARLY SIGNAL</span>
+            <div class="hp-co">EVO HQ</div>
+            <div class="hp-meta">YC F26 &middot; LinkedIn &middot; 95% confidence</div>
+            <p class="hp-quote">&ldquo;EVO HQ (YC F26) got into Y Combinator and we are
+            just getting started&hellip;&rdquo;</p>
+            <div class="hp-foot">Not yet in the YC directory &mdash; checked just now</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-stats">
+        <span><b>5.0</b> on Pond</span>
+        <span><b>297</b> alerts delivered</span>
+        <span><b>2,475</b> companies tracked</span>
+      </div>
     </div>
   </div>
 
@@ -937,7 +1009,7 @@
       <p class="sub" style="margin:0 auto 28px">Approve it, choose a channel, and Foxy takes it from there.</p>
       <div class="cta">
         <a class="slackbtn" href="/slack/install"><svg viewBox="0 0 122 122" aria-hidden="true"><path fill="#E01E5A" d="M26 77a13 13 0 11-13-13h13zm6 0a13 13 0 0126 0v32a13 13 0 01-26 0z"/><path fill="#36C5F0" d="M45 26a13 13 0 1113-13v13zm0 6a13 13 0 010 26H13a13 13 0 010-26z"/><path fill="#2EB67D" d="M96 45a13 13 0 1113 13H96zm-6 0a13 13 0 01-26 0V13a13 13 0 0126 0z"/><path fill="#ECB22E" d="M77 96a13 13 0 11-13 13V96zm0-6a13 13 0 010-26h32a13 13 0 010 26z"/></svg>Add to Slack</a>
-        <a class="btn btn-s" href="#/setup">Setup guide</a>
+        <a class="btn btn-s" href="/setup">Setup guide</a>
       </div>
     </div>
   </section>
@@ -1250,7 +1322,9 @@ uvicorn app.main:app --port 8000</pre></div>
   var ROUTES = Object.keys(TITLES);
 
   function route() {
-    var hash = (location.hash || "#/").replace(/^#/, "");
+    // Real paths rather than a hash. The server returns this same document for
+    // each of them, so a typed URL, a shared link and a reload all work.
+    var hash = location.pathname.replace(/\/+$/, "") || "/";
     if (ROUTES.indexOf(hash) === -1) hash = "/";
     document.querySelectorAll(".page").forEach(function (p) {
       p.classList.toggle("on", p.id === "p-" + hash);
@@ -1261,7 +1335,16 @@ uvicorn app.main:app --port 8000</pre></div>
     document.title = TITLES[hash];
     window.scrollTo(0, 0);
   }
-  window.addEventListener("hashchange", route);
+  window.addEventListener("popstate", route);
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest("a[data-r], a[href^='/']");
+    if (!a || e.metaKey || e.ctrlKey || e.shiftKey || a.target) return;
+    var path = a.getAttribute("href");
+    if (ROUTES.indexOf(path) === -1) return;  // let real links leave the page
+    e.preventDefault();
+    if (path !== location.pathname) history.pushState({}, "", path);
+    route();
+  });
   route();
 
   // Generic one-of-many selector. Each group names the attribute that marks

@@ -999,15 +999,41 @@ async def slack_command(request: Request):
 _STATIC = pathlib.Path(__file__).parent / "static" / "index.html"
 
 
-@router.get("/", response_class=HTMLResponse)
-def index() -> HTMLResponse:
-    """Serve the documentation page, so one deploy gives both the site and the
-    agent. Falls back to a small JSON pointer if the page is not bundled."""
+# The site is one document that swaps sections, so every one of its routes has
+# to return that same document. Without this, /pricing is a 404 to anyone who
+# types it, follows a shared link, or reloads - which is most of the reason to
+# have readable URLs at all.
+SITE_ROUTES = ("/how", "/pricing", "/setup")
+
+
+def _site() -> HTMLResponse:
     if _STATIC.exists():
         return HTMLResponse(_STATIC.read_text(encoding="utf-8"))
     return HTMLResponse(
         "<h1>Foxy</h1><p>Agent manifest: <a href='/manifest'>/manifest</a></p>"
     )
+
+
+@router.get("/", response_class=HTMLResponse)
+def index() -> HTMLResponse:
+    """Serve the documentation page, so one deploy gives both the site and the
+    agent. Falls back to a small JSON pointer if the page is not bundled."""
+    return _site()
+
+
+@router.get("/how", response_class=HTMLResponse)
+def site_how() -> HTMLResponse:
+    return _site()
+
+
+@router.get("/pricing", response_class=HTMLResponse)
+def site_pricing() -> HTMLResponse:
+    return _site()
+
+
+@router.get("/setup", response_class=HTMLResponse)
+def site_setup() -> HTMLResponse:
+    return _site()
 
 
 # A checker often probes with HEAD or OPTIONS before it does the real request.
