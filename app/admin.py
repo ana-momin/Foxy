@@ -172,6 +172,44 @@ border:1px solid var(--line2);background:var(--paper);color:var(--txt);
 font-family:inherit;font-size:13.5px}
 .tool input[type=text]:focus{outline:2px solid var(--brand);outline-offset:1px}
 .tool .hint{font-size:12.5px;color:var(--dim);margin:0 0 16px;line-height:1.55}
+.tool form{display:block;padding-bottom:18px}
+.tool label{display:block;font-size:12.5px;font-weight:600;color:var(--txt2);
+margin:0 0 14px}
+.tool label span{font-weight:400;color:var(--dim)}
+.tool label input,.tool label select,.tool label textarea{display:block;width:100%;
+margin-top:6px;padding:10px 12px;border-radius:9px;border:1px solid var(--line2);
+background:var(--paper);color:var(--txt);font-family:inherit;font-size:13.5px}
+.tool textarea{resize:vertical;line-height:1.55}
+.tool label input:focus,.tool label select:focus,.tool label textarea:focus{
+outline:2px solid var(--brand);outline-offset:1px}
+.grid2{display:grid;gap:14px}
+@media(min-width:560px){.grid2{grid-template-columns:1fr 1fr}}
+.keystate{font-style:normal;margin-left:auto;font-size:12px;color:var(--dim);
+font-family:"JetBrains Mono",monospace}
+
+/* What the channel will actually see, updating as it is typed. Guessing at
+   Slack's rendering from a plain textarea is how a message goes out with a
+   stray asterisk in it. */
+.prev{margin:2px 0 16px}
+.prev-h{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+color:var(--dim);font-family:"JetBrains Mono",monospace;margin-bottom:9px}
+.slackmsg{display:flex;gap:11px;background:#fff;border:1px solid var(--line);
+border-radius:12px;padding:14px 15px}
+.sm-av{width:34px;height:34px;border-radius:9px;background:var(--sf);flex:none;
+display:grid;place-items:center;font-size:17px}
+.sm-body{min-width:0;flex:1}
+.sm-who{font-size:13px;margin-bottom:7px}
+.sm-who b{font-weight:600;color:var(--txt)}
+.sm-who span{font-size:10px;font-weight:600;background:var(--line);color:var(--txt2);
+padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.03em}
+.sm-head{font-size:14px;font-weight:600;color:var(--txt)}
+.sm-rule{height:1px;background:var(--line);margin:10px 0}
+.sm-text{font-size:13.5px;color:var(--txt2);line-height:1.6;white-space:pre-wrap;
+word-break:break-word;min-height:20px}
+.sm-text em{font-style:italic}.sm-text b{color:var(--txt);font-weight:600}
+.sm-btn{display:inline-block;margin-top:12px;background:#007a5a;color:#fff;
+border-radius:6px;padding:8px 14px;font-size:13px;font-weight:600;text-decoration:none}
+.sm-foot{font-size:11.5px;color:var(--dim);margin-top:12px}
 .tool select{padding:10px 12px;border-radius:9px;border:1px solid var(--line2);
 background:var(--paper);color:var(--txt);font-family:inherit;font-size:13.5px}
 
@@ -232,7 +270,7 @@ def _authorised(key: str) -> bool:
     return bool(settings.admin_key) and hmac.compare_digest(key or "", settings.admin_key)
 
 
-def _done(key: str, wants_json: bool, **extra: Any) -> Any:
+def _done(key: str, wants_json: bool, ok: bool = True, **extra: Any) -> Any:
     """Answer an action.
 
     A browser form gets a redirect; the page's own fetch gets JSON and updates
@@ -240,7 +278,7 @@ def _done(key: str, wants_json: bool, **extra: Any) -> Any:
     and so a full reload is not the price of pressing a button.
     """
     if wants_json:
-        return JSONResponse({"ok": True, **extra})
+        return JSONResponse({"ok": ok, **extra})
     return RedirectResponse(f"/admin?key={key}", 303)
 
 
@@ -501,6 +539,13 @@ def console(key: str = "") -> HTMLResponse:
 
     left = f"{b['remaining']:,} searches left" if b.get("tracked") else "searches untracked"
     keys = d["keys"]
+    targets = "".join(
+        f'<option value="{html.escape(w["id"])}">{html.escape(w["team"])}'
+        + (f' &middot; #{html.escape(w["channel_name"])}' if w["channel_name"] else "")
+        + "</option>"
+        for w in d["workspaces"]
+        if w["active"] and w["channel"]
+    )
     pond_done = d["tasks"].get("completed", 0)
     pond_bad = d["tasks"].get("failed", 0)
 
@@ -550,30 +595,75 @@ def console(key: str = "") -> HTMLResponse:
     <h2>Controls</h2>
     <details class="tool">
       <summary>Send an announcement</summary>
-      <form method="post" action="/admin/announce">
+      <form method="post" action="/admin/announce" id="annc">
         <input type="hidden" name="key" value="{k}">
-        <input type="text" name="message" placeholder="Goes to every active channel">
-        <select name="tone">
-          <option value="news">Announcement</option>
-          <option value="update">What's new</option>
-          <option value="heads-up">Heads up</option>
-          <option value="thanks">From Foxy</option>
-        </select>
+        <div class="grid2">
+          <label>To
+            <select name="install_id" id="a-to">
+              <option value="">Every active channel</option>
+              {targets}
+            </select>
+          </label>
+          <label>Style
+            <select name="tone" id="a-tone">
+              <option value="news">Announcement</option>
+              <option value="update">What&#39;s new</option>
+              <option value="heads-up">Heads up</option>
+              <option value="thanks">From Foxy</option>
+              <option value="gift">Good news</option>
+            </select>
+          </label>
+        </div>
+        <label>Heading <span>optional &mdash; replaces the default</span>
+          <input type="text" name="title" id="a-title" placeholder="Announcement">
+        </label>
+        <label>Message
+          <textarea name="message" id="a-msg" rows="3"
+            placeholder="Supports *bold*, _italic_ and links."></textarea>
+        </label>
+        <div class="grid2">
+          <label>Button text <span>optional</span>
+            <input type="text" name="link_label" id="a-blab" placeholder="Read more">
+          </label>
+          <label>Button link <span>optional</span>
+            <input type="text" name="link_url" id="a-burl" placeholder="https://">
+          </label>
+        </div>
+
+        <div class="prev" id="a-prev" aria-hidden="true">
+          <div class="prev-h">Preview</div>
+          <div class="slackmsg">
+            <div class="sm-av">&#129418;</div>
+            <div class="sm-body">
+              <div class="sm-who"><b>Foxy</b><span>APP</span></div>
+              <div class="sm-head" id="p-head"></div>
+              <div class="sm-rule"></div>
+              <div class="sm-text" id="p-text"></div>
+              <a class="sm-btn" id="p-btn" hidden></a>
+              <div class="sm-foot">Foxy &middot; reply here and someone will read it</div>
+            </div>
+          </div>
+        </div>
+
         <button class="mini go" type="submit">Send</button>
       </form>
-      <p class="hint">Arrives with a heading and a divider, so it does not read
-      like another detection.</p>
     </details>
+
     <details class="tool">
-      <summary>Replace the search key &middot; {html.escape(keys["serper_source"])}
-        {html.escape(keys["serper_hint"])}</summary>
+      <summary>Search key
+        <em class="keystate">{html.escape(keys["serper_source"])}
+        {html.escape(keys["serper_hint"])}</em>
+      </summary>
       <form method="post" action="/admin/key">
         <input type="hidden" name="key" value="{k}">
-        <input type="text" name="serper" placeholder="New serper.dev API key">
-        <button class="mini go" type="submit">Save</button>
+        <label>New serper.dev key
+          <input type="text" name="serper" placeholder="Paste it here">
+        </label>
+        <button class="mini go" type="submit">Check and save</button>
       </form>
-      <p class="hint">Free keys at serper.dev. Saved here, it takes effect on the
-      next sweep &mdash; no deployment.</p>
+      <p class="hint">It is tried against serper before it is stored, so a dud
+      cannot replace a working one. Takes effect on the next sweep &mdash; no
+      deployment. Free keys at <b>serper.dev</b>.</p>
     </details>
   </div>
 
@@ -589,6 +679,7 @@ def console(key: str = "") -> HTMLResponse:
   </div>
   <div class="toast" id="toast"></div>
   <script src="/assets/admin.js" defer></script>
+  <script src="/assets/preview.js" defer></script>
 
   <div class="foot">
     Pond &middot; <b>{d["pond_runs"]}</b> calls, <b>{pond_done}</b> scans
@@ -832,10 +923,41 @@ def replace_key(
     if not _authorised(key):
         return _denied()
     value = (serper or "").strip()
-    if value:
-        runtime.set_serper_key(value)
-        record("key", subject="serper", detail="search key replaced", actor="admin")
-    return _done(key, bool(ajax), message="Search key replaced")
+    if not value:
+        return _done(key, bool(ajax), ok=False, message="Nothing to save")
+
+    # Tried before it is trusted. A key stored without checking looks saved and
+    # fails silently on the next sweep, hours later, where nobody is watching.
+    working, why = _key_works(value)
+    if not working:
+        record("key", subject="serper", detail=why, actor="admin", ok=False)
+        return _done(key, bool(ajax), ok=False, message=f"Not saved: {why}")
+
+    runtime.set_serper_key(value)
+    record("key", subject="serper", detail="search key replaced and verified",
+           actor="admin")
+    return _done(key, bool(ajax), message="Key verified and saved")
+
+
+def _key_works(value: str) -> tuple[bool, str]:
+    """Ask serper whether this key is good for anything."""
+    from .sources.base import client
+
+    try:
+        with client(headers={"X-API-KEY": value,
+                             "Content-Type": "application/json"}) as c:
+            r = c.post("https://google.serper.dev/search",
+                       json={"q": "y combinator", "num": 10})
+    except Exception as exc:  # noqa: BLE001
+        return False, f"could not reach serper ({type(exc).__name__})"
+
+    if r.status_code in (401, 403):
+        return False, "serper rejected the key"
+    if r.status_code == 429:
+        return False, "the key has no credits left"
+    if r.status_code >= 400:
+        return False, f"serper answered {r.status_code}"
+    return True, "ok"
 
 
 @router.post("/admin/grant", response_model=None)
@@ -895,6 +1017,9 @@ def announce(
     message: str = Form(""),
     install_id: str = Form(""),
     tone: str = Form("news"),
+    title: str = Form(""),
+    link_label: str = Form(""),
+    link_url: str = Form(""),
     ajax: str = Form(""),
 ) -> Any:
     """Say something in one channel, or in all of them.
@@ -916,16 +1041,19 @@ def announce(
             if not install_id or r.id == install_id
         ]
 
-    blocks, fallback = _announcement(text, tone)
+    blocks, fallback = _announcement(
+        text, tone, title=title, link_label=link_label, link_url=link_url
+    )
     sent = 0
     for _id, team, token, channel in rows:
         if _say(token, channel, fallback, blocks=blocks):
             sent += 1
         else:
             log.warning("could not announce to %s", team)
+    where = rows[0][1] if len(rows) == 1 else f"{sent}/{len(rows)} channels"
     record(
         "announce",
-        subject=f"{sent}/{len(rows)} channels",
+        subject=where,
         detail=text,
         actor="admin",
         ok=sent == len(rows),
@@ -937,35 +1065,66 @@ def announce(
 
 
 TONES = {
-    "news": (":loudspeaker:", "Announcement"),
-    "update": (":sparkles:", "What's new"),
+    "news":     (":loudspeaker:", "Announcement"),
+    "update":   (":sparkles:", "What's new"),
     "heads-up": (":warning:", "Heads up"),
-    "thanks": (":wave:", "From Foxy"),
+    "thanks":   (":wave:", "From Foxy"),
+    "gift":     (":tada:", "Good news"),
 }
 
 
-def _announcement(text: str, tone: str) -> tuple[list[dict], str]:
+def _announcement(
+    text: str,
+    tone: str,
+    *,
+    title: str = "",
+    link_label: str = "",
+    link_url: str = "",
+) -> tuple[list[dict], str]:
     """Dress an announcement so it does not read like an alert.
 
     A bare line of text in a channel full of company alerts looks like another
-    detection. A header and a divider say, before anything is read, that this
-    one is from a person.
+    detection. A header, a rule and a quiet footer say, before a word is read,
+    that this one came from a person.
     """
-    icon, title = TONES.get(tone, TONES["news"])
-    blocks = [
-        {
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": f"{icon}  *{title}*"},
-        },
+    icon, default_title = TONES.get(tone, TONES["news"])
+    heading = (title or default_title).strip()
+
+    blocks: list[dict] = [
+        {"type": "section", "text": {"type": "mrkdwn", "text": f"{icon}  *{heading}*"}},
+        {"type": "divider"},
         {"type": "section", "text": {"type": "mrkdwn", "text": text}},
+    ]
+
+    # An announcement that asks for something should carry the way to do it.
+    if link_url.strip() and link_label.strip():
+        blocks.append(
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": link_label.strip()[:74],
+                            "emoji": True,
+                        },
+                        "url": link_url.strip(),
+                        "style": "primary",
+                    }
+                ],
+            }
+        )
+
+    blocks.append(
         {
             "type": "context",
             "elements": [
-                {"type": "mrkdwn", "text": "Foxy · you can reply to this channel"}
+                {"type": "mrkdwn", "text": "Foxy · reply here and someone will read it"}
             ],
-        },
-    ]
-    return blocks, f"{title}: {text}"
+        }
+    )
+    return blocks, f"{heading}: {text}"
 
 
 def _say(token: str, channel: str, text: str, blocks: list[dict] | None = None) -> bool:

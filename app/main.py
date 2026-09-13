@@ -992,10 +992,12 @@ def hero_art() -> Response:
     )
 
 
-@router.api_route("/assets/admin.js", methods=["GET", "HEAD"])
-def admin_script() -> Response:
+@router.api_route("/assets/{name}.js", methods=["GET", "HEAD"])
+def admin_script(name: str) -> Response:
     """The console's behaviour, served rather than inlined so it caches."""
-    path = pathlib.Path(__file__).parent / "static" / "admin.js"
+    if name not in {"admin", "preview"}:
+        return Response(status_code=404)
+    path = pathlib.Path(__file__).parent / "static" / f"{name}.js"
     if not path.exists():
         return Response(status_code=404)
     return Response(

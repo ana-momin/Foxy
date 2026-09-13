@@ -690,12 +690,14 @@ def test_a_stopped_workspace_is_not_offered_a_plan(db, admin):
 # --- superaccess --------------------------------------------------------------
 
 
-def test_the_search_key_can_be_replaced_without_a_deployment(db, admin):
+def test_the_search_key_can_be_replaced_without_a_deployment(db, admin, monkeypatch):
     """The one credential certain to need swapping one day. Needing a developer
     for that is how an agent quietly stops finding things."""
+    import app.admin as admin_mod
     from app import runtime
     from app.config import settings
 
+    monkeypatch.setattr(admin_mod, "_key_works", lambda v: (True, "ok"))
     monkey = settings.serper_api_key
     try:
         settings.serper_api_key = "from-the-environment"
@@ -1064,3 +1066,117 @@ def test_the_hero_animation_yields_to_a_visitor_who_asked_for_less():
     assert "prefers-reduced-motion" in page
     assert "matchMedia" in page, "the script must check it too, not only the CSS"
     assert "document.hidden" in page, "and stop while the tab is in the background"
+
+
+def test_a_key_is_tried_before_it_is_trusted(db, admin, monkeypatch):
+    """A key stored without checking looks saved and then fails silently on
+    the next sweep, hours later, where nobody is watching."""
+    import app.admin as admin_mod
+    from app import runtime
+
+    runtime.set_serper_key("the-good-one")
+    monkeypatch.setattr(admin_mod, "_key_works", lambda v: (False, "serper rejected the key"))
+
+    r = admin.post(
+        "/admin/key", data={"key": ADMIN, "serper": "a-dud", "ajax": "1"}
+    )
+    assert r.json()["ok"] is False
+    assert "rejected" in r.json()["message"]
+    assert runtime.serper_key() == "the-good-one", "a bad key must not replace a good one"
+    runtime.set_serper_key("")
+
+
+def test_a_verified_key_is_saved(db, admin, monkeypatch):
+    import app.admin as admin_mod
+    from app import runtime
+
+    monkeypatch.setattr(admin_mod, "_key_works", lambda v: (True, "ok"))
+    r = admin.post("/admin/key", data={"key": ADMIN, "serper": "a-good-one", "ajax": "1"})
+    assert r.json()["ok"] is True
+    assert runtime.serper_key() == "a-good-one"
+    runtime.set_serper_key("")
+
+
+def test_an_announcement_can_go_to_one_channel(db, admin, monkeypatch):
+    """Broadcast-only meant telling five workspaces something that concerned
+    one of them."""
+    said = []
+    import app.admin as admin_mod
+
+    monkeypatch.setattr(
+        admin_mod, "_say",
+        lambda tok, ch, txt, blocks=None: said.append(ch) is None,
+    )
+
+    one = _install(db, team_id="T-ONE-CH")
+    _install(db, team_id="T-OTHER")
+
+    admin.post(
+        "/admin/announce",
+        data={"key": ADMIN, "message": "Just for you", "install_id": one},
+        follow_redirects=False,
+    )
+    assert len(said) == 1, f"reached {len(said)} channels"
+
+
+def test_an_announcement_can_carry_a_button(db, admin, monkeypatch):
+    said = []
+    import app.admin as admin_mod
+
+    monkeypatch.setattr(
+        admin_mod, "_say",
+        lambda tok, ch, txt, blocks=None: said.append(blocks) is None,
+    )
+    _install(db, team_id="T-BTN")
+    admin.post(
+        "/admin/announce",
+        data={"key": ADMIN, "message": "We shipped something",
+              "link_label": "See it", "link_url": "https://tryfoxy.vercel.app"},
+        follow_redirects=False,
+    )
+    actions = [b for b in said[0] if b["type"] == "actions"]
+    assert actions, "the button never made it into the message"
+    assert actions[0]["elements"][0]["url"] == "https://tryfoxy.vercel.app"
+
+
+def test_a_button_without_a_link_is_left_out(db, admin, monkeypatch):
+    """Half a button is a broken message, not a partial one."""
+    from app.admin import _announcement
+
+    blocks, _ = _announcement("hello", "news", link_label="Click", link_url="")
+    assert not [b for b in blocks if b["type"] == "actions"]
+
+
+def test_a_custom_heading_replaces_the_default(db, admin):
+    from app.admin import _announcement
+
+    blocks, fallback = _announcement("body", "news", title="Scheduled downtime")
+    assert "Scheduled downtime" in blocks[0]["text"]["text"]
+    assert "Announcement" not in blocks[0]["text"]["text"]
+    assert fallback.startswith("Scheduled downtime")
+
+
+def test_the_console_offers_each_channel_by_name(db, admin):
+    from app import installs
+
+    install_id = _install(db, team_id="T-NAMED")
+    with db.session() as s:
+        installs.get(s, install_id).channel_name = "yc-signals"
+
+    page = admin.get(f"/admin?key={ADMIN}").text
+    assert "Every active channel" in page
+    assert "yc-signals" in page, "a channel you cannot name is hard to pick"
+
+
+def test_the_preview_renders_what_slack_will(db, admin):
+    """Slack's mrkdwn is not markdown, and guessing at it is how a message
+    goes out with a stray asterisk in it."""
+    import pathlib
+
+    page = admin.get(f"/admin?key={ADMIN}").text
+    assert 'id="a-prev"' in page, "no preview"
+    assert "/assets/preview.js" in page
+
+    js = pathlib.Path("app/static/preview.js").read_text(encoding="utf-8")
+    assert "<b>$1</b>" in js, "single asterisks are bold in Slack"
+    assert "<em>$1</em>" in js, "underscores are italic"
