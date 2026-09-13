@@ -311,7 +311,7 @@ font-family:"JetBrains Mono",monospace;padding-top:1px}
 """
 
 
-def _shell(body: str, title: str = "Foxy status") -> HTMLResponse:
+def _shell(body: str, title: str = "Status") -> HTMLResponse:
     resp = _page(title, body)
     return HTMLResponse(resp.body.decode().replace("</style>", _CSS + "</style>"))
 
@@ -341,7 +341,7 @@ def _done(key: str, wants_json: bool, ok: bool = True, **extra: Any) -> Any:
 def _denied() -> HTMLResponse:
     return _shell(
         "<h1>Not available</h1><p class='lede'>This page needs a valid key.</p>",
-        "Foxy",
+        "Not available",
     )
 
 
@@ -808,7 +808,7 @@ def console(key: str = "") -> HTMLResponse:
     {d["sweeps"]} sweeps &middot; last alert {_ago(d["last_alert"])}
   </div>
 </div>""",
-        "Foxy status",
+        "Status",
     )
 
 
@@ -1056,7 +1056,7 @@ def logs(key: str = "") -> HTMLResponse:
   </div>
   <div class="sec">{body}</div>
 </div>""",
-        "Foxy activity",
+        "Activity",
     )
 
 
