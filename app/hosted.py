@@ -18,7 +18,7 @@ from typing import Any
 
 from . import installs
 from .config import settings
-from .db import init_db, session
+from .db import init_db, record, session
 from .engine import Engine, build_sources
 from .models import Signal
 from .slack import SlackClient
@@ -318,6 +318,13 @@ def run_sweep(only: tuple[str, ...] | None = None) -> dict[str, Any]:
                     row.last_error = entry["error"]
         results.append(entry)
 
+    record(
+        "sweep",
+        subject=f"{sum(r.get('alerts', 0) for r in results)} delivered",
+        detail=", ".join(f"{k} {v}" for k, v in found.items() if v),
+        actor="schedule",
+        ok=not source_errors,
+    )
     return {
         "installs": len(plan),
         "found": found,

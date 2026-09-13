@@ -1259,3 +1259,62 @@ def test_the_week_is_compared_against_the_one_before(db, admin):
 def test_today_is_marked_on_the_chart(db, admin):
     page = admin.get(f"/admin?key={ADMIN}").text
     assert 'class="col now"' in page or 'class="col now"' in page.replace("&quot;", '"')
+
+
+def test_the_log_shows_what_foxy_did_not_only_what_was_done_to_it(db, admin):
+    """It only ever recorded operator actions, so the busiest thing in the
+    system - Foxy working - left no trace in the one place built to show it."""
+    import datetime as dt
+
+    from app.db import Event, session
+
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    with session() as s:
+        s.add(Event(kind="scan", subject="18 found", detail="1 early · x",
+                    actor="pond", ok=True, at=now))
+        s.add(Event(kind="sweep", subject="6 delivered", detail="yc_directory 100",
+                    actor="schedule", ok=True, at=now))
+
+    page = admin.get(f"/admin/logs?key={ADMIN}").text
+    assert "18 found" in page and "6 delivered" in page
+    assert "pond" in page and "schedule" in page
+
+
+def test_every_log_line_opens_for_detail(db, admin):
+    import datetime as dt
+
+    from app.db import Event, session
+
+    with session() as s:
+        s.add(Event(kind="grant", subject="YC alert", detail="+50 alerts",
+                    actor="admin", ok=True,
+                    at=dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)))
+
+    page = admin.get(f"/admin/logs?key={ADMIN}").text
+    assert "<details" in page, "nothing opens"
+    assert "Outcome" in page and "+50 alerts" in page
+
+
+def test_the_log_groups_by_day(db, admin):
+    """A flat list of times says nothing about when."""
+    import datetime as dt
+
+    from app.db import Event, session
+
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    with session() as s:
+        s.add(Event(kind="scan", subject="now", detail="", actor="pond", at=now))
+        s.add(Event(kind="scan", subject="older", detail="", actor="pond",
+                    at=now - dt.timedelta(days=1)))
+
+    page = admin.get(f"/admin/logs?key={ADMIN}").text
+    assert "Today" in page and "Yesterday" in page
+
+
+def test_a_workspace_row_shows_how_much_is_left(db, admin):
+    """A used count and a quota is arithmetic the reader has to do."""
+    from app.config import settings
+
+    _install(db, team_id="T-BAR", alerts_used=settings.free_alert_quota // 2)
+    page = admin.get(f"/admin?key={ADMIN}").text
+    assert 'class="use"' in page, "no usage bar on the row"

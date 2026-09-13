@@ -593,6 +593,13 @@ async def runs(
 
         response = _ok(run_id, result["markdown"], result["count"])
         _remember_run(key, run_id, response)
+        # Worth a line in the log: these are the calls Pond actually makes, and
+        # without them the log shows only what an operator did to Foxy rather
+        # than what Foxy has been doing.
+        from .db import record
+
+        record("pond", subject=action_id, detail=f"{result['count']} result(s)",
+               actor="pond")
         return response
 
     except Exception as exc:  # noqa: BLE001 - never leak internals

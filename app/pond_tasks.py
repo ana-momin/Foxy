@@ -26,7 +26,7 @@ import time
 import uuid
 from typing import Any
 
-from .db import PondTask, init_db, session
+from .db import PondTask, init_db, record, session
 
 log = logging.getLogger("foxy.pond.tasks")
 
@@ -252,6 +252,18 @@ def effective_cap(params: dict[str, Any]) -> int:
 
 
 def _finish(task_id: str) -> None:
+    with session() as s:
+        row = s.get(PondTask, task_id)
+        if row is not None:
+            found = len(row.findings or [])
+            early = sum(1 for f in (row.findings or []) if f.get("early"))
+            sources = ", ".join(sorted(row.progress or {})) or "none"
+            record(
+                "scan",
+                subject=f"{found} found",
+                detail=f"{early} early · {sources}",
+                actor="pond",
+            )
     _forget(task_id)
     with session() as s:
         row = s.get(PondTask, task_id)

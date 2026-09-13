@@ -157,6 +157,12 @@ font-family:"JetBrains Mono",monospace}
 .row .nm{font-size:14.5px;font-weight:600;color:var(--txt);
 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .sub{font-size:12.5px;color:var(--dim);margin-top:2px}
+/* How much of the allowance is gone, on the row rather than in a number
+   somebody has to divide in their head. */
+.use{height:3px;border-radius:2px;background:var(--line);overflow:hidden;
+margin-top:9px;max-width:200px}
+.use span{display:block;height:100%;background:var(--brand);border-radius:2px}
+.use span.full{background:var(--warn)}
 .row .rt{display:flex;align-items:center;gap:9px;flex:none}
 .num{font-size:13px;color:var(--dim);font-family:"JetBrains Mono",monospace;
 font-variant-numeric:tabular-nums}
@@ -268,17 +274,40 @@ box-shadow:0 16px 40px -14px rgba(0,0,0,.5);opacity:0;transition:all .22s ease;z
 
 .logs{border:1px solid var(--line);border-radius:14px;background:var(--card);
 overflow:hidden}
-.log{display:flex;gap:13px;align-items:flex-start;padding:13px 18px;
-border-top:1px solid var(--line);font-size:13.5px}
-.logs>.log:first-child{border-top:0}
-.log .when{color:var(--dim);font-family:"JetBrains Mono",monospace;font-size:11.5px;
-flex:none;width:76px;padding-top:2px}
-.log .what{min-width:0;flex:1}
-.log .what b{font-weight:600;color:var(--txt)}
-.log .what span{color:var(--txt2)}
-.log .kd{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
-font-family:"JetBrains Mono",monospace;color:var(--dim);flex:none;padding-top:3px}
-.log.bad .kd{color:var(--warn)}
+.logday{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+color:var(--dim);font-family:"JetBrains Mono",monospace;padding:14px 18px 9px;
+background:var(--paper);border-top:1px solid var(--line)}
+.logs>.logday:first-child{border-top:0}
+
+.log{border-top:1px solid var(--line)}
+.log summary{display:grid;grid-template-columns:52px 74px 1fr auto;align-items:center;
+gap:12px;padding:12px 18px;cursor:pointer;list-style:none;font-size:13.5px}
+.log summary::-webkit-details-marker{display:none}
+.log summary:hover{background:var(--paper)}
+.log .when{color:var(--dim);font-size:11.5px;font-family:"JetBrains Mono",monospace}
+.log .kd{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+font-family:"JetBrains Mono",monospace;padding:3px 7px;border-radius:5px;
+background:var(--line);color:var(--txt2);text-align:center}
+/* Foxy's own work and an operator's decisions read differently, so they should
+   not look the same in a list of both. */
+.log .kd.scan,.log .kd.pond{background:#EAF1F7;color:#3A6EA5}
+.log .kd.sweep{background:#EAF6EF;color:#2E7D4F}
+.log .kd.grant,.log .kd.plan{background:var(--sf);color:var(--brand)}
+.log .kd.stop,.log .kd.key{background:#FBE6CC;color:#8A5418}
+.log .what{color:var(--txt);font-weight:500;overflow:hidden;text-overflow:ellipsis;
+white-space:nowrap}
+.log .by{color:var(--dim);font-size:11.5px}
+.log.bad .what{color:var(--warn)}
+
+.logmore{padding:2px 18px 16px;display:grid;gap:7px;font-size:13px;color:var(--txt2);
+background:var(--paper)}
+.logmore div{display:grid;grid-template-columns:74px 1fr;gap:12px}
+.logmore b{font-weight:500;color:var(--dim);font-size:11.5px;
+font-family:"JetBrains Mono",monospace;padding-top:1px}
+@media(max-width:600px){
+  .log summary{grid-template-columns:48px 1fr;row-gap:4px}
+  .log .by{grid-column:2}
+}
 """
 
 
@@ -549,7 +578,7 @@ def console(key: str = "") -> HTMLResponse:
         )
 
     labels = "".join(
-        f'<span{" class=\"now\"" if x["today"] else ""}>{x["label"]}</span>'
+        f"<span{_now_attr(x)}>{x['label']}</span>"
         for x in week
     )
 
@@ -641,7 +670,9 @@ def console(key: str = "") -> HTMLResponse:
     <div class="state{" warn" if not d["ok"] else ""}" id="state">{state}</div>
     <a class="ico" href="/admin/logs?key={k}" title="Activity log" aria-label="Activity log">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-           stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12h4l2.5-7 5 14 2.5-7h4"/>
+      </svg>
     </a>
   </div>
 
@@ -781,6 +812,27 @@ def console(key: str = "") -> HTMLResponse:
     )
 
 
+def _day_label(when: dt.datetime) -> str:
+    """Today and Yesterday by name; everything older by date."""
+    today = _utcnow().date()
+    on = when.date()
+    if on == today:
+        return "Today"
+    if on == today - dt.timedelta(days=1):
+        return "Yesterday"
+    return when.strftime("%A %d %B")
+
+
+def _now_attr(day: dict) -> str:
+    """Marks today's column.
+
+    Kept out of the f-string because a backslash inside an f-string expression
+    is a syntax error before Python 3.12 - which the local interpreter allowed
+    and CI did not.
+    """
+    return ' class="now"' if day.get("today") else ""
+
+
 def _parse(value: Any) -> dt.datetime | None:
     if isinstance(value, dt.datetime):
         return value
@@ -819,12 +871,23 @@ def _rows(rows: list[dict], key: str) -> str:
             if r["channel_name"]
             else ("no channel" if r["no_channel"] else html.escape(r["channel"]))
         )
+        pct = (
+            min(100, round(r["used"] * 100 / r["quota"])) if r["quota"] else 100
+        )
+        meter = (
+            f'<div class="use"><span style="width:{pct}%" '
+            f'class="{"full" if r["at_cap"] else ""}"></span></div>'
+            if r["active"]
+            else ""
+        )
+        last = _ago(r["last_alert"]) if r["last_alert"] else "no alerts yet"
         out += f"""
     <div class="row">
       <div class="av">{html.escape(_initials(r["team"]))}</div>
       <div class="who">
         <div class="nm">{html.escape(r["team"])}</div>
-        <div class="sub">{where} &middot; joined {r["joined"]:%d %b}</div>
+        <div class="sub">{where} &middot; {last}</div>
+        {meter}
       </div>
       <div class="rt">{count}{_chip(r)}{_buttons(r, key)}</div>
     </div>"""
@@ -952,18 +1015,29 @@ def logs(key: str = "") -> HTMLResponse:
         ]
 
     if rows:
-        items = "".join(
-            f"""
-    <div class="log{"" if r["ok"] else " bad"}">
-      <div class="when">{r["at"]:%d %b %H:%M}</div>
-      <div class="what">
-        <b>{html.escape(r["subject"] or r["kind"])}</b>
-        <span>{html.escape(r["detail"][:120])}</span>
+        items, day = "", None
+        for r in rows:
+            on = r["at"].strftime("%d %b")
+            if on != day:
+                day = on
+                items += f'<div class="logday">{html.escape(_day_label(r["at"]))}</div>'
+            items += f"""
+    <details class="log{"" if r["ok"] else " bad"}">
+      <summary>
+        <span class="when">{r["at"]:%H:%M}</span>
+        <span class="kd {html.escape(r["kind"])}">{html.escape(r["kind"])}</span>
+        <span class="what">{html.escape(r["subject"] or r["kind"])}</span>
+        <span class="by">{html.escape(r["actor"])}</span>
+      </summary>
+      <div class="logmore">
+        <div><b>When</b>{r["at"]:%d %b %Y, %H:%M:%S} UTC</div>
+        <div><b>What</b>{html.escape(r["kind"])}</div>
+        <div><b>Who</b>{html.escape(r["actor"])}</div>
+        <div><b>Subject</b>{html.escape(r["subject"] or "-")}</div>
+        <div><b>Detail</b>{html.escape(r["detail"] or "-")}</div>
+        <div><b>Outcome</b>{"succeeded" if r["ok"] else "failed"}</div>
       </div>
-      <div class="kd">{html.escape(r["kind"])}</div>
-    </div>"""
-            for r in rows
-        )
+    </details>"""
         body = f'<div class="logs">{items}</div>'
     else:
         body = '<p class="none">Nothing has happened yet.</p>'
