@@ -112,10 +112,10 @@ gap:12px;padding:13px 18px;border-top:1px solid var(--line);font-size:13.5px}
 .srcs>.src:first-child{border-top:0}
 .src i{width:6px;height:6px;border-radius:50%;background:var(--up);font-style:normal}
 .src i.warn{background:var(--warn)}
-.src .sn{color:var(--txt);font-weight:500}
-.src .sc{color:var(--brand);font-weight:600;font-size:12.5px;
+.src .src-n{color:var(--txt);font-weight:500}
+.src .src-c{color:var(--brand);font-weight:600;font-size:12.5px;
 font-family:"JetBrains Mono",monospace;min-width:38px;text-align:right}
-.src .st{color:var(--dim);font-size:11.5px;font-family:"JetBrains Mono",monospace;
+.src .src-t{color:var(--dim);font-size:11.5px;font-family:"JetBrains Mono",monospace;
 min-width:56px;text-align:right}
 
 .att{border:1px solid #F0D4AF;border-radius:14px;overflow:hidden;background:#FFFBF5}
@@ -529,9 +529,9 @@ def console(key: str = "") -> HTMLResponse:
     chips = "".join(
         '<div class="src">'
         f'<i class="{"" if i["ok"] else "warn"}"></i>'
-        f'<span class="sn">{html.escape(name.replace("_", " "))}</span>'
-        f'<span class="sc">{("+" + str(i["new"])) if i["ok"] and i["new"] else ""}</span>'
-        f'<span class="st">{_ago(_parse(i["ran_at"]))}</span>'
+        f'<span class="src-n">{html.escape(name.replace("_", " "))}</span>'
+        f'<span class="src-c">{("+" + str(i["new"])) if i["ok"] and i["new"] else ""}</span>'
+        f'<span class="src-t">{_ago(_parse(i["ran_at"]))}</span>'
         "</div>"
         for name, i in sorted(d["sources"].items())
     )

@@ -1182,3 +1182,26 @@ def test_the_finished_page_uses_buttons(db, client):
     assert 'class="btn"' in page, "no primary action"
     assert 'class="lk"' not in page, "the old link cards are back"
     assert "slack.com/app_redirect" in page, "the obvious next step is the channel"
+
+
+def test_the_console_does_not_borrow_class_names_from_the_shared_sheet(db, admin):
+    """The source rows rendered with an orange badge behind each name.
+
+    `.sn` is the step-number badge in the shared stylesheet, and the console
+    had quietly reused it. Nothing about the symptom points at the cause, so
+    this compares the two sets of class names directly.
+    """
+    import re
+
+    from app.admin import _CSS
+    from app.oauth import _CSS as SHARED
+
+    def classes(css: str) -> set:
+        # Only the simple single-class rules; compound selectors are scoped.
+        return set(re.findall(r"^\.([a-z][\w-]*)\{", css, re.M))
+
+    # Deliberate overrides, named so an accidental one still stands out.
+    on_purpose = {"w"}          # the page wrapper, widened for a dashboard
+
+    clash = (classes(_CSS) & classes(SHARED)) - on_purpose
+    assert not clash, f"the console redefines shared classes: {sorted(clash)}"
