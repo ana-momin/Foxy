@@ -319,7 +319,11 @@ The workflow has a `mode` input: `sweep`, `doctor`, `doctor-post`, `repair`,
   than trusting any number written down here.
 * **GitHub disables scheduled workflows after 60 days without a push.** Handled:
   the sweep pushes an empty `[skip ci]` commit once the newest commit is 45 days
-  old, so hosted mode winds its own clock. `tests/test_schedule.py` holds that
+  old, so hosted mode winds its own clock, and the console shows the countdown
+  under Capacity so an automatic renewal is not an invisible one. The reading
+  comes from the sweep itself (`app.cli note-commit`), which means a dead sweep
+  stops refreshing it and the panel marks itself stale rather than counting down
+  from a number nobody is maintaining. `tests/test_schedule.py` holds all of it
   in place. If that step is ever removed, Foxy stops sweeping two months later
   and nothing anywhere says so.
 * **Vercel Hobby forbids commercial use.** Irrelevant while Pond takes the

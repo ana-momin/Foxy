@@ -603,6 +603,49 @@ def cmd_set_plan(args) -> int:
     return 0
 
 
+def cmd_note_commit(args) -> int:
+    """Record the newest commit, so the console can show the schedule's life.
+
+    Run by the sweep, which is the only place that has both a checkout of the
+    repository and the database. Reads git itself rather than being handed a
+    date, so there is one fewer thing for a workflow edit to get wrong.
+    """
+    import subprocess
+
+    from . import schedule
+    from .db import init_db
+
+    init_db()
+
+    when, sha = args.at, args.sha
+    if not when:
+        try:
+            out = subprocess.run(
+                ["git", "log", "-1", "--format=%cI %H"],
+                capture_output=True, text=True, check=True, timeout=20,
+            ).stdout.split()
+            when, sha = out[0], out[1]
+        except Exception as exc:  # noqa: BLE001 - never fail a sweep over this
+            print(f"\n  could not read the newest commit: {exc}\n")
+            return 1
+
+    try:
+        stamp = dt.datetime.fromisoformat(when)
+    except ValueError:
+        print(f"\n  not a date: {when}\n")
+        return 1
+
+    schedule.record(stamp, sha or "")
+    st = schedule.status()
+    short = sha[:7] if sha else "?"
+    print(
+        f"\n  newest commit {short} is {st['age_days']}d old"
+        f" - {st['days_left']}d before GitHub would stop the schedule"
+        f", renewing in {st['renew_in']}d\n"
+    )
+    return 0
+
+
 def cmd_budget(args) -> int:
     """How much of the search allowance is left."""
     from . import budget
@@ -684,6 +727,13 @@ def main(argv: list[str] | None = None) -> int:
         "hosted-sweep", help="run one sweep for every installed workspace"
     ).set_defaults(fn=cmd_hosted_sweep)
     sub.add_parser("check", help="verify configuration").set_defaults(fn=cmd_check)
+
+    p = sub.add_parser(
+        "note-commit", help="record the newest commit for the schedule countdown"
+    )
+    p.add_argument("--at", default="", help="ISO date; read from git when omitted")
+    p.add_argument("--sha", default="")
+    p.set_defaults(fn=cmd_note_commit)
 
     p = sub.add_parser("sweep", help="run one sweep now")
     p.add_argument("--dry", action="store_true", help="do not post to Slack")

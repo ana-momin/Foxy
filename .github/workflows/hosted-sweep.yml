@@ -89,3 +89,14 @@ jobs:
             git commit --allow-empty -m "Keep the sweep schedule alive [skip ci]"
             git push || echo "push did not land; the next sweep will try again"
           fi
+
+      # Runs after the keepalive, so a renewal that just happened is the date
+      # the console shows. An automatic renewal nobody can see is impossible to
+      # tell apart from one that has quietly stopped working.
+      - name: Report the schedule's remaining life
+        if: always()
+        continue-on-error: true
+        env:
+          DATABASE_URL:   ${{ secrets.DATABASE_URL }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+        run: python -m app.cli note-commit

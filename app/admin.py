@@ -27,7 +27,7 @@ from fastapi import APIRouter, Form
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import func, select
 
-from . import budget, installs, runtime
+from . import budget, installs, runtime, schedule
 from .config import settings
 from .db import (
     Alert,
@@ -185,6 +185,18 @@ font-family:inherit;white-space:nowrap;transition:border-color .15s,color .15s}
 margin-bottom:12px}
 .bar span{display:block;height:100%;background:var(--brand);border-radius:3px}
 .bar.warn span{background:var(--warn)}
+
+/* The sweep's remaining life. Counts down from the newest commit, because
+   GitHub stops a scheduled workflow 60 days after the last one. */
+.sched{margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}
+.sched-h{display:flex;align-items:baseline;gap:10px;font-size:12px;font-weight:600;
+letter-spacing:.09em;text-transform:uppercase;color:var(--dim);
+font-family:"JetBrains Mono",monospace;margin-bottom:11px}
+.sched-h b{margin-left:auto;font-size:15px;letter-spacing:-.02em;text-transform:none;
+color:var(--txt);font-weight:600;font-variant-numeric:tabular-nums}
+.sched.warn .sched-h b{color:#8A5418}
+.sched-s{font-size:12.5px;color:var(--dim);margin-top:10px}
+.sched-s b{color:var(--txt2);font-weight:500}
 
 .foot{font-size:13px;color:var(--dim);line-height:1.9;border-top:1px solid var(--line);
 padding-top:20px;margin-top:6px}
@@ -532,6 +544,7 @@ def gather() -> dict[str, Any]:
         "last_pond": last_pond,
         "budget": b,
         "keys": runtime.snapshot(),
+        "schedule": schedule.status(),
         "workspaces": rows,
         "live": len(live),
         "channels": len({r["channel"] for r in live if r["channel"]}),
@@ -658,6 +671,38 @@ def console(key: str = "") -> HTMLResponse:
         for w in d["workspaces"]
         if w["active"] and w["channel"]
     )
+    # How long GitHub will keep running the sweep. Worth a line because the
+    # renewal is automatic and therefore invisible, and an invisible mechanism
+    # that has stopped looks exactly like one that is working.
+    #
+    # Six words. The detail - dates, the commit it counted from - lives in the
+    # tooltip, where it costs nothing to anyone reading the page at a glance.
+    # Before the first sweep reports there is nothing to say, so it says
+    # nothing rather than explaining itself.
+    sc = d["schedule"]
+    sched = ""
+    if sc["known"]:
+        tone = " warn" if (sc["stale"] or sc["overdue"]) else ""
+        if sc["stale"]:
+            note = "reading may be stale"
+        elif sc["overdue"]:
+            note = "renewal due"
+        else:
+            note = f'renews in <b>{sc["renew_in"]}d</b>'
+        tip = (
+            f'GitHub stops a schedule 60 days after the last commit. '
+            f'Last commit {_ago(sc["last_commit"])}'
+            + (f' ({sc["sha"][:7]})' if sc["sha"] else "")
+            + f'. Renews {sc["renews_on"]:%d %b}, expires {sc["expires_on"]:%d %b}.'
+        )
+        sched = (
+            f'<div class="sched{tone}" title="{html.escape(tip, quote=True)}">'
+            f'<div class="sched-h">Schedule <b>{sc["days_left"]}d left</b></div>'
+            f'<div class="bar{tone}" style="margin-bottom:0">'
+            f'<span style="width:{min(100, round(sc["share"] * 100))}%"></span></div>'
+            f'<div class="sched-s">{note}</div></div>'
+        )
+
     pond_done = d["tasks"].get("completed", 0)
     pond_bad = d["tasks"].get("failed", 0)
 
@@ -710,7 +755,8 @@ def console(key: str = "") -> HTMLResponse:
     <div id="cap">{credits}
     <div class="foot" style="border:0;padding:0">
       <b>{left}</b> &middot; swept {_ago(_parse(d["last_sweep"]))}, next {d["next_sweep"]}
-    </div></div>
+    </div>
+    {sched}</div>
   </div>
 
   <div class="sec">
@@ -981,6 +1027,10 @@ def _jsonable(value: Any) -> Any:
     because the test database had no dated rows to trip over.
     """
     if isinstance(value, dt.datetime):
+        return value.isoformat()
+    # After datetime, never before: datetime is a subclass of date, so the
+    # other order would quietly truncate every timestamp to its day.
+    if isinstance(value, dt.date):
         return value.isoformat()
     if isinstance(value, dict):
         return {k: _jsonable(v) for k, v in value.items()}
