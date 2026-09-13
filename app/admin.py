@@ -92,14 +92,39 @@ padding:18px 20px 14px;margin-bottom:44px}
 .spark .hd b{font-size:12px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
 color:var(--dim);font-family:"JetBrains Mono",monospace}
 .spark .hd span{margin-left:auto;font-size:12.5px;color:var(--dim)}
-.bars{display:flex;align-items:flex-end;gap:6px;height:56px}
-.bars div{flex:1;background:var(--sf);border-radius:4px 4px 2px 2px;position:relative;
-min-height:3px;transition:background .15s}
-.bars div.has{background:var(--accent)}
-.bars div:hover{background:var(--accent2)}
-.days{display:flex;gap:6px;margin-top:8px}
+.spark .hd span{margin-left:auto;font-size:12.5px;color:var(--dim);
+display:inline-flex;align-items:baseline;gap:8px}
+.spark .hd strong{color:var(--txt);font-weight:600;font-size:14px;
+font-variant-numeric:tabular-nums}
+.trend{font-size:11.5px;font-weight:600;padding:2px 7px;border-radius:999px;
+font-family:"JetBrains Mono",monospace}
+.trend.up{background:#EAF6EF;color:#2E7D4F}
+.trend.down{background:#F4EFE9;color:var(--txt2)}
+
+.bars{display:flex;align-items:flex-end;gap:7px;height:62px}
+.col{flex:1;display:flex;align-items:flex-end;justify-content:center;height:100%;
+border-radius:5px;padding-bottom:0;transition:background .15s}
+.col:hover{background:var(--sf)}
+.col.now .stack{outline:2px solid var(--card);outline-offset:-2px;
+box-shadow:0 0 0 2px var(--brand)}
+/* Listed underneath, early stacked on top: the split is the whole point and a
+   single bar hides it. */
+.stack{display:flex;flex-direction:column;justify-content:flex-start;width:100%;
+max-width:34px;background:#F0DFCD;border-radius:5px 5px 3px 3px;overflow:hidden}
+.stack i{display:block;width:100%;background:var(--brand);border-radius:5px 5px 0 0}
+
+.days{display:flex;gap:7px;margin-top:9px}
 .days span{flex:1;text-align:center;font-size:10.5px;color:var(--dim);
 font-family:"JetBrains Mono",monospace}
+.days span.now{color:var(--brand);font-weight:600}
+
+.legend{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:16px;
+padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--txt2)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:9px;height:9px;border-radius:3px}
+.legend .k-e{background:var(--brand)}
+.legend .k-l{background:#F0DFCD}
+.legend em{margin-left:auto;font-style:normal;color:var(--dim);font-size:11.5px}
 
 .sec{margin-bottom:38px}
 .sec>h2{font-size:11px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;
@@ -359,12 +384,15 @@ def gather() -> dict[str, Any]:
         # rather than only the running total. Counted in Python because the
         # date functions differ between SQLite and Postgres, and a week of rows
         # is nothing to read.
-        since = _utcnow() - dt.timedelta(days=7)
+        # Fourteen days, not seven: the second week is never drawn, it is what
+        # the first is compared against. A total with nothing beside it cannot
+        # say whether things are picking up or dying off.
+        since = _utcnow() - dt.timedelta(days=14)
         recent = s.execute(
-            select(Alert.created_at).where(
+            select(Alert.created_at, Alert.kind).where(
                 Alert.ts.isnot(None), Alert.created_at >= since
             )
-        ).scalars().all()
+        ).all()
 
         tasks = dict(
             s.execute(
@@ -432,17 +460,34 @@ def gather() -> dict[str, Any]:
     today = _utcnow().date()
     for back in range(6, -1, -1):
         day = today - dt.timedelta(days=back)
+        on_day = [k for c, k in recent if c and c.date() == day]
+        early = sum(1 for k in on_day if k == "early")
         days.append(
             {
                 "label": day.strftime("%a")[:1],
-                "date": day.isoformat(),
-                "count": sum(1 for c in recent if c and c.date() == day),
+                "date": day.strftime("%a %d %b"),
+                "count": len(on_day),
+                "early": early,
+                # Everything that is not an early catch is a confirmed listing.
+                "listed": len(on_day) - early,
+                "today": back == 0,
             }
         )
+
+    this_week = sum(d["count"] for d in days)
+    week_ago = today - dt.timedelta(days=7)
+    last_week = sum(
+        1 for c, _ in recent if c and week_ago - dt.timedelta(days=7) <= c.date() < week_ago
+    )
+    busiest = max(days, key=lambda d: d["count"]) if days else None
 
     return {
         "ok": not problems,
         "week": days,
+        "week_total": this_week,
+        "week_before": last_week,
+        "week_early": sum(d["early"] for d in days),
+        "busiest": busiest,
         "problems": problems,
         "sources": sources,
         "failing": failing,
@@ -486,14 +531,45 @@ def console(key: str = "") -> HTMLResponse:
 
     week = d["week"]
     peak = max((x["count"] for x in week), default=0) or 1
-    bars = "".join(
-        f'<div class="{"has" if x["count"] else ""}" '
-        f'style="height:{max(3, round(x["count"] / peak * 56))}px" '
-        f'title="{x["date"]}: {x["count"]}"></div>'
+
+    # Stacked: early catches sit on top of confirmed listings, because the
+    # split is the whole point of Foxy and a single bar hides it.
+    bars = ""
+    for x in week:
+        h = round(x["count"] / peak * 62) if x["count"] else 0
+        early_h = round(x["early"] / peak * 62) if x["early"] else 0
+        tip = f'{x["date"]} · {x["count"]} delivered'
+        if x["early"]:
+            tip += f', {x["early"]} early'
+        bars += (
+            f'<div class="col{" now" if x["today"] else ""}" title="{html.escape(tip)}">'
+            f'<span class="stack" style="height:{max(h, 2)}px">'
+            f'<i class="e" style="height:{early_h}px"></i>'
+            "</span></div>"
+        )
+
+    labels = "".join(
+        f'<span{" class=\"now\"" if x["today"] else ""}>{x["label"]}</span>'
         for x in week
     )
-    labels = "".join(f"<span>{x['label']}</span>" for x in week)
-    week_total = sum(x["count"] for x in week)
+
+    total, before = d["week_total"], d["week_before"]
+    if before:
+        change = round((total - before) / before * 100)
+        trend = (
+            f'<span class="trend {"up" if change >= 0 else "down"}">'
+            f'{"+" if change > 0 else ""}{change}%</span>'
+        )
+    else:
+        trend = ""
+
+    busiest = d["busiest"]
+    footnote = ""
+    if busiest and busiest["count"]:
+        footnote = (
+            f'Busiest {html.escape(busiest["date"])} with {busiest["count"]}'
+            f' &middot; {total / 7:.1f} a day'
+        )
 
     figs = "".join(
         f'<div class="fig"><b>{v}</b><span>{lab}</span></div>'
@@ -573,9 +649,17 @@ def console(key: str = "") -> HTMLResponse:
   <div class="figs" id="figs">{figs}</div>
 
   <div class="spark">
-    <div class="hd"><b>Last 7 days</b><span>{week_total} delivered</span></div>
+    <div class="hd">
+      <b>Last 7 days</b>
+      <span><strong>{total}</strong> delivered{trend}</span>
+    </div>
     <div class="bars">{bars}</div>
     <div class="days">{labels}</div>
+    <div class="legend">
+      <span><i class="k-e"></i>{d["week_early"]} early</span>
+      <span><i class="k-l"></i>{total - d["week_early"]} listed</span>
+      <em>{footnote}</em>
+    </div>
   </div>
 
   {attention}

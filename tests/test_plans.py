@@ -1205,3 +1205,57 @@ def test_the_console_does_not_borrow_class_names_from_the_shared_sheet(db, admin
 
     clash = (classes(_CSS) & classes(SHARED)) - on_purpose
     assert not clash, f"the console redefines shared classes: {sorted(clash)}"
+
+
+def test_the_week_splits_early_from_listed(db, admin):
+    """A single bar hides the split, and the split is the whole point: a week
+    of forty listings and no early catches is a bad week, not a busy one."""
+    import datetime as dt
+
+    from app.admin import gather
+    from app.db import Alert, session
+
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    with session() as s:
+        for n in range(5):
+            s.add(Alert(fingerprint=f"k{n}", entity_key=f"e{n}", source="x",
+                        kind="early" if n < 2 else "confirmed", confidence=1.0,
+                        ts="1.0", created_at=now, payload={}))
+
+    today = [x for x in gather()["week"] if x["today"]][0]
+    assert today["early"] == 2
+    assert today["listed"] == 3
+    assert today["count"] == 5
+
+    page = admin.get(f"/admin?key={ADMIN}").text
+    assert "2 early" in page and "3 listed" in page
+
+
+def test_the_week_is_compared_against_the_one_before(db, admin):
+    """A total with nothing beside it cannot say whether things are picking up
+    or dying off."""
+    import datetime as dt
+
+    from app.admin import gather
+    from app.db import Alert, session
+
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    with session() as s:
+        for n in range(4):          # this week
+            s.add(Alert(fingerprint=f"t{n}", entity_key=f"a{n}", source="x",
+                        kind="confirmed", confidence=1.0, ts="1.0",
+                        created_at=now - dt.timedelta(days=1), payload={}))
+        for n in range(2):          # the week before
+            s.add(Alert(fingerprint=f"p{n}", entity_key=f"b{n}", source="x",
+                        kind="confirmed", confidence=1.0, ts="1.0",
+                        created_at=now - dt.timedelta(days=9), payload={}))
+
+    d = gather()
+    assert d["week_total"] == 4
+    assert d["week_before"] == 2
+    assert "+100%" in admin.get(f"/admin?key={ADMIN}").text
+
+
+def test_today_is_marked_on_the_chart(db, admin):
+    page = admin.get(f"/admin?key={ADMIN}").text
+    assert 'class="col now"' in page or 'class="col now"' in page.replace("&quot;", '"')
