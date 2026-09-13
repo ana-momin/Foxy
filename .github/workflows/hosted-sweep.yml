@@ -59,9 +59,14 @@ jobs:
             echo "DATABASE_URL and ENCRYPTION_KEY must be set as repository secrets."
             exit 1
           fi
+          # doctor exits 1 when it FINDS a problem, which is right for a
+          # command a person reads and wrong for a job a person gets mailed
+          # about: a workspace that never chose a channel is a known fact, not
+          # a broken run. The report still prints the count. Only the sweep
+          # itself, and a repair that could not complete, turn the run red.
           case "${{ inputs.mode || 'sweep' }}" in
-            doctor)      python -m app.cli hosted-doctor ;;
-            doctor-post) python -m app.cli hosted-doctor --post ;;
+            doctor)      python -m app.cli hosted-doctor || true ;;
+            doctor-post) python -m app.cli hosted-doctor --post || true ;;
             repair)      python -m app.cli hosted-repair ;;
             audit-early) python -m app.cli audit-early ;;
             audit-early-fix) python -m app.cli audit-early --fix ;;

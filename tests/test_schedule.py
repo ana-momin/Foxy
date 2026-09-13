@@ -272,3 +272,23 @@ def test_a_date_is_not_flattened_into_a_day(db):
     when = dt.datetime(2026, 9, 13, 14, 30, 5)
     assert _jsonable(when) == "2026-09-13T14:30:05"
     assert _jsonable(when.date()) == "2026-09-13"
+
+
+def test_a_diagnostic_run_does_not_report_itself_as_broken():
+    """`doctor` exits 1 when it finds a problem, which is correct for a command
+    someone reads and wrong for a job that mails on failure. A workspace that
+    never chose a channel is a known fact, not a broken run."""
+    steps = workflow()["jobs"]["sweep"]["steps"]
+    run = next(s["run"] for s in steps if "hosted-doctor" in (s.get("run") or ""))
+    for line in run.splitlines():
+        if "hosted-doctor" in line:
+            assert "|| true" in line, f"a doctor run would mail a failure: {line.strip()}"
+
+
+def test_a_real_sweep_failure_still_fails_the_run():
+    """The opposite mistake: swallowing the exit code of the thing that matters
+    would make every run green whether or not Foxy swept anything."""
+    steps = workflow()["jobs"]["sweep"]["steps"]
+    run = next(s["run"] for s in steps if "hosted-sweep" in (s.get("run") or ""))
+    line = next(ln for ln in run.splitlines() if "app.cli hosted-sweep" in ln)
+    assert "|| true" not in line, "a failed sweep must still fail the run"
