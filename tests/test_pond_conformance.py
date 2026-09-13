@@ -662,3 +662,41 @@ def test_the_caller_can_ask_for_more_results(client):
 
     r = _run(client, "scan_now", {"sources": ["yc_directory"], "limit": 50})
     assert r.status_code == 202, r.text
+
+
+def test_an_answer_shows_three_unless_asked_otherwise(client, monkeypatch):
+    """A chat answer is read, not scanned. Twenty-five companies in one
+    message is a wall nobody finishes."""
+    import app.pond_tasks as pt
+
+    state = {
+        "progress": {"yc_directory": {"found": 100, "new": 12}},
+        "findings": [
+            {"early": False, "company": f"Co {n}", "batch": "Fall 2026",
+             "source": "YC Directory", "url": "https://x.co", "confidence": 1.0}
+            for n in range(12)
+        ],
+        "params": {},
+    }
+
+    out = pt.render(state)
+    assert out.count("- `listed`") == 3
+    assert "12 detections" in out, "the count must stay honest"
+    assert "Showing 3" in out, "or the list and the count look wrong together"
+
+    state["params"] = {"limit": 10}
+    assert pt.render(state).count("- `listed`") == 10
+
+
+def test_a_short_answer_does_not_claim_to_be_trimmed(client):
+    import app.pond_tasks as pt
+
+    state = {
+        "progress": {"x": {"found": 2, "new": 2}},
+        "findings": [
+            {"early": True, "company": "Solo", "batch": "", "source": "X",
+             "url": "https://x.co", "confidence": 1.0}
+        ],
+        "params": {},
+    }
+    assert "Showing" not in pt.render(state)

@@ -140,7 +140,7 @@ _ACTIONS = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "How many detections to return. Default 25.",
+                    "description": "How many detections to return. Default 3.",
                     "minimum": 1,
                     "maximum": 100,
                 },

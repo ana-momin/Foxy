@@ -281,6 +281,9 @@ def render(state: dict[str, Any]) -> str:
     findings = state["findings"]
     early = [f for f in findings if f["early"]]
 
+    # Three unless asked otherwise. A chat answer is read, not scanned, and
+    # twenty-five companies in one message is a wall nobody finishes.
+    cap = int(state.get("params", {}).get("limit") or 3)
     lines = ["## Scan complete", ""]
     for name, info in progress.items():
         if info.get("error"):
@@ -290,10 +293,12 @@ def render(state: dict[str, Any]) -> str:
 
     lines += [
         "",
-        f"**{len(findings)} detections**, {len(early)} of them early.",
+        f"**{len(findings)} detections**, {len(early)} of them early."
+        # Say when the list is shorter than the count, or the two look wrong
+        # together and the answer reads as though something went missing.
+        + (f" Showing {cap}." if len(findings) > cap else ""),
         "",
     ]
-    cap = int(state.get("params", {}).get("limit") or 25)
     for f in findings[:cap]:
         tag = "EARLY" if f["early"] else "listed"
         batch = f["batch"] or "batch unknown"
