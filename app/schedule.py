@@ -72,7 +72,10 @@ def _read(key: str) -> dt.datetime | None:
     if not raw:
         return None
     try:
-        return dt.datetime.fromisoformat(raw)
+        # Normalised on the way out, not trusted to have been normalised on the
+        # way in: everything here is subtracted from a naive now, and mixing the
+        # two raises rather than reading wrong, in production only.
+        return _naive(dt.datetime.fromisoformat(raw))
     except ValueError:
         return None
 

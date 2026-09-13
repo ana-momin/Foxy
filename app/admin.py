@@ -908,14 +908,29 @@ def _now_attr(day: dict) -> str:
 
 
 def _parse(value: Any) -> dt.datetime | None:
+    """Always naive UTC, whatever it was stored as.
+
+    The database holds naive timestamps, but values written as ISO strings
+    carry an offset - `last_sweep_at` is "...+00:00" in production and was
+    naive in the fixtures. Handing both shapes back untouched meant anything
+    doing arithmetic with the result worked locally and raised
+    "can't subtract offset-naive and offset-aware datetimes" in production.
+    Normalising here rather than at each call site is the only version of this
+    that stays fixed.
+    """
+    parsed: dt.datetime | None = None
     if isinstance(value, dt.datetime):
-        return value
-    if isinstance(value, str) and value:
+        parsed = value
+    elif isinstance(value, str) and value:
         try:
-            return dt.datetime.fromisoformat(value)
+            parsed = dt.datetime.fromisoformat(value)
         except ValueError:
             return None
-    return None
+    if parsed is None:
+        return None
+    if parsed.tzinfo is not None:
+        return parsed.astimezone(dt.timezone.utc).replace(tzinfo=None)
+    return parsed
 
 
 def _initials(name: str) -> str:

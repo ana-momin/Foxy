@@ -386,3 +386,59 @@ def test_an_overdue_schedule_is_reported(db):
     d = gather()
     assert d["ok"] is False
     assert "schedule expires in 10d" in " ".join(d["problems"])
+
+
+def test_the_console_survives_the_timestamps_production_actually_writes(db):
+    """`last_sweep_at` is written by the sweep as an ISO string WITH an offset:
+    "2026-09-13T05:49:53.944537+00:00". The fixtures above write it naive, so
+    every test here passed while /admin returned a 500 in production with
+    "can't subtract offset-naive and offset-aware datetimes".
+
+    This is the third time a datetime shape has differed between the fixtures
+    and the real database. It is always the same lesson.
+    """
+    from app.admin import gather
+    from app.db import meta_set, session
+
+    aware = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=40)
+    assert aware.tzinfo is not None
+    with session() as s:
+        meta_set(s, "sweeps_completed", "12")
+        meta_set(s, "last_sweep_at", aware.isoformat())
+
+    d = gather()
+    assert d["ok"] is False
+    assert "no sweep for" in d["problems"][0]
+
+
+def test_parse_always_hands_back_something_comparable(db):
+    from app.admin import _parse, _utcnow
+
+    naive = "2026-09-13T05:49:53.944537"
+    aware = "2026-09-13T05:49:53.944537+00:00"
+    offset = "2026-09-13T10:49:53.944537+05:00"
+
+    for value in (naive, aware, offset):
+        got = _parse(value)
+        assert got is not None and got.tzinfo is None, value
+        _utcnow() - got  # must not raise
+
+    # The offset one is the same instant as the other two, not five hours off.
+    assert _parse(offset) == _parse(naive)
+    assert _parse(None) is None
+    assert _parse("not a date") is None
+
+
+def test_the_countdown_survives_an_offset_timestamp_too(db):
+    """Same shape of fault, one module over. record() writes naive, but nothing
+    should depend on that being true forever."""
+    from app import schedule
+    from app.db import meta_set, session
+
+    aware = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=10)
+    with session() as s:
+        meta_set(s, schedule.AT, aware.isoformat())
+        meta_set(s, f"{schedule.AT}:read", aware.isoformat())
+
+    st = schedule.status()  # must not raise
+    assert st["days_left"] == 50
