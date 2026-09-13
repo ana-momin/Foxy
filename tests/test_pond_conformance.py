@@ -658,9 +658,8 @@ def test_the_caller_can_ask_for_more_results(client):
     scan = next(a for a in _ACTIONS if a["id"] == "scan_now")
     limit = scan["input_schema"]["properties"]["limit"]
     assert limit["type"] == "integer"
-    assert limit["maximum"] >= 50
 
-    r = _run(client, "scan_now", {"sources": ["yc_directory"], "limit": 50})
+    r = _run(client, "scan_now", {"sources": ["yc_directory"], "limit": limit["maximum"]})
     assert r.status_code == 202, r.text
 
 
@@ -700,3 +699,42 @@ def test_a_short_answer_does_not_claim_to_be_trimmed(client):
         "params": {},
     }
     assert "Showing" not in pt.render(state)
+
+
+def test_one_answer_cannot_spend_a_large_share_of_the_free_plan():
+    """The free plan includes 50 results. A limit of 100 meant a single call
+    could exceed a customer's entire allowance, which is not a limit at all."""
+    from app.config import settings
+    from app.main import _ACTIONS
+    from app.pond_tasks import MAX_RESULTS
+
+    scan = next(a for a in _ACTIONS if a["id"] == "scan_now")
+    ceiling = scan["input_schema"]["properties"]["limit"]["maximum"]
+
+    assert ceiling == MAX_RESULTS, "the schema and the renderer must agree"
+    assert ceiling * 5 <= settings.free_included_results, (
+        f"a limit of {ceiling} is too large against a {settings.free_included_results} "
+        "result plan"
+    )
+
+
+def test_the_renderer_enforces_the_ceiling_itself(client):
+    """Whatever reaches it. The schema is the front door, not the only one."""
+    import app.pond_tasks as pt
+
+    state = {
+        "progress": {},
+        "findings": [
+            {"early": False, "company": f"Co {n}", "batch": "", "source": "X",
+             "url": "https://x.co", "confidence": 1.0}
+            for n in range(40)
+        ],
+        "params": {"limit": 999},
+    }
+    assert pt.render(state).count("- `listed`") == pt.MAX_RESULTS
+
+
+def test_a_limit_over_the_ceiling_is_refused(client):
+    r = _run(client, "scan_now", {"sources": ["yc_directory"], "limit": 50})
+    assert r.status_code == 422, r.text
+    assert "limit" in r.json()["error"]["message"]

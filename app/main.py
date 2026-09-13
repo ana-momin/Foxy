@@ -140,9 +140,12 @@ _ACTIONS = [
                 },
                 "limit": {
                     "type": "integer",
+                    # Capped well under the free plan's allowance. One call may
+                    # not be able to spend a fifth of what a customer has, and
+                    # a hundred results in a chat message is unreadable anyway.
                     "description": "How many detections to return. Default 3.",
                     "minimum": 1,
-                    "maximum": 100,
+                    "maximum": 10,
                 },
                 "post_to_slack": {
                     "type": "boolean",

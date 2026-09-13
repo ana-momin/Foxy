@@ -41,6 +41,10 @@ LEASE_SECONDS = 90
 # How often one source may be attempted before the scan writes it off.
 MAX_ATTEMPTS = 3
 
+# Most an answer may list. Kept well below the free plan's allowance so one
+# call cannot spend a large share of what a customer has.
+MAX_RESULTS = 10
+
 # Sources that answer in seconds. The paced social searches take minutes, and
 # are only read when the caller asks for them by name.
 FAST = ("yc_directory", "yc_launches", "speedrun", "yc_speedrun_watch")
@@ -283,7 +287,9 @@ def render(state: dict[str, Any]) -> str:
 
     # Three unless asked otherwise. A chat answer is read, not scanned, and
     # twenty-five companies in one message is a wall nobody finishes.
-    cap = int(state.get("params", {}).get("limit") or 3)
+    # Bounded here as well as in the schema: render should not be able to
+    # print more than an answer may carry, whatever reaches it.
+    cap = max(1, min(MAX_RESULTS, int(state.get("params", {}).get("limit") or 3)))
     lines = ["## Scan complete", ""]
     for name, info in progress.items():
         if info.get("error"):
