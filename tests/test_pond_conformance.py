@@ -153,15 +153,21 @@ def test_a_scan_honours_the_requested_sources(client, monkeypatch):
     assert scanned == {"yc_launches"}, f"scanned {scanned}, asked for yc_launches"
 
 
-def test_a_default_scan_leaves_out_the_slow_searches(client):
-    """A scan with no scope must still answer promptly, so the paced social
-    searches are read only when asked for by name."""
-    from app.pond_tasks import resolve_sources
+def test_a_default_scan_covers_every_source(client):
+    """The conversation offers "a scan across all sources".
 
-    assert "linkedin" not in resolve_sources(None)
-    assert "x" not in resolve_sources(None)
-    assert "yc_directory" in resolve_sources(None)
-    # But an explicit request is honoured exactly.
+    Defaulting to the fast feeds made that a false promise, and quietly
+    excluded X and LinkedIn - the only two that carry early founder signals,
+    which is the thing people come for. An unscoped scan could therefore never
+    find one.
+    """
+    from app.pond_tasks import FAST, SLOW, resolve_sources
+
+    every = resolve_sources(None)
+    for name in tuple(FAST) + tuple(SLOW):
+        assert name in every, name
+
+    # An explicit request is still honoured exactly.
     assert resolve_sources(["linkedin"]) == ["linkedin"]
 
 
@@ -738,3 +744,55 @@ def test_a_limit_over_the_ceiling_is_refused(client):
     r = _run(client, "scan_now", {"sources": ["yc_directory"], "limit": 50})
     assert r.status_code == 422, r.text
     assert "limit" in r.json()["error"]["message"]
+
+
+def test_usage_counts_the_answer_not_the_search(client, monkeypatch):
+    """Pond bills on usage. A scan reported every finding, so an answer
+    listing three companies charged the customer for eighteen - for work they
+    never saw."""
+    import app.pond_tasks as pt
+    from app.db import PondTask, session
+
+    def many(task_id, state):
+        name = state["pending"][0]
+        pt._record(
+            task_id, name,
+            dict(state["progress"], **{name: {"found": 40, "new": 40, "error": None}}),
+            [
+                {"early": False, "company": f"Co {n}", "batch": "", "source": name,
+                 "url": "https://x.co", "confidence": 1.0}
+                for n in range(18)
+            ],
+            dict(state.get("attempts") or {}),
+        )
+
+    monkeypatch.setattr(pt, "_do_one_source", many)
+
+    r = _run(client, "scan_now", {"sources": ["yc_directory"]})
+    task_id = r.json()["task_id"]
+    for _ in range(10):
+        got = client.get(f"/tasks/{task_id}", headers=HEADERS).json()
+        if got["status"] not in {"queued", "running"}:
+            break
+
+    assert got["status"] == "completed"
+    shown = got["output"][0]["text"].count("- `listed`")
+    assert shown == 3
+    assert got["usage"]["quantity"] == shown, (
+        f"billed {got['usage']['quantity']} for an answer listing {shown}"
+    )
+
+
+def test_a_scan_does_not_report_a_meaningless_new_count(client, monkeypatch):
+    """Each scan gets a fresh namespace, so everything it finds is new to it.
+    Printing both numbers only ever repeated the first one."""
+    import app.pond_tasks as pt
+
+    state = {
+        "progress": {"yc_directory": {"found": 100, "new": 100}},
+        "findings": [],
+        "params": {},
+    }
+    out = pt.render(state)
+    assert "100 checked" in out
+    assert "100 new" not in out

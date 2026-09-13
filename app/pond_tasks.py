@@ -246,12 +246,21 @@ def _record(
         row.leased_until = _now().replace(tzinfo=None) + dt.timedelta(seconds=LEASE_SECONDS)
 
 
+def effective_cap(params: dict[str, Any]) -> int:
+    """How many results an answer may carry."""
+    return max(1, min(MAX_RESULTS, int(params.get("limit") or 3)))
+
+
 def _finish(task_id: str) -> None:
     _forget(task_id)
     with session() as s:
         row = s.get(PondTask, task_id)
         if row is None:
             return
+        # Usage is what the answer carries, not what the search turned up.
+        # Reporting every finding billed eighteen results for a reply that
+        # listed three, which is charging for work the customer never saw.
+        row.count = min(len(row.findings or []), effective_cap(row.params or {}))
         row.status = "completed"
         row.leased_until = None
         row.updated_at = _now().replace(tzinfo=None)
@@ -289,13 +298,15 @@ def render(state: dict[str, Any]) -> str:
     # twenty-five companies in one message is a wall nobody finishes.
     # Bounded here as well as in the schema: render should not be able to
     # print more than an answer may carry, whatever reaches it.
-    cap = max(1, min(MAX_RESULTS, int(state.get("params", {}).get("limit") or 3)))
+    cap = effective_cap(state.get("params") or {})
     lines = ["## Scan complete", ""]
     for name, info in progress.items():
         if info.get("error"):
             lines.append(f"- **{name}** · failed: {str(info['error'])[:120]}")
         else:
-            lines.append(f"- **{name}** · {info.get('found', 0)} seen, {info.get('new', 0)} new")
+            # Not "new": a scan gets a fresh namespace, so everything it finds
+            # is new to it and the number only ever equalled the first one.
+            lines.append(f"- **{name}** · {info.get('found', 0)} checked")
 
     lines += [
         "",
@@ -336,4 +347,8 @@ def resolve_sources(requested: list[str] | None) -> list[str]:
     """
     if requested:
         return list(requested)
-    return list(FAST)
+    # Everything. The conversation offers "a scan across all sources", and a
+    # default that quietly skipped X and LinkedIn made that a false promise -
+    # which is also why an unscoped scan never found an early signal, the one
+    # thing people come for.
+    return list(FAST) + list(SLOW)

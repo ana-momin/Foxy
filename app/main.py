@@ -125,7 +125,12 @@ _ACTIONS = [
             "properties": {
                 "sources": {
                     "type": "array",
-                    "description": "Limit the scan to these sources. Omit to scan all.",
+                    "description": (
+                        "Narrow the scan to these sources. Omit to scan all "
+                        "five, which is the usual case. X and LinkedIn are "
+                        "where early founder announcements come from, so a "
+                        "scan meant to find those must include them."
+                    ),
                     "items": {
                         "type": "string",
                         "description": "One monitored source.",
@@ -243,8 +248,10 @@ _ACTIONS = [
         "id": "health_check",
         "name": "Report monitor health",
         "description": (
-            "Use when the user asks whether the monitor is running correctly, "
-            "when it last ran, or whether any source is failing."
+            "Diagnostic, for whoever runs the agent rather than for someone "
+            "using it. Use only when explicitly asked whether the monitor "
+            "itself is healthy, when it last ran, or whether a source is "
+            "failing - never offer it as a thing to try."
         ),
         "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
     },
