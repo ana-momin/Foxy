@@ -17,9 +17,13 @@ import re
 
 import pytest
 
+# Anchored to the repository rather than the working directory: run from a
+# subdirectory and a relative path here finds nothing and the guard is gone.
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+
 # Read from the workflow rather than repeated here, so raising the floor in one
 # place cannot leave this test guarding a version nobody runs any more.
-CI = pathlib.Path(".github/workflows/ci.yml")
+CI = ROOT / ".github" / "workflows" / "ci.yml"
 
 
 def _oldest_supported() -> tuple[int, int]:
@@ -30,8 +34,8 @@ def _oldest_supported() -> tuple[int, int]:
 
 @pytest.mark.parametrize(
     "path",
-    sorted(pathlib.Path("app").rglob("*.py")) + sorted(pathlib.Path("tests").rglob("*.py")),
-    ids=str,
+    sorted((ROOT / "app").rglob("*.py")) + sorted((ROOT / "tests").rglob("*.py")),
+    ids=lambda p: str(p.relative_to(ROOT)),
 )
 def test_the_file_parses_on_the_oldest_supported_python(path: pathlib.Path) -> None:
     floor = _oldest_supported()
