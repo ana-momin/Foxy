@@ -14,10 +14,13 @@ becomes visible two months later.
 from __future__ import annotations
 
 import datetime as dt
+import os
 import pathlib
 import re
 
 import pytest
+
+os.environ.setdefault("ENCRYPTION_KEY", "test-key-for-the-suite")
 
 # A declared dependency, so importing it outright rather than skipping on it:
 # a test that can quietly turn itself off is no guard at all.
@@ -292,3 +295,94 @@ def test_a_real_sweep_failure_still_fails_the_run():
     run = next(s["run"] for s in steps if "hosted-sweep" in (s.get("run") or ""))
     line = next(ln for ln in run.splitlines() if "app.cli hosted-sweep" in ln)
     assert "|| true" not in line, "a failed sweep must still fail the run"
+
+
+# --- the alarms that matter over years ---------------------------------------
+#
+# Everything below is a way Foxy can stop working while the console still looks
+# healthy. Each one has to reach the top of the page, because a problem nobody
+# is told about is the same as no monitoring at all.
+
+
+def _swept(db, hours_ago: float, completed: int = 12) -> None:
+    from app.db import meta_set, session
+
+    when = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) - dt.timedelta(hours=hours_ago)
+    with session() as s:
+        meta_set(s, "sweeps_completed", str(completed))
+        meta_set(s, "last_sweep_at", when.isoformat())
+
+
+def test_a_sweep_that_stopped_reaches_the_top_of_the_page(db):
+    """The worst failure Foxy has, and the quietest: every other number on the
+    page keeps its last good value while nothing is being found any more."""
+    from app.admin import gather
+
+    _swept(db, hours_ago=40)
+    d = gather()
+    assert d["ok"] is False
+    assert "no sweep for" in d["problems"][0], d["problems"]
+
+
+def test_a_sweep_running_normally_raises_nothing(db):
+    from app.admin import gather
+
+    _swept(db, hours_ago=3)
+    assert gather()["ok"] is True
+
+
+def test_a_database_that_has_never_swept_is_not_accused(db):
+    """A fresh install has no sweeps. That is new, not broken."""
+    from app.admin import gather
+
+    assert gather()["ok"] is True
+
+
+def test_the_sweep_outranks_everything_else(db):
+    """Only the first problem is shown. If sweeping has stopped, nothing else
+    on the page is worth saying first."""
+    from app.admin import gather
+    from app.db import session
+    from app import installs
+
+    _swept(db, hours_ago=40)
+    with session() as s:
+        row = installs.upsert(s, team_id="T-BROKE", team_name="Broke", token="xoxb-1")
+        row.channel_id = "C1"
+        row.last_error = "invalid_auth"
+
+    problems = gather()["problems"]
+    assert "no sweep for" in problems[0]
+    assert len(problems) > 1, "the other problems should still be listed"
+
+
+def test_a_workspace_slack_has_stopped_accepting_is_reported(db):
+    """Alerts for it are still being decided and then thrown away, which is the
+    exact shape of the first bug Foxy ever had."""
+    from app.admin import gather
+    from app.db import session
+    from app import installs
+
+    _swept(db, hours_ago=2)
+    with session() as s:
+        row = installs.upsert(s, team_id="T-DEAD", team_name="Dead", token="xoxb-1")
+        row.channel_id = "C1"
+        row.last_error = "invalid_auth"
+
+    d = gather()
+    assert d["ok"] is False
+    assert "failing to deliver" in " ".join(d["problems"])
+
+
+def test_an_overdue_schedule_is_reported(db):
+    """Reaching this means the automatic renewal is not happening and there is
+    a real deadline running."""
+    from app import schedule
+    from app.admin import gather
+
+    _swept(db, hours_ago=2)
+    schedule.record(dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=50))
+
+    d = gather()
+    assert d["ok"] is False
+    assert "schedule expires in 10d" in " ".join(d["problems"])

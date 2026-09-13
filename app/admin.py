@@ -478,6 +478,34 @@ def gather() -> dict[str, Any]:
         reads on the page and it should not look generated."""
         return f"{n} {one}" if n == 1 else f"{n} {many}"
 
+    # Ordered by how bad they are: only the first is shown at the top of the
+    # page, so the worst thing true has to be the thing that gets said.
+    #
+    # A sweep that has stopped goes first because every other number on this
+    # page stays green while it is happening: the sources still report their
+    # last success, the workspaces still hold their counts, and Foxy simply
+    # never finds anything again. Only counted once a sweep has actually run,
+    # so a fresh database is not accused of being broken.
+    swept = _parse(snap["last_sweep_at"])
+    if snap["sweeps_completed"] and (
+        swept is None or (_utcnow() - swept) > dt.timedelta(hours=20)
+    ):
+        problems.append(f"no sweep for {_ago(swept)[:-4] or 'a while'}")
+
+    # The 60-day clock. The sweep renews it automatically, so reaching this
+    # means the renewal is not happening and there is a deadline running.
+    sc = schedule.status()
+    if sc["known"] and sc["overdue"]:
+        problems.append(f"schedule expires in {sc['days_left']}d")
+
+    # A workspace Slack has stopped accepting. Alerts for it are being decided
+    # and thrown away, which is the shape of the very first bug Foxy had.
+    broken = [r for r in live if r["error"]]
+    if broken:
+        problems.append(
+            count(len(broken), "workspace is", "workspaces are") + " failing to deliver"
+        )
+
     if failing:
         problems.append(count(len(failing), "source is failing", "sources are failing"))
     stalled = [r for r in live if r["at_cap"]]
