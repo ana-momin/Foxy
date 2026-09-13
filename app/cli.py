@@ -546,8 +546,9 @@ def cmd_set_plan(args) -> int:
 
     from sqlalchemy import select
 
-    from . import installs
+    from . import installs, messages
     from .db import init_db, session
+    from .slack import SlackClient
 
     init_db()
     with session() as s:
@@ -578,28 +579,40 @@ def cmd_set_plan(args) -> int:
             return 1
 
         row = match[0]
+
+        # `installs.activate` and `installs.downgrade` rather than setting the
+        # columns here. This kept its own copy of the arithmetic and had already
+        # drifted: it never cleared `upgrade_requested_at`, so a workspace stayed
+        # marked as waiting long after it had been served.
         if args.plan == "free":
-            row.plan, row.plan_until = "free", None
-            print(f"\n  {row.team_name} is back on the free plan\n")
-            return 0
+            installs.downgrade(row)
+            note = f"{row.team_name} is back on the free plan"
+        else:
+            installs.activate(row, args.months)
+            note = (
+                f"{row.team_name} is on Pro for {args.months} month(s), "
+                f"until {row.plan_until:%d %b %Y}"
+            )
 
-        # Extend from whatever is left rather than from today, so paying again
-        # early does not throw away the remainder.
-        now = dt.datetime.now(dt.timezone.utc)
-        base = now
-        if row.plan_until is not None:
-            current = row.plan_until
-            if current.tzinfo is None:
-                current = current.replace(tzinfo=dt.timezone.utc)
-            base = max(now, current)
+        # Read while the row is live. The message goes out after the session
+        # commits, so nobody is told about a plan that failed to save.
+        token, channel = row.token, row.channel_id
+        label, code, quota = row.plan_label, row.claim_code, row.quota
+        free = args.plan == "free"
 
-        row.plan = "pro"
-        row.plan_until = (base + dt.timedelta(days=30 * args.months)).replace(tzinfo=None)
-        row.quota_notified = False
-        print(
-            f"\n  {row.team_name} is on Pro for {args.months} month(s), "
-            f"until {row.plan_until:%d %b %Y}\n"
+    if token and channel:
+        blocks, text = (
+            messages.pro_ended(quota, code)
+            if free
+            else messages.pro_activated(label, code)
         )
+        try:
+            SlackClient(token=token, target=channel).post(blocks, text)
+            print(f"\n  {note}, and the channel has been told\n")
+        except Exception as exc:  # noqa: BLE001 - the plan is saved either way
+            print(f"\n  {note}\n  could not tell the channel: {exc}\n")
+    else:
+        print(f"\n  {note}\n")
     return 0
 
 

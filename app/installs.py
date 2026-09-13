@@ -180,6 +180,15 @@ class Install(Base):
     min_confidence: Mapped[str] = mapped_column(String(8), default="")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # Whoever clicked Add to Slack. The only person Foxy can reach when an
+    # install never chose a channel: there is no channel to post in, and this
+    # is the difference between recovering that workspace and it deciding the
+    # bot does not work. Blank for installs recorded before it was captured.
+    installer_id: Mapped[str] = mapped_column(String(64), default="")
+    # That nudge goes out once. A bot that DMs somebody every eight hours about
+    # a setup step is worse than one that stays quiet.
+    channel_nudged: Mapped[bool] = mapped_column(Boolean, default=False)
+
     # --- plan and quota ----------------------------------------------------
     # The free plan is metered by alerts delivered, because that is the thing
     # of value: a workspace that gets nothing has consumed nothing.
@@ -305,6 +314,7 @@ def upsert(
     team_id: str,
     team_name: str,
     token: str,
+    installer_id: str = "",
 ) -> Install:
     """Record an install. Re-installing the same workspace updates it in place
     rather than creating a duplicate that would double every alert."""
@@ -316,6 +326,10 @@ def upsert(
     row.token_enc = encrypt(token)
     row.active = True
     row.last_error = None
+    # Never overwritten with nothing: a re-install that Slack does not attribute
+    # must not lose the only person Foxy can reach.
+    if installer_id:
+        row.installer_id = installer_id
     return row
 
 
@@ -372,6 +386,23 @@ def by_claim_code(s: Session, code: str) -> Install | None:
 def active_installs(s: Session) -> list[Install]:
     rows = s.execute(select(Install).where(Install.active.is_(True))).scalars().all()
     return [r for r in rows if r.channel_id and r.token_enc]
+
+
+def unfinished(s: Session) -> list[Install]:
+    """Installs that have a token but never chose a channel, and have not yet
+    been nudged about it.
+
+    `active_installs` deliberately excludes these, because there is nowhere to
+    deliver to - which is exactly why they need finding separately. Left alone
+    they sit in the console forever looking like customers and behaving like
+    nothing at all.
+    """
+    rows = s.execute(select(Install).where(Install.active.is_(True))).scalars().all()
+    return [
+        r
+        for r in rows
+        if r.token_enc and not r.channel_id and r.installer_id and not r.channel_nudged
+    ]
 
 
 def deactivate(s: Session, install_id: str) -> None:

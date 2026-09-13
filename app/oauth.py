@@ -397,6 +397,9 @@ def callback(request: Request) -> HTMLResponse:
     team_obj = data.get("team") or {}
     team = team_obj.get("name", "your workspace")
     team_id = team_obj.get("id", "")
+    # The person who clicked Add to Slack. Worth keeping for one reason: if they
+    # never finish choosing a channel, this is the only way to reach them.
+    installer_id = (data.get("authed_user") or {}).get("id", "")
 
     # Hosted mode: keep the install and let them finish in the browser. There is
     # nothing for them to run, so there is no command to show.
@@ -409,7 +412,11 @@ def callback(request: Request) -> HTMLResponse:
             try:
                 with session() as s:
                     row = installs.upsert(
-                        s, team_id=team_id, team_name=team, token=token
+                        s,
+                        team_id=team_id,
+                        team_name=team,
+                        token=token,
+                        installer_id=installer_id,
                     )
                     install_id = row.id
                 return RedirectResponse(f"/app/{install_id}", 302)

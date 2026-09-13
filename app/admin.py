@@ -27,7 +27,7 @@ from fastapi import APIRouter, Form
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import func, select
 
-from . import budget, installs, runtime, schedule
+from . import budget, installs, messages, runtime, schedule
 from .config import settings
 from .db import (
     Alert,
@@ -1241,7 +1241,8 @@ def grant_alerts(
         left = row.remaining
 
     if token and channel:
-        _say(token, channel, f"*{alerts} more alerts added.* {left} left on this channel.")
+        blocks, text = messages.alerts_granted(alerts, left)
+        _say(token, channel, text, blocks=blocks)
     record("grant", subject=team, detail=f"+{alerts} alerts, {left} remaining", actor="admin")
     log.info("admin granted %s %d alerts", team, alerts)
     return _done(key, bool(ajax), message=f"{alerts} alerts added to {team}")
@@ -1415,6 +1416,19 @@ def set_plan(
         else:
             installs.activate(row, months)
             note = f"Pro for {months} month(s)"
+        # Read while the row is live; the session closes before we post.
+        token, channel = row.token, row.channel_id
+        label, code, quota = row.plan_label, row.claim_code, row.quota
+
+    # Someone paid and the only evidence used to be alerts resuming up to eight
+    # hours later. Say so now, in the channel they bought it for.
+    if token and channel:
+        if months <= 0:
+            blocks, text = messages.pro_ended(quota, code)
+        else:
+            blocks, text = messages.pro_activated(label, code)
+        _say(token, channel, text, blocks=blocks)
+
     record("plan", subject=team, detail=note, actor="admin")
     log.info("admin: %s - %s", team, note)
     return _done(key, bool(ajax), message=f"{team}: {note.lower()}")

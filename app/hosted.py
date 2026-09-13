@@ -16,7 +16,7 @@ import logging
 import os
 from typing import Any
 
-from . import installs
+from . import installs, messages
 from .config import settings
 from .db import init_db, record, session
 from .engine import Engine, build_sources
@@ -201,6 +201,11 @@ def run_sweep(only: tuple[str, ...] | None = None) -> dict[str, Any]:
     """
     init_db()
 
+    # Before the sweep, and regardless of whether it finds anything: an install
+    # with no channel is not waiting for detections, it is waiting for someone
+    # to be told it isn't finished.
+    _nudge_unfinished()
+
     with session() as s:
         targets = installs.active_installs(s)
         # Read what each worker needs now; the ORM objects must not outlive
@@ -219,6 +224,9 @@ def run_sweep(only: tuple[str, ...] | None = None) -> dict[str, Any]:
                 "remaining": i.remaining,
                 "quota": i.quota,
                 "quota_notified": i.quota_notified,
+                # The notice below asks them to quote this; without it the
+                # message sends the reader off to hunt for it.
+                "claim_code": i.claim_code,
             }
             for i in targets
         ]
@@ -333,26 +341,45 @@ def run_sweep(only: tuple[str, ...] | None = None) -> dict[str, Any]:
     }
 
 
+def _nudge_unfinished() -> None:
+    """DM whoever installed Foxy when no channel was ever chosen.
+
+    This is the quietest way to lose a customer. Foxy is installed, the console
+    shows it, and it has nowhere to post - so the person who added it concludes
+    the thing does not work and never comes back. One message, to them directly,
+    and then the flag is set whatever happened: a DM that cannot be delivered
+    now will not become deliverable in eight hours, and retrying forever would
+    turn a helpful nudge into a fault.
+    """
+    with session() as s:
+        waiting = [
+            (r.id, r.team_name, r.token, r.installer_id)
+            for r in installs.unfinished(s)
+        ]
+
+    for install_id, team, token, who in waiting:
+        blocks, text = messages.channel_missing(team, install_id)
+        try:
+            SlackClient(token=token, target=who).post(blocks, text)
+            log.info("nudged %s about its missing channel", team or install_id)
+        except Exception:  # noqa: BLE001 - never fail a sweep over a nudge
+            log.warning("could not nudge %s", team or install_id, exc_info=True)
+
+        with session() as s:
+            row = installs.get(s, install_id)
+            if row:
+                row.channel_nudged = True
+
+
 def _notify_quota(p: dict[str, Any]) -> None:
-    """Tell a workspace once that its free allowance is spent."""
+    """Tell a workspace once that its free allowance is spent.
+
+    Once, and then silence: a monitor that nags about money every eight hours
+    gets muted, and a muted Foxy is worth nothing to anybody.
+    """
+    blocks, text = messages.free_tier_ended(p["quota"], p.get("claim_code", ""))
     try:
-        SlackClient(token=p["token"], target=p["channel"]).post(
-            [
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": (
-                            f":hourglass: *Foxy has used its {p['quota']} "
-                            "free alerts.*\n"
-                            "Monitoring has paused. Nothing was lost, and it picks up "
-                            "again the moment the plan is upgraded."
-                        ),
-                    },
-                }
-            ],
-            "Foxy: free allowance used",
-        )
+        SlackClient(token=p["token"], target=p["channel"]).post(blocks, text)
     except Exception:  # noqa: BLE001 - a workspace we cannot reach is not fatal
         log.warning("could not deliver the quota notice to %s", p["team"])
 
