@@ -138,6 +138,12 @@ _ACTIONS = [
                         ],
                     },
                 },
+                "limit": {
+                    "type": "integer",
+                    "description": "How many detections to return. Default 25.",
+                    "minimum": 1,
+                    "maximum": 100,
+                },
                 "post_to_slack": {
                     "type": "boolean",
                     "description": (

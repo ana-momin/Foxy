@@ -182,7 +182,17 @@ def _do_one_source(task_id: str, state: dict[str, Any]) -> None:
         # between them meant one task could restore the flag while another was
         # mid-delivery - a run told not to post, posting.
         post = state["params"].get("post_to_slack")
-        result = Engine(dry_run=True if post is False else None).sweep(only=(name,))
+        # Its own namespace, thrown away when the task finishes.
+        #
+        # Every Pond scan used to share the global seen-set, so the first
+        # person to run one consumed all 508 detections and everybody
+        # afterwards was told "0 new" - correct by the letter of the code and
+        # useless as an answer. A chat question asks what is out there, not
+        # what has changed since a stranger last looked.
+        result = Engine(
+            namespace=f"pond:{task_id}:",
+            dry_run=True if post is False else None,
+        ).sweep(only=(name,))
 
         info = result.per_source.get(name, {})
         progress[name] = {
@@ -233,6 +243,7 @@ def _record(
 
 
 def _finish(task_id: str) -> None:
+    _forget(task_id)
     with session() as s:
         row = s.get(PondTask, task_id)
         if row is None:
@@ -240,6 +251,26 @@ def _finish(task_id: str) -> None:
         row.status = "completed"
         row.leased_until = None
         row.updated_at = _now().replace(tzinfo=None)
+
+
+def _forget(task_id: str) -> None:
+    """Drop the scratch rows a run created.
+
+    The findings are already on the task; keeping the seen-set would make the
+    next scan report nothing, which is the bug this namespace exists to fix.
+    """
+    from sqlalchemy import delete
+
+    from .db import Alert, Entity, Seen
+
+    like = f"pond:{task_id}:%"
+    try:
+        with session() as s:
+            s.execute(delete(Seen).where(Seen.fingerprint.like(like)))
+            s.execute(delete(Entity).where(Entity.entity_key.like(like)))
+            s.execute(delete(Alert).where(Alert.fingerprint.like(like)))
+    except Exception:  # noqa: BLE001 - tidying must not fail a finished scan
+        log.debug("could not clear scratch rows for %s", task_id, exc_info=True)
 
 
 def render(state: dict[str, Any]) -> str:
@@ -259,10 +290,11 @@ def render(state: dict[str, Any]) -> str:
 
     lines += [
         "",
-        f"**{len(findings)} new detections**, {len(early)} of them early.",
+        f"**{len(findings)} detections**, {len(early)} of them early.",
         "",
     ]
-    for f in findings[:25]:
+    cap = int(state.get("params", {}).get("limit") or 25)
+    for f in findings[:cap]:
         tag = "EARLY" if f["early"] else "listed"
         batch = f["batch"] or "batch unknown"
         lines.append(

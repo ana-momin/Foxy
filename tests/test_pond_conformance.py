@@ -581,3 +581,84 @@ def test_the_manifest_says_what_post_to_slack_actually_does():
     scan = next(a for a in _ACTIONS if a["id"] == "scan_now")
     desc = scan["input_schema"]["properties"]["post_to_slack"]["description"]
     assert "not linked to a Slack workspace" in desc
+
+
+def test_two_scans_do_not_starve_each_other(client, monkeypatch):
+    """Every Pond scan shared one seen-set.
+
+    The first person to run one consumed all 508 detections and everybody
+    after was told "0 new" - correct by the letter of the code and useless as
+    an answer. A chat question asks what is out there, not what has changed
+    since a stranger last looked.
+    """
+    import datetime as dt
+
+    import app.engine as engine_mod
+    from app.models import Signal, SweepResult
+
+    def sweep(self, *, only=None, **kw):
+        r = SweepResult(started_at=dt.datetime.now(dt.timezone.utc))
+        r.record(only[0], found=3, new=3, error=None)
+        for n in range(3):
+            r.alerts.append(
+                Signal(
+                    source=only[0], external_id=f"s{n}", title=f"Co {n}",
+                    url=f"https://example.com/{n}", description="",
+                    company_name=f"Co {n}",
+                )
+            )
+        # The namespace has to be per run, or the seen-set is shared again.
+        assert self.namespace.startswith("pond:"), self.namespace
+        return r
+
+    monkeypatch.setattr(engine_mod.Engine, "sweep", sweep)
+
+    def run_one():
+        r = _run(client, "scan_now", {"sources": ["yc_directory"]})
+        tid = r.json()["task_id"]
+        for _ in range(10):
+            got = client.get(f"/tasks/{tid}", headers=HEADERS).json()
+            if got["status"] not in {"queued", "running"}:
+                return got
+        return got
+
+    first, second = run_one(), run_one()
+    for got in (first, second):
+        assert got["status"] == "completed", got
+        assert "3 detections" in got["output"][0]["text"], got["output"][0]["text"]
+
+
+def test_a_scan_cleans_up_after_itself(client, monkeypatch):
+    """The scratch rows exist to keep one answer honest, not to accumulate."""
+    import app.pond_tasks as pt
+    from app.db import Seen, session
+    from sqlalchemy import func, select
+
+    monkeypatch.setattr(pt, "_do_one_source", _stub_source)
+
+    r = _run(client, "scan_now", {"sources": ["yc_directory"]})
+    tid = r.json()["task_id"]
+    for _ in range(10):
+        got = client.get(f"/tasks/{tid}", headers=HEADERS).json()
+        if got["status"] == "completed":
+            break
+
+    with session() as s:
+        left = s.execute(
+            select(func.count()).select_from(Seen)
+            .where(Seen.fingerprint.like(f"pond:{tid}:%"))
+        ).scalar()
+    assert left == 0, f"{left} scratch rows left behind"
+
+
+def test_the_caller_can_ask_for_more_results(client):
+    """Asking for fifty used to be a parameter error."""
+    from app.main import _ACTIONS
+
+    scan = next(a for a in _ACTIONS if a["id"] == "scan_now")
+    limit = scan["input_schema"]["properties"]["limit"]
+    assert limit["type"] == "integer"
+    assert limit["maximum"] >= 50
+
+    r = _run(client, "scan_now", {"sources": ["yc_directory"], "limit": 50})
+    assert r.status_code == 202, r.text
