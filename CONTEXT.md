@@ -239,6 +239,16 @@ schedule is now commented out.
 * `%-I` in `strftime` is a glibc extension and raises on Windows.
 * serper rejects `num` other than 10 on free accounts.
 * Neon: `DEFAULT 0` is invalid on a BOOLEAN column.
+* **Datetimes have bitten this codebase three times, always the same way**: the
+  fixtures write one shape and the real database holds another, so the tests
+  pass and production 500s. `/admin/status` handed raw datetimes to the JSON
+  serialiser (no dated rows in the fixtures); it later met plain `date` objects
+  it did not know; and the sweep alarm subtracted an offset-aware
+  `last_sweep_at` from a naive now. Timestamps stored as ISO strings carry
+  `+00:00`; columns are naive. `_parse` in `app/admin.py` now normalises on the
+  way out and everything downstream depends on that. When writing a fixture for
+  anything dated, write it the way the sweep writes it, not the way that is
+  convenient.
 * `hosted-doctor` exits 1 when it **finds** a problem. Correct for a command a
   person reads, wrong for a job that mails on failure - running it from the
   Actions tab painted the run red over a workspace that had simply never chosen
