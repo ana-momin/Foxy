@@ -239,6 +239,12 @@ schedule is now commented out.
 * `%-I` in `strftime` is a glibc extension and raises on Windows.
 * serper rejects `num` other than 10 on free accounts.
 * Neon: `DEFAULT 0` is invalid on a BOOLEAN column.
+* A heredoc truncated `app/static/admin.js` to **zero bytes** and it shipped.
+  The console still rendered and every button still worked - by falling back to
+  a full page reload with a browser confirm on it, which is what the file
+  existed to replace. No test touched it. `tests/test_assets.py` now insists
+  that assets a page asks for arrive with bytes in them, and that every element
+  a script reaches for exists in the markup.
 
 ---
 
@@ -307,10 +313,15 @@ The workflow has a `mode` input: `sweep`, `doctor`, `doctor-post`, `repair`,
 
 ### Things that will eventually need attention
 
-* **Search credits.** 742 of 2,500 spent. One Slack warning fires at 80%. When
-  it runs out, X and LinkedIn degrade quietly; the three YC sources are fine.
-* **GitHub disables scheduled workflows after 60 days without a push.** Any
-  commit resets it.
+* **Search credits.** One Slack warning fires at 80%. When they run out, X and
+  LinkedIn degrade quietly; the three YC sources are unaffected. `/healthz`
+  reports the live figure under `search_budget`, which is worth reading rather
+  than trusting any number written down here.
+* **GitHub disables scheduled workflows after 60 days without a push.** Handled:
+  the sweep pushes an empty `[skip ci]` commit once the newest commit is 45 days
+  old, so hosted mode winds its own clock. `tests/test_schedule.py` holds that
+  in place. If that step is ever removed, Foxy stops sweeping two months later
+  and nothing anywhere says so.
 * **Vercel Hobby forbids commercial use.** Irrelevant while Pond takes the
   money; it matters if Foxy ever bills directly.
 * **`umer`** installed but never picked a channel, so gets nothing. A DM nudge
