@@ -115,6 +115,11 @@ padding:20px 22px;margin-bottom:28px;box-shadow:var(--sh)}
 .claim h2{font-size:14px;font-weight:600;margin:0 0 6px}
 .claim p{font-size:13.5px;color:var(--muted);margin:0 0 12px;line-height:1.55}
 .claim input{max-width:260px;text-align:center;letter-spacing:.08em;font-weight:600}
+.done-mark{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;
+background:var(--accent);color:#fff;font-size:25px;margin-bottom:24px;
+box-shadow:0 10px 28px -12px var(--accent)}
+.done-mark.quiet{background:var(--surface);color:var(--muted);
+border:1px solid var(--border2);box-shadow:none}
 .save:disabled:hover{background:var(--accent)}
 """
 
@@ -343,51 +348,14 @@ def welcome(install_id: str) -> dict:
 
 
 @router.get("/app/{install_id}/upgrade", response_model=None)
-def upgrade(install_id: str, asked: str = "") -> HTMLResponse:
-    """Where to get more alerts.
+def upgrade(install_id: str, asked: str = "") -> RedirectResponse:
+    """Send them to the pricing page.
 
-    No prices here. Pond sells the plans, enforces the allowance and takes the
-    money, so quoting a figure on this page only creates somewhere for the two
-    to disagree. One sentence and a link out.
+    This used to restate the plans in its own words, which meant two pages
+    describing the same thing and one of them going stale. The pricing page is
+    where plans live now, so this only has to point at it.
     """
-    with session() as s:
-        row = installs.get(s, install_id)
-        if row is None or not row.active:
-            return _err("That settings link is not valid.")
-        team, active, label = row.team_name, row.plan_active, row.plan_label
-        used, quota = row.alerts_used or 0, row.quota
-
-    back = f'<a class="ghost" href="/app/{html.escape(install_id)}">Back to settings</a>'
-
-    if active:
-        body = f"""
-<div class="ok">&#10003; {html.escape(label)}</div>
-<h1>No limit on this workspace</h1>
-<p class="lede">Everything is switched on for <b>{html.escape(team)}</b>, and
-{used} alerts have gone out so far.</p>
-<div class="actions">{back}</div>"""
-        return _shell(body, "Foxy")
-
-    spent = (
-        f"<b>{html.escape(team)}</b> has used all {quota} of its free alerts."
-        if quota and used >= quota
-        else f"<b>{html.escape(team)}</b> has used {used} of its {quota} free alerts."
-    )
-
-    body = f"""
-<h1>More alerts</h1>
-<p class="lede">{spent} Foxy is on Pond, where the plans live &mdash; everything
-else stays exactly as it is.</p>
-
-<div class="actions">
-  <a class="btn" href="{html.escape(settings.pond_listing_url)}">Open Foxy on Pond</a>
-  {back}
-</div>
-
-<p class="hint" style="margin-top:22px">Prefer to ask? <a
-href="https://x.com/{html.escape(settings.contact_x)}">DM on X</a> or <a
-href="mailto:{html.escape(settings.support_email)}">email</a>.</p>"""
-    return _shell(body, "Foxy")
+    return RedirectResponse("/pricing", 303)
 
 
 @router.get("/app/{install_id}/stop", response_model=None)
@@ -395,10 +363,26 @@ def stop(install_id: str) -> HTMLResponse:
     with session() as s:
         installs.deactivate(s, install_id)
     return _shell(
-        """<h1>Alerts stopped</h1>
-        <p class="lede">Foxy will not post to your workspace again. Remove the app
-        from Slack too if you want the bot gone entirely.</p>
-        <p><a href="/">Back to Foxy</a></p>""",
+        f"""
+<div class="done-mark quiet">&#10003;</div>
+<h1>Alerts stopped</h1>
+<p class="lede">Foxy will not post to your workspace again. Everything it has
+already sent stays where it is.</p>
+
+<div class="next">
+  <h2>If you change your mind</h2>
+  <ul>
+    <li><b>Add Foxy again</b> and it picks up where it left off &mdash; nothing
+        you have already seen will be repeated.</li>
+    <li><b>To remove it entirely</b>, delete the app from your Slack workspace
+        settings as well.</li>
+  </ul>
+</div>
+
+<div class="actions">
+  <a class="btn" href="/slack/install">Start again</a>
+  <a class="ghost" href="/">Back to Foxy</a>
+</div>""",
         "Stopped",
     )
 
@@ -483,19 +467,10 @@ def done(install_id: str, tested: str = "", joined: str = "") -> HTMLResponse:
 }})();
 </script>
 
-<div class="links">
-  <a class="lk" href="/#/how">
-    <b>How it works</b><span>The pipeline, the verdicts, the accuracy</span>
-  </a>
-  <a class="lk" href="/app/{html.escape(install_id)}">
-    <b>Change settings</b><span>Channel, API keys, alert threshold</span>
-  </a>
-  <a class="lk" href="https://github.com/ana-momin/Foxy">
-    <b>Source code</b><span>MIT licensed, self-host it if you prefer</span>
-  </a>
-  <a class="lk" href="/">
-    <b>Back to Foxy</b><span>The overview</span>
-  </a>
+<div class="actions">
+  <a class="btn" href="https://slack.com/app_redirect?channel={html.escape(channel_id)}">Open the channel</a>
+  <a class="ghost" href="/app/{html.escape(install_id)}">Change settings</a>
+  <a class="ghost" href="/how">How it works</a>
 </div>
 
 <p class="muted" style="margin-top:32px">Bookmark

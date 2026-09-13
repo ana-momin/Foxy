@@ -105,16 +105,18 @@ font-family:"JetBrains Mono",monospace}
 .sec>h2{font-size:11px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;
 color:var(--dim);font-family:"JetBrains Mono",monospace;margin:0 0 14px}
 
-.srcs{display:flex;flex-wrap:wrap;gap:8px}
-.src{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);
-border-radius:10px;padding:9px 14px;font-size:13px;color:var(--txt2);
-background:var(--card)}
-.src i{width:6px;height:6px;border-radius:50%;background:var(--up);font-style:normal;
-flex:none}
+.srcs{border:1px solid var(--line);border-radius:14px;background:var(--card);
+overflow:hidden}
+.src{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;
+gap:12px;padding:13px 18px;border-top:1px solid var(--line);font-size:13.5px}
+.srcs>.src:first-child{border-top:0}
+.src i{width:6px;height:6px;border-radius:50%;background:var(--up);font-style:normal}
 .src i.warn{background:var(--warn)}
-.src u{text-decoration:none;color:var(--dim);font-size:11.5px;
-font-family:"JetBrains Mono",monospace}
-.src em{font-style:normal;color:var(--brand);font-weight:600;font-size:12px}
+.src .sn{color:var(--txt);font-weight:500}
+.src .sc{color:var(--brand);font-weight:600;font-size:12.5px;
+font-family:"JetBrains Mono",monospace;min-width:38px;text-align:right}
+.src .st{color:var(--dim);font-size:11.5px;font-family:"JetBrains Mono",monospace;
+min-width:56px;text-align:right}
 
 .att{border:1px solid #F0D4AF;border-radius:14px;overflow:hidden;background:#FFFBF5}
 .rows{border:1px solid var(--line);border-radius:14px;background:var(--card);
@@ -521,11 +523,16 @@ def console(key: str = "") -> HTMLResponse:
         attention = f'<div class="sec"><h2>Needs you</h2><div class="att">{rows}</div></div>'
 
     # Sources as a health strip: a dot each, and a number only when there is news.
+    # A grid rather than a row of pills: six items at different widths wrapped
+    # into a ragged block where nothing lined up and the counts were hard to
+    # compare. Aligned columns make the odd one out obvious.
     chips = "".join(
-        f'<span class="src"><i class="{"" if i["ok"] else "warn"}"></i>'
-        f'{html.escape(name.replace("_", " "))}'
-        + (f' <em>+{i["new"]}</em>' if i["ok"] and i["new"] else "")
-        + f' <u>{_ago(_parse(i["ran_at"]))}</u></span>'
+        '<div class="src">'
+        f'<i class="{"" if i["ok"] else "warn"}"></i>'
+        f'<span class="sn">{html.escape(name.replace("_", " "))}</span>'
+        f'<span class="sc">{("+" + str(i["new"])) if i["ok"] and i["new"] else ""}</span>'
+        f'<span class="st">{_ago(_parse(i["ran_at"]))}</span>'
+        "</div>"
         for name, i in sorted(d["sources"].items())
     )
 
@@ -640,7 +647,6 @@ def console(key: str = "") -> HTMLResponse:
               <div class="sm-rule"></div>
               <div class="sm-text" id="p-text"></div>
               <a class="sm-btn" id="p-btn" hidden></a>
-              <div class="sm-foot">Foxy &middot; reply here and someone will read it</div>
             </div>
           </div>
         </div>
@@ -1116,14 +1122,9 @@ def _announcement(
             }
         )
 
-    blocks.append(
-        {
-            "type": "context",
-            "elements": [
-                {"type": "mrkdwn", "text": "Foxy · reply here and someone will read it"}
-            ],
-        }
-    )
+    # No footer. It promised that a reply would be read, which is not
+    # something this can keep, and it repeated on every announcement until the
+    # line became furniture rather than information.
     return blocks, f"{heading}: {text}"
 
 

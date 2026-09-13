@@ -473,41 +473,19 @@ def test_changing_a_plan_needs_a_post(db, admin):
 # --- what the page may and may not promise -----------------------------------
 
 
-def test_the_page_quotes_no_price_and_points_at_pond(db, client):
-    """Pond sells the plans, enforces the allowance and takes the money.
+def test_the_upgrade_link_goes_to_the_pricing_page(db, client):
+    """It used to restate the plans in its own words, so two pages described
+    the same thing and one of them went stale."""
+    r = client.get(f"/app/{_install(db, team_id='T-UP')}/upgrade", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/pricing"
 
-    A figure repeated here is only somewhere for the two to disagree, and a
-    Buy button would be worse: nothing on this side can tell a workspace that
-    paid from one that says so.
-    """
+
+def test_the_pricing_page_offers_a_person(db, client):
+    """Hitting the cap with no remedy is its own kind of broken."""
     from app.config import settings
 
-    page = client.get(f"/app/{_install(db, team_id='T-HONEST')}/upgrade").text
-
-    assert "$" not in page, "no prices on this page"
-    assert settings.pond_listing_url in page
-    assert "/subscribed" not in page, "nothing may grant a plan it cannot verify"
-
-
-def test_a_workspace_without_a_cap_is_not_asked_for_anything(db, client):
-    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
-    install_id = _install(
-        db, team_id="T-UNCAPPED", plan="pro", plan_until=now + dt.timedelta(days=30)
-    )
-    page = client.get(f"/app/{install_id}/upgrade").text
-    assert "No limit on this workspace" in page
-    assert "More alerts" not in page
-
-
-def test_an_expired_plan_is_asked_again(db, client):
-    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
-    install_id = _install(
-        db, team_id="T-LAPSED", plan="pro", plan_until=now - dt.timedelta(days=1)
-    )
-    from app.config import settings
-
-    assert settings.pond_listing_url in client.get(f"/app/{install_id}/upgrade").text
-
+    assert settings.support_email in client.get("/pricing").text
 
 def test_pond_still_carries_the_real_plans():
     """The half that works stays. Pond sells to Pond users and enforces the
@@ -795,7 +773,10 @@ def test_an_announcement_reaches_every_active_channel(db, admin, monkeypatch):
     # Dressed, so it does not read as another detection in a channel of alerts.
     blocks = said[0][2]
     assert blocks and blocks[0]["text"]["text"].endswith("*Announcement*")
-    assert blocks[-1]["type"] == "context"
+    assert blocks[1]["type"] == "divider", "the heading needs separating"
+    # No standing footer: it promised a reply would be read, which is not a
+    # promise this can keep, and it repeated until it became furniture.
+    assert not [b for b in blocks if b["type"] == "context"]
 
 
 def test_an_announcement_can_carry_a_tone(db, admin, monkeypatch):
@@ -1180,3 +1161,24 @@ def test_the_preview_renders_what_slack_will(db, admin):
     js = pathlib.Path("app/static/preview.js").read_text(encoding="utf-8")
     assert "<b>$1</b>" in js, "single asterisks are bold in Slack"
     assert "<em>$1</em>" in js, "underscores are italic"
+
+
+def test_the_stop_page_offers_a_way_back(db, client):
+    """Stopping is reversible, and a page that only says goodbye hides that."""
+    install_id = _install(db, team_id="T-STOPUI")
+    page = client.get(f"/app/{install_id}/stop").text
+
+    assert "Alerts stopped" in page
+    assert "/slack/install" in page, "no way to start again"
+    assert 'class="btn"' in page and 'class="ghost"' in page
+
+
+def test_the_finished_page_uses_buttons(db, client):
+    """They were link cards with a heading and a description each, which read
+    as navigation rather than as the one thing to do next."""
+    install_id = _install(db, team_id="T-DONEUI")
+    page = client.get(f"/app/{install_id}/done").text
+
+    assert 'class="btn"' in page, "no primary action"
+    assert 'class="lk"' not in page, "the old link cards are back"
+    assert "slack.com/app_redirect" in page, "the obvious next step is the channel"
