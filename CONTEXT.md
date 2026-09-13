@@ -239,6 +239,11 @@ schedule is now commented out.
 * `%-I` in `strftime` is a glibc extension and raises on Windows.
 * serper rejects `num` other than 10 on free accounts.
 * Neon: `DEFAULT 0` is invalid on a BOOLEAN column.
+* `hosted-doctor` exits 1 when it **finds** a problem. Correct for a command a
+  person reads, wrong for a job that mails on failure - running it from the
+  Actions tab painted the run red over a workspace that had simply never chosen
+  a channel. The workflow now swallows that exit code for doctor modes only; a
+  failed sweep still fails the run, and there is a test on each side.
 * A heredoc truncated `app/static/admin.js` to **zero bytes** and it shipped.
   The console still rendered and every button still worked - by falling back to
   a full page reload with a browser confirm on it, which is what the file
