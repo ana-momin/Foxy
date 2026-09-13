@@ -33,6 +33,10 @@ jobs:
   sweep:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Only for the keepalive step below; the sweep itself writes to Postgres,
+    # not to the repository.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -63,3 +67,25 @@ jobs:
             audit-early-fix) python -m app.cli audit-early --fix ;;
             *)           python -m app.cli hosted-sweep ;;
           esac
+
+      # GitHub switches a scheduled workflow off after 60 days with no commits
+      # to the repository, sends one email about it, and waits to be turned back
+      # on by hand. For a monitor that is supposed to run for years after anyone
+      # last touched the code, that is a silent stop with a timer on it.
+      #
+      # So the sweep keeps its own clock wound: when the newest commit is old
+      # enough to be worth worrying about, push one that changes nothing. The
+      # [skip ci] marker keeps it from starting a test run nobody asked for, and
+      # a failure here must never fail a sweep that already did its work.
+      - name: Keep the schedule alive
+        if: always() && github.event_name == 'schedule'
+        continue-on-error: true
+        run: |
+          age=$(( ( $(date +%s) - $(git log -1 --format=%ct) ) / 86400 ))
+          echo "newest commit is $age days old"
+          if [ "$age" -ge 45 ]; then
+            git config user.name  "foxy"
+            git config user.email "foxy@users.noreply.github.com"
+            git commit --allow-empty -m "Keep the sweep schedule alive [skip ci]"
+            git push || echo "push did not land; the next sweep will try again"
+          fi
